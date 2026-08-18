@@ -1,12 +1,14 @@
 # Spotriq Source of Truth
 
-This replacement ZIP supersedes the original Figma Make export `Spotriq(1).zip`.
+This project is the current Spotriq engineering source of truth.
 
-Use this project as the source of truth for the next engineering milestone.
-Do not merge future work back into the older Figma ZIP.
+Current milestone completed:
+**Foundation Hardening + Backend Skeleton**
 
-Current stage:
-Figma export audited and stabilized for backend fusion.
+The Figma-derived consumer product remains preserved under `apps/web`.
+The repository now includes a real TypeScript API, worker, shared domain/config/API contracts, and PostgreSQL persistence foundation.
 
-Next stage:
-Repository/Foundation Hardening + Backend Skeleton.
+Next milestone:
+**BSC Chain Adapter + Evidence Engine**
+
+Do not merge future work back into the original Figma export or an older replacement ZIP.

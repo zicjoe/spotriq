@@ -1,0 +1,21 @@
+{
+  "name": "@spotriq/config",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@spotriq/domain": "workspace:*",
+    "dotenv": "17.4.2"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3",
+    "@types/node": "^24.0.0"
+  }
+}

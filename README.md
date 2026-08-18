@@ -4,65 +4,81 @@
 
 > Know what your money needs. Spot the right agent for it.
 
-This repository is the engineering-ready replacement of the Figma Make export.
+Spotriq is now a pnpm monorepo with the Figma-derived consumer frontend plus a backend/worker/persistence foundation designed for the real BSC financial-agent marketplace.
 
-## Run locally on Windows PowerShell
+## Workspace
 
-1. Extract the ZIP to a simple folder, for example:
-
-```powershell
-C:\dev\spotriq
+```text
+apps/
+  web/       React/Vite Spotriq product
+  api/       Fastify TypeScript API
+  worker/    background worker skeleton
+packages/
+  domain/        shared domain resources
+  config/        server configuration
+  api-contracts/ normalized API contracts
+  db/            PostgreSQL foundation/migrations
 ```
 
-2. Open PowerShell in that folder.
+## Windows PowerShell setup
 
-3. Confirm Node.js is installed:
-
-```powershell
-node -v
-```
-
-Use Node.js 20 or newer.
-
-4. Enable pnpm with Corepack if pnpm is not already installed:
-
-```powershell
-corepack enable
-corepack prepare pnpm@latest --activate
-```
-
-5. Install dependencies:
+From the repository root, for example `C:\dev\Spotriq`:
 
 ```powershell
 pnpm install
-```
-
-6. Run the checks:
-
-```powershell
 pnpm check
-```
-
-7. Start Spotriq:
-
-```powershell
 pnpm dev
 ```
 
-8. Open the local URL Vite prints, normally:
+`pnpm dev` starts:
+
+- Spotriq Web: `http://localhost:5173`
+- Spotriq API: `http://localhost:3001`
+- Spotriq Worker: local worker process/heartbeat
+
+Useful API checks:
 
 ```text
-http://localhost:5173
+http://localhost:3001/health
+http://localhost:3001/v1/meta
+http://localhost:3001/v1/system/capabilities
 ```
 
-## Important
-The current product uses clearly labelled sample marketplace data. Real BSC/protocol/backend integrations are the next engineering phase.
+PostgreSQL, Redis, and BSC RPC credentials are intentionally optional for the current local-development milestone. The API reports unconfigured dependencies rather than failing.
 
-See:
+## Run one process only
+
+```powershell
+pnpm dev:web
+pnpm dev:api
+pnpm dev:worker
+```
+
+## Environment
+
+Copy `.env.example` to `.env` only when configuration is needed. Never commit `.env`.
+
+The next milestone will introduce the real BSC chain/evidence data layer.
+
+## Database
+
+The first persistence migration is included, but do **not** run it until a PostgreSQL `DATABASE_URL` is configured.
+
+Then:
+
+```powershell
+pnpm db:health
+pnpm db:migrate
+```
+
+## Engineering documentation
+
 - `docs/FIGMA_EXPORT_AUDIT.md`
 - `docs/BACKEND_FUSION_CONTRACT.md`
-- `docs/IMPLEMENTATION_REPORT_FRONTEND_STABILIZATION.md`
+- `docs/FOUNDATION_HARDENING_BACKEND_SKELETON.md`
+- `docs/IMPLEMENTATION_REPORT_FOUNDATION_HARDENING_BACKEND_SKELETON.md`
+- `docs/ENGINEERING_STATUS.md`
 
+## Current data state
 
-### Cross-platform pnpm note
-The workspace intentionally does not restrict `supportedArchitectures`; pnpm should install the correct native optional dependencies for Windows development and Linux deployment environments.
+The consumer UI still uses clearly labelled normalized sample marketplace data. Real BSC/protocol/provider data begins in the next milestone; fake provider integration is deliberately avoided.

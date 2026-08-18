@@ -1,0 +1,25 @@
+{
+  "name": "@spotriq/api",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "dependencies": {
+    "@fastify/cors": "11.3.0",
+    "@spotriq/api-contracts": "workspace:*",
+    "@spotriq/config": "workspace:*",
+    "@spotriq/db": "workspace:*",
+    "fastify": "5.10.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test src/**/*.test.ts"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3",
+    "tsx": "4.23.1",
+    "@types/node": "^24.0.0"
+  }
+}
