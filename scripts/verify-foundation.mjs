@@ -36,6 +36,11 @@ const required = [
   "apps/api/src/routes/checks.ts",
   "apps/web/src/repositories/smartMoneyRepository.ts",
   "apps/web/src/services/smartMoneyRealtime.ts",
+  "packages/agent-registry/package.json",
+  "packages/agent-registry/src/index.ts",
+  "packages/db/migrations/0007_agent_registry_discovery.sql",
+  "apps/api/src/routes/agents.ts",
+  "apps/web/src/repositories/agentRegistryRepository.ts",
   ".env.example",
   ".gitignore",
 ];
@@ -130,4 +135,25 @@ if (!appUi.includes("smartMoneyRepository.startCheck") || !appUi.includes("subsc
   throw new Error("Smart Money Check UI must be wired to the live API while retaining example mode.");
 }
 
-console.log("Spotriq foundation + BSC/evidence + PancakeSwap + Venus Health + Yield + Grid market context + Smart Money Check verification passed.");
+
+
+const agentRegistry = await readFile(path.join(root, "packages/agent-registry/src/index.ts"), "utf8");
+for (const marker of ["ERC8004_REGISTRIES", "createAgentRegistry", "deriveAgentCategoryHints", "verifyIdentity", "MemoryAgentRegistryStore", "PostgresAgentRegistryStore", "8004scan"]) {
+  if (!agentRegistry.includes(marker)) throw new Error(`Agent registry integration is missing ${marker}.`);
+}
+const agentRoutes = await readFile(path.join(root, "apps/api/src/routes/agents.ts"), "utf8");
+for (const route of ["/v1/registry/status", "/v1/agents", "/v1/agents/search", "/v1/agents/:chainId/:agentId", "/v1/agents/:chainId/:agentId/feedback", "/v1/accounts/:address/agents"]) {
+  if (!agentRoutes.includes(route)) throw new Error(`Missing agent discovery route ${route}.`);
+}
+const agentRegistryUi = await readFile(path.join(root, "apps/web/src/repositories/agentRegistryRepository.ts"), "utf8");
+if (!agentRegistryUi.includes("ApiAgentRegistryRepository") || !appUi.includes("Live ERC-8004 registry discoveries") || !appUi.includes("Not activatable in Spotriq yet")) {
+  throw new Error("Explore must preserve a distinct live ERC-8004 discovery surface without presenting discovered identities as activatable services.");
+}
+if (!appUi.includes('category === "all"\n    ? registryAgents') || !appUi.includes("with recognized financial metadata hints")) {
+  throw new Error("Explore All must render returned live registry identities without requiring a financial metadata hint.");
+}
+if (!evidence.includes("ERC8004_IDENTITY") || !evidence.includes("SCAN8004_DISCOVERY")) {
+  throw new Error("Evidence Engine must include ERC-8004 canonical identity and 8004scan indexed discovery methods.");
+}
+
+console.log("Spotriq foundation + four-category financial data + ERC-8004/8004scan discovery verification passed.");

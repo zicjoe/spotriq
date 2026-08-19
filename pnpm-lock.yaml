@@ -23,6 +23,9 @@ importers:
       '@fastify/cors':
         specifier: 11.3.0
         version: 11.3.0
+      '@spotriq/agent-registry':
+        specifier: workspace:*
+        version: link:../../packages/agent-registry
       '@spotriq/api-contracts':
         specifier: workspace:*
         version: link:../../packages/api-contracts
@@ -274,6 +277,31 @@ importers:
       '@spotriq/db':
         specifier: workspace:*
         version: link:../../packages/db
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      tsx:
+        specifier: 4.23.1
+        version: 4.23.1
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+
+  packages/agent-registry:
+    dependencies:
+      '@spotriq/chain':
+        specifier: workspace:*
+        version: link:../chain
+      '@spotriq/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@spotriq/evidence':
+        specifier: workspace:*
+        version: link:../evidence
+      viem:
+        specifier: 2.55.11
+        version: 2.55.11(typescript@5.7.3)
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

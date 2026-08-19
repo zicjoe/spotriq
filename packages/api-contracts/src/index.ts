@@ -49,6 +49,9 @@ export interface CapabilityResponse {
   yieldDataEnabled: boolean;
   gridMarketContextEnabled: boolean;
   smartMoneyCheckEnabled: boolean;
+  agentRegistryEnabled: boolean;
+  externalAgentDiscoveryEnabled: boolean;
+  canonicalAgentIdentityVerificationEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -157,3 +160,20 @@ export interface SmartMoneyCheckEventsResponse {
 
 export interface GridMarketContextResponse { snapshot: import("@spotriq/domain").GridWalletMarketSnapshot; }
 export interface GridPoolContextResponse { context: import("@spotriq/domain").GridMarketContextSnapshot; }
+
+export interface AgentRegistryStatusResponse {
+  status: import("@spotriq/domain").AgentRegistryStatus;
+}
+
+export interface AgentDiscoveryResponse {
+  page: import("@spotriq/domain").AgentDiscoveryPage;
+}
+
+export interface AgentDiscoveryDetailResponse {
+  agent: import("@spotriq/domain").DiscoveredAgent;
+}
+
+export interface AgentFeedbackResponse {
+  page: import("@spotriq/domain").ExternalAgentFeedbackPage;
+}
+

@@ -32,6 +32,12 @@ export interface ServerConfig {
   bscRpcPrimary?: string;
   bscRpcSecondary?: string;
   bscRpcTimeoutMs: number;
+  agentDiscoveryChainId: 56 | 97;
+  scan8004BaseUrl: string;
+  scan8004ApiKey?: string;
+  scan8004TimeoutMs: number;
+  agentRegistryMainnetRpc?: string;
+  agentRegistryTestnetRpc?: string;
 }
 
 function optional(value: string | undefined): string | undefined {
@@ -62,6 +68,14 @@ function parseEnvironment(value: string | undefined): SpotriqEnvironment {
   throw new Error(`Invalid SPOTRIQ_ENV: ${value}`);
 }
 
+
+function parseAgentDiscoveryChainId(value: string | undefined): 56 | 97 {
+  if (!value) return 56;
+  const parsed = Number(value);
+  if (parsed === 56 || parsed === 97) return parsed;
+  throw new Error(`Invalid AGENT_DISCOVERY_CHAIN_ID: ${value}. Expected 56 or 97.`);
+}
+
 function parseNetwork(value: string | undefined): BscNetwork {
   if (!value) return "testnet";
   if (value === "testnet" || value === "mainnet") return value;
@@ -85,6 +99,12 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     bscRpcPrimary: optional(env.BSC_RPC_PRIMARY),
     bscRpcSecondary: optional(env.BSC_RPC_SECONDARY),
     bscRpcTimeoutMs: parsePositiveInt(env.BSC_RPC_TIMEOUT_MS, 7500, "BSC_RPC_TIMEOUT_MS"),
+    agentDiscoveryChainId: parseAgentDiscoveryChainId(env.AGENT_DISCOVERY_CHAIN_ID),
+    scan8004BaseUrl: env.SCAN8004_BASE_URL?.trim() || "https://8004scan.io/api/v1/public",
+    scan8004ApiKey: optional(env.SCAN8004_API_KEY),
+    scan8004TimeoutMs: parsePositiveInt(env.SCAN8004_TIMEOUT_MS, 7500, "SCAN8004_TIMEOUT_MS"),
+    agentRegistryMainnetRpc: optional(env.AGENT_REGISTRY_MAINNET_RPC),
+    agentRegistryTestnetRpc: optional(env.AGENT_REGISTRY_TESTNET_RPC),
   };
 
   if (appEnv === "production") {

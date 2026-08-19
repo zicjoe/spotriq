@@ -12,6 +12,9 @@ const config: ServerConfig = {
   corsOrigins: ["http://localhost:5173"],
   bscNetwork: "testnet",
   bscRpcTimeoutMs: 7500,
+  agentDiscoveryChainId: 56,
+  scan8004BaseUrl: "https://8004scan.example/api/v1/public",
+  scan8004TimeoutMs: 7500,
 };
 
 function rpcResponse(id: number, result: unknown): Response {
@@ -305,5 +308,35 @@ test("GET Grid market context exposes normalized TWAP regime context", async () 
   const response = await app.inject({ method: "GET", url: "/v1/wallets/0x1111111111111111111111111111111111111111/grid/market-context" });
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().data.snapshot.contexts[0].regime, "RANGE_LIKE");
+  await app.close();
+});
+
+test("GET /v1/agents exposes live registry discoveries without converting them into marketplace services", async () => {
+  const discovered = {
+    discoveryId: "erc8004:56:7",
+    identity: { namespace: "eip155" as const, chainId: 56 as const, registryAddress: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432", agentId: "7", identifier: "eip155:56:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" },
+    name: "Range Sentinel",
+    description: "rebalancing agent",
+    supportedProtocols: ["A2A"],
+    categoryHints: [{ category: "rebalancing" as const, confidence: "medium" as const, basis: ["rebalanc"], provenance: "operator-claimed" as const, note: "not tested" }],
+    supportedTrust: [], registrationServices: [],
+    externalReputation: { source: "8004scan" as const, totalFeedbacks: 2, note: "external" },
+    evidence: [], listingState: "DISCOVERED" as const, marketplaceServiceState: "NOT_CREATED" as const, limitations: ["not a service"],
+  };
+  const agentRegistry = {
+    getStatus: async () => ({ provider: "8004scan + ERC-8004" as const, defaultDiscoveryChainId: 56 as const, apiBaseUrl: "https://8004scan.example", apiKeyConfigured: false, indexState: "AVAILABLE" as const, canonicalVerification: "ENABLED" as const, registries: [], checkedAt: new Date().toISOString(), limitations: [] }),
+    listAgents: async () => ({ agents: [discovered], chainId: 56 as const, page: 1, limit: 20, total: 1, hasMore: false, source: "8004scan" as const, fetchedAt: new Date().toISOString(), limitations: [] }),
+    searchAgents: async () => ({ agents: [discovered], chainId: 56 as const, page: 1, limit: 20, total: 1, hasMore: false, source: "8004scan" as const, fetchedAt: new Date().toISOString(), limitations: [] }),
+    getAgent: async () => discovered,
+    getAgentsByOwner: async () => ({ agents: [discovered], chainId: 56 as const, page: 1, limit: 20, total: 1, hasMore: false, source: "8004scan" as const, fetchedAt: new Date().toISOString(), limitations: [] }),
+    getFeedback: async () => ({ feedback: [], chainId: 56 as const, agentId: "7", page: 1, limit: 20, total: 0, hasMore: false, fetchedAt: new Date().toISOString() }),
+    verifyIdentity: async () => ({ state: "VERIFIED" as const, checkedAt: new Date().toISOString(), registryAddress: discovered.identity.registryAddress, ownerAddress: "0x1111111111111111111111111111111111111111", registrationMetadataState: "REMOTE_URI_NOT_FETCHED" as const, evidence: [], limitations: [] }),
+  };
+  const app = await buildServer({ config, chain: makeChain(), agentRegistry, logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/agents?chainId=56&limit=10" });
+  assert.equal(response.statusCode, 200);
+  const payload = response.json();
+  assert.equal(payload.data.page.agents[0].listingState, "DISCOVERED");
+  assert.equal(payload.data.page.agents[0].marketplaceServiceState, "NOT_CREATED");
   await app.close();
 });

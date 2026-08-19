@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -29,6 +29,7 @@ import {
   type SmartMoneyCheckView,
 } from "../repositories/smartMoneyRepository";
 import { subscribeToSmartMoneyCheck } from "../services/smartMoneyRealtime";
+import { agentRegistryRepository } from "../repositories/agentRegistryRepository";
 
 const {
   services: SERVICES,
@@ -678,14 +679,137 @@ function HomePage({ navigate, hasActivations }: { navigate: (r: Route, p?: Parti
   );
 }
 
+
+
+function DiscoveredAgentCard({ agent, onVerify, verifying }: { agent: DiscoveredAgent; onVerify: () => void; verifying: boolean }) {
+  const verification = agent.canonicalVerification;
+  const verified = verification?.state === "VERIFIED";
+  const mismatch = verification?.state === "MISMATCH";
+  return (
+    <Card className="p-4 space-y-3 border-[#a78bfa]/15 bg-[#a78bfa]/[0.025]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium text-[#dde3ef] truncate">{agent.name}</span>
+            <Badge variant="purple">ERC-8004</Badge>
+            <Badge variant="muted">Discovered</Badge>
+          </div>
+          <div className="text-[11px] text-[#6b7d99] font-mono mt-1">BSC #{agent.identity.agentId}</div>
+        </div>
+        {verification && (
+          <span className={cn("text-[11px] font-medium", verified ? "text-[#4ade80]" : mismatch ? "text-[#f87171]" : "text-[#f59e0b]") }>
+            {verified ? "Onchain identity confirmed" : mismatch ? "Identity mismatch" : "Verification unavailable"}
+          </span>
+        )}
+      </div>
+
+      <p className="text-xs text-[#6b7d99] line-clamp-2">{agent.description}</p>
+
+      {agent.categoryHints.length > 0 ? (
+        <div className="space-y-1.5">
+          <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99]">Registry metadata hints · not tested capability</div>
+          <div className="flex flex-wrap gap-1.5">
+            {agent.categoryHints.slice(0, 4).map((hint) => (
+              <span key={hint.category} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-white/[0.035] border border-white/6 text-[#9aacc4]">
+                {CATEGORY_LABELS[hint.category]} <span className="text-[#6b7d99]">· Operator supplied</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="text-[11px] rounded-md px-3 py-2 border border-white/6 bg-white/[0.02] text-[#8090a8]">
+          No recognized Spotriq financial-category hint in this identity's current registry metadata. The identity remains visible because registry discovery is broader than marketplace readiness.
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/6 text-xs">
+        <div>
+          <div className="text-[#6b7d99] mb-0.5">External feedback</div>
+          <div className="text-[#dde3ef] font-mono">{agent.externalReputation.totalFeedbacks}</div>
+          <div className="text-[10px] text-[#6b7d99]">8004scan · external</div>
+        </div>
+        <div>
+          <div className="text-[#6b7d99] mb-0.5">Marketplace service</div>
+          <div className="text-[#9aacc4]">Not created yet</div>
+          <div className="text-[10px] text-[#6b7d99]">Not activatable in Spotriq yet</div>
+        </div>
+      </div>
+
+      {verification?.limitations?.length ? (
+        <div className={cn("text-[11px] rounded-md px-3 py-2 border", mismatch ? "text-[#fca5a5] border-[#f87171]/20 bg-[#f87171]/5" : "text-[#8090a8] border-white/6 bg-white/[0.02]") }>
+          {verification.limitations[0]}
+        </div>
+      ) : null}
+
+      <div className="flex items-center justify-between pt-1">
+        <div className="flex items-center gap-1.5 text-[11px] text-[#a78bfa]">
+          <Radio className="w-3.5 h-3.5" /> Live registry discovery
+        </div>
+        <Btn variant="ghost" size="sm" onClick={onVerify} disabled={verifying} className="text-[#a78bfa]">
+          {verifying ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Verifying</> : verification ? <><ShieldCheck className="w-3.5 h-3.5" /> Recheck identity</> : <><Shield className="w-3.5 h-3.5" /> Verify identity</>}
+        </Btn>
+      </div>
+    </Card>
+  );
+}
+
 // ─── PAGE: EXPLORE ────────────────────────────────────────────────────────────
 
 function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: Partial<NavState>) => void; initialCategory?: ExploreCategory }) {
   const [category, setCategory] = useState<ExploreCategory>(initialCategory || "all");
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [registryAgents, setRegistryAgents] = useState<DiscoveredAgent[]>([]);
+  const [registryLoading, setRegistryLoading] = useState(true);
+  const [registryError, setRegistryError] = useState<string>();
+  const [registrySource, setRegistrySource] = useState<"8004scan" | "cache">("8004scan");
+  const [verifyingDiscoveryId, setVerifyingDiscoveryId] = useState<string>();
+  const registryChainId: AgentRegistryChainId = 56;
 
-  const filtered = category === "all" ? SERVICES : SERVICES.filter(s => s.category === category);
+  const normalizedSearch = searchText.trim().toLowerCase();
+  const filtered = SERVICES.filter((service) => {
+    if (category !== "all" && service.category !== category) return false;
+    if (!normalizedSearch) return true;
+    return [service.name, service.description, service.operator, ...service.supportedProtocols, ...(service.supportedAssets ?? []), ...(service.supportedPairs ?? [])]
+      .join(" ").toLowerCase().includes(normalizedSearch);
+  });
+
+  const registryAgentsWithFinancialHints = registryAgents.filter((agent) => agent.categoryHints.length > 0);
+  const visibleRegistryAgents = category === "all"
+    ? registryAgents
+    : registryAgents.filter((agent) => agent.categoryHints.some((hint) => hint.category === category));
+
+  const loadRegistry = useCallback(async (semanticQuery?: string) => {
+    setRegistryLoading(true);
+    setRegistryError(undefined);
+    try {
+      const query = semanticQuery?.trim();
+      const page = query
+        ? await agentRegistryRepository.searchAgents(query, { chainId: registryChainId, limit: 8 })
+        : await agentRegistryRepository.listAgents({ chainId: registryChainId, limit: 8 });
+      setRegistryAgents(page.agents);
+      setRegistrySource(page.source);
+    } catch (cause) {
+      setRegistryError(cause instanceof Error ? cause.message : "Live ERC-8004 discovery is temporarily unavailable.");
+    } finally {
+      setRegistryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadRegistry(); }, [loadRegistry]);
+
+  const verifyDiscoveredAgent = async (agent: DiscoveredAgent) => {
+    setVerifyingDiscoveryId(agent.discoveryId);
+    try {
+      const detail = await agentRegistryRepository.getAgent(agent.identity.chainId, agent.identity.agentId);
+      setRegistryAgents((current) => current.map((item) => item.discoveryId === detail.discoveryId ? detail : item));
+    } catch (cause) {
+      setRegistryError(cause instanceof Error ? cause.message : "Spotriq could not complete canonical ERC-8004 verification.");
+    } finally {
+      setVerifyingDiscoveryId(undefined);
+    }
+  };
 
   const toggleCompare = (id: string) => {
     setCompareIds(ids => ids.includes(id) ? ids.filter(i => i !== id) : ids.length < 3 ? [...ids, id] : ids);
@@ -704,12 +828,18 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
         <p className="text-[#6b7d99] text-sm">Find, evaluate and activate specialist financial agents.</p>
       </div>
 
-      {/* Search bar */}
-      <div className="relative mb-6">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7d99]" />
-        <input className="w-full bg-[#1c2433] border border-white/8 rounded-lg pl-11 pr-4 py-3 text-sm text-[#dde3ef] placeholder:text-[#6b7d99] focus:outline-none focus:border-[#2dd4bf]/40 transition-colors"
-          placeholder="e.g. USDT yield with low permissions and anytime liquidity" />
-      </div>
+      {/* Search bar: local reference-service filtering + live 8004scan semantic discovery on submit; initial load uses standard registry listing */}
+      <form className="relative mb-6 flex gap-2" onSubmit={(event) => { event.preventDefault(); void loadRegistry(searchText); }}>
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7d99]" />
+          <input value={searchText} onChange={(event) => setSearchText(event.target.value)}
+            className="w-full bg-[#1c2433] border border-white/8 rounded-lg pl-11 pr-4 py-3 text-sm text-[#dde3ef] placeholder:text-[#6b7d99] focus:outline-none focus:border-[#2dd4bf]/40 transition-colors"
+            placeholder="e.g. USDT yield with low permissions and anytime liquidity" />
+        </div>
+        <Btn type="submit" variant="teal-outline" disabled={registryLoading}>
+          {registryLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Search registry
+        </Btn>
+      </form>
 
       {/* Category tabs */}
       <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
@@ -785,7 +915,10 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
           )}
 
           <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-[#6b7d99]">{filtered.length} services</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-[#6b7d99]">{filtered.length} reference services</span>
+              <Badge variant="muted">Sample data</Badge>
+            </div>
             <button onClick={() => setFilterOpen(f => !f)} className="md:hidden flex items-center gap-1.5 text-sm text-[#9aacc4]">
               <Filter className="w-4 h-4" /> Filters
             </button>
@@ -799,7 +932,60 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
                 compareSelected={compareIds.includes(s.serviceId)}
               />
             ))}
+            {filtered.length === 0 && (
+              <div className="p-6 rounded-lg border border-white/6 bg-card text-sm text-[#6b7d99]">No sample reference service matches the current filters.</div>
+            )}
           </div>
+
+          <section className="mt-10 pt-8 border-t border-white/8">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="text-lg font-semibold text-[#dde3ef]">Live ERC-8004 registry discoveries</h2>
+                  <Badge variant="purple">External</Badge>
+                </div>
+                <p className="text-xs text-[#6b7d99] max-w-2xl">Real BSC Mainnet identities discovered through 8004scan. Registry identity and external feedback are evidence, not proof of financial capability. These identities are not activatable Spotriq services until service normalization, readiness checks and marketplace tests are added.</p>
+              </div>
+              <button onClick={() => void loadRegistry(searchText)} disabled={registryLoading} className="text-xs text-[#a78bfa] flex items-center gap-1.5 shrink-0 disabled:opacity-50">
+                <RefreshCw className={cn("w-3.5 h-3.5", registryLoading && "animate-spin")} /> Refresh
+              </button>
+            </div>
+
+            {registryError && (
+              <div className="mb-4 p-3 rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 text-xs text-[#d6a04a]">
+                Live registry source unavailable: {registryError} Reference/sample services above remain available.
+              </div>
+            )}
+
+            {registryLoading && registryAgents.length === 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {[0,1,2,3].map((item) => <div key={item} className="h-44 rounded-lg border border-white/6 bg-white/[0.02] animate-pulse" />)}
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 text-[11px] text-[#6b7d99] mb-3">
+                  <Radio className="w-3.5 h-3.5 text-[#a78bfa]" />
+                  {registrySource === "8004scan" ? "Live 8004scan registry discovery" : "Cached registry discoveries"}
+                  <span>·</span><span>Chain 56</span>
+                  <span>·</span><span>{registryAgents.length} identities returned</span>
+                  <span>·</span><span>{registryAgentsWithFinancialHints.length} with recognized financial metadata hints</span>
+                  {category !== "all" && <><span>·</span><span>Filtered by operator-supplied metadata hints for {CATEGORY_LABELS[category]}</span></>}
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {visibleRegistryAgents.map((agent) => (
+                    <DiscoveredAgentCard key={agent.discoveryId} agent={agent} onVerify={() => void verifyDiscoveredAgent(agent)} verifying={verifyingDiscoveryId === agent.discoveryId} />
+                  ))}
+                </div>
+                {visibleRegistryAgents.length === 0 && !registryError && (
+                  <div className="p-5 rounded-lg border border-white/6 bg-card text-xs text-[#6b7d99]">
+                    {category === "all"
+                      ? "No live ERC-8004 identities were returned in this result set."
+                      : `No currently loaded live identity carries a ${CATEGORY_LABELS[category]} metadata hint. Switch to All to see the complete live registry result set; missing hints do not mean the identity is invalid.`}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
         </div>
       </div>
     </div>

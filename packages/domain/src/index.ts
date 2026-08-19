@@ -829,3 +829,145 @@ export interface PancakeSwapWalletPositionsSnapshot {
     maxPositions: number;
   };
 }
+
+
+// ─── ERC-8004 / 8004scan marketplace discovery ──────────────────────────────
+export type AgentRegistryChainId = 56 | 97;
+export type AgentCanonicalVerificationState = "VERIFIED" | "MISMATCH" | "UNAVAILABLE" | "NOT_CHECKED";
+export type AgentRegistrationMetadataState = "PARSED_DATA_URI" | "REMOTE_URI_NOT_FETCHED" | "UNAVAILABLE" | "INVALID";
+
+export interface AgentRegistryReference {
+  namespace: "eip155";
+  chainId: AgentRegistryChainId;
+  registryAddress: string;
+  agentId: string;
+  identifier: string;
+}
+
+export interface AgentRegistrationServiceEndpoint {
+  name: string;
+  endpoint: string;
+  version?: string;
+  skills?: string[];
+  domains?: string[];
+}
+
+export interface AgentRegistrationFile {
+  type?: string;
+  name?: string;
+  description?: string;
+  image?: string;
+  services: AgentRegistrationServiceEndpoint[];
+  x402Support?: boolean;
+  active?: boolean;
+  registrations: Array<{ agentId: string; agentRegistry: string }>;
+  supportedTrust: string[];
+}
+
+export interface AgentCategoryHint {
+  category: ServiceCategory;
+  confidence: "high" | "medium" | "low";
+  basis: string[];
+  provenance: "operator-claimed";
+  note: string;
+}
+
+export interface ExternalAgentReputationSummary {
+  source: "8004scan";
+  totalScore?: number;
+  starCount?: number;
+  totalFeedbacks: number;
+  note: string;
+}
+
+export interface AgentCanonicalVerification {
+  state: AgentCanonicalVerificationState;
+  checkedAt: string;
+  registryAddress: string;
+  ownerAddress?: string;
+  indexedOwnerMatches?: boolean;
+  agentUri?: string;
+  agentWallet?: string;
+  registrationMetadataState: AgentRegistrationMetadataState;
+  registrationBacklinkMatches?: boolean;
+  registrationFile?: AgentRegistrationFile;
+  evidence: EvidenceEnvelope[];
+  limitations: string[];
+}
+
+export interface DiscoveredAgent {
+  discoveryId: string;
+  identity: AgentRegistryReference;
+  name: string;
+  description: string;
+  imageUrl?: string;
+  ownerAddress?: string;
+  supportedProtocols: string[];
+  categoryHints: AgentCategoryHint[];
+  active?: boolean;
+  x402Support?: boolean;
+  supportedTrust: string[];
+  registrationServices: AgentRegistrationServiceEndpoint[];
+  externalReputation: ExternalAgentReputationSummary;
+  indexedAt?: string;
+  createdAt?: string;
+  canonicalVerification?: AgentCanonicalVerification;
+  evidence: EvidenceEnvelope[];
+  listingState: "DISCOVERED";
+  marketplaceServiceState: "NOT_CREATED";
+  limitations: string[];
+}
+
+export interface AgentDiscoveryPage {
+  agents: DiscoveredAgent[];
+  chainId: AgentRegistryChainId;
+  page: number;
+  limit: number;
+  total?: number;
+  hasMore?: boolean;
+  source: "8004scan" | "cache";
+  fetchedAt: string;
+  limitations: string[];
+}
+
+export interface ExternalAgentFeedbackRecord {
+  feedbackId: string;
+  source: "8004scan";
+  chainId: AgentRegistryChainId;
+  agentId: string;
+  externalUserId?: string;
+  score?: number;
+  comment?: string;
+  createdAt?: string;
+  provenance: "external";
+  note: string;
+}
+
+export interface ExternalAgentFeedbackPage {
+  feedback: ExternalAgentFeedbackRecord[];
+  chainId: AgentRegistryChainId;
+  agentId: string;
+  page: number;
+  limit: number;
+  total?: number;
+  hasMore?: boolean;
+  fetchedAt: string;
+}
+
+export interface AgentRegistryStatus {
+  provider: "8004scan + ERC-8004";
+  defaultDiscoveryChainId: AgentRegistryChainId;
+  apiBaseUrl: string;
+  apiKeyConfigured: boolean;
+  indexState: "AVAILABLE" | "UNAVAILABLE";
+  canonicalVerification: "ENABLED";
+  registries: Array<{
+    chainId: AgentRegistryChainId;
+    network: BscNetwork;
+    identityRegistry: string;
+    reputationRegistry: string;
+  }>;
+  checkedAt: string;
+  lastRateLimit?: { limit?: number; remaining?: number; resetAt?: string };
+  limitations: string[];
+}

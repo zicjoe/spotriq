@@ -152,6 +152,20 @@ export const EVIDENCE_METHODS = {
     description: "Classifies supported Grid market context from current PancakeSwap V3 price plus available 1h/6h/24h onchain TWAP observations. TWAP dispersion is not realised volatility or a profitability forecast.",
     inputMetrics: ["market.current_price", "pancakeswap.v3.twap.1h", "pancakeswap.v3.twap.6h", "pancakeswap.v3.twap.24h"],
   },
+  ERC8004_IDENTITY: {
+    methodId: "erc8004.identity",
+    version: "1.0.0",
+    name: "ERC-8004 canonical identity verification",
+    description: "Reads current owner and agent URI directly from the ERC-8004 Identity Registry on BSC. Identity verification does not prove advertised capabilities or service safety.",
+    inputMetrics: ["erc8004.ownerOf", "erc8004.tokenURI", "chain.block"],
+  },
+  SCAN8004_DISCOVERY: {
+    methodId: "8004scan.discovery",
+    version: "1.0.0",
+    name: "8004scan indexed discovery",
+    description: "Normalizes ERC-8004 agent discovery and external feedback indexed by 8004scan. Indexed metadata remains External evidence and operator claims remain claims.",
+    inputMetrics: ["8004scan.agent", "8004scan.feedback"],
+  },
 } satisfies Record<string, EvidenceMethodDefinition>;
 
 const DEFAULT_FRESHNESS_POLICY: FreshnessPolicy = {
@@ -175,6 +189,10 @@ const FRESHNESS_POLICIES: Record<string, FreshnessPolicy> = {
   "market.current_price": { metric: "market.current_price", targetAgeSeconds: 30, warnAgeSeconds: 60, hardExpirySeconds: 120 },
   "yield.current_rate": { metric: "yield.current_rate", targetAgeSeconds: 300, warnAgeSeconds: 600, hardExpirySeconds: 900 },
   "grid.market_regime": { metric: "grid.market_regime", targetAgeSeconds: 300, warnAgeSeconds: 600, hardExpirySeconds: 900 },
+  "agent.indexed_owner": { metric: "agent.indexed_owner", targetAgeSeconds: 1800, warnAgeSeconds: 3600, hardExpirySeconds: 21600 },
+  "agent.external_feedback_count": { metric: "agent.external_feedback_count", targetAgeSeconds: 1800, warnAgeSeconds: 3600, hardExpirySeconds: 21600 },
+  "agent.owner": { metric: "agent.owner", targetAgeSeconds: 3600, warnAgeSeconds: 21600, hardExpirySeconds: 86400 },
+  "agent.uri": { metric: "agent.uri", targetAgeSeconds: 3600, warnAgeSeconds: 21600, hardExpirySeconds: 86400 },
 };
 
 export function listDataSources(): DataSourceDefinition[] {

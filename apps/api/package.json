@@ -1,7 +1,7 @@
 {
   "name": "@spotriq/api",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.2",
   "type": "module",
   "dependencies": {
     "@fastify/cors": "11.3.0",
@@ -14,7 +14,8 @@
     "@spotriq/protocol-pancakeswap": "workspace:*",
     "@spotriq/smart-money": "workspace:*",
     "@spotriq/protocol-venus": "workspace:*",
-    "@spotriq/market-context": "workspace:*"
+    "@spotriq/market-context": "workspace:*",
+    "@spotriq/agent-registry": "workspace:*"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",

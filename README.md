@@ -4,7 +4,7 @@
 
 > Know what your money needs. Spot the right agent for it.
 
-Spotriq is a pnpm monorepo containing the Figma-derived consumer frontend plus the backend, worker, BSC chain, PancakeSwap protocol adapter, Smart Money Check engine, evidence, domain, API-contract, and PostgreSQL foundations for the real financial-agent marketplace.
+Spotriq is a pnpm monorepo containing the Figma-derived consumer frontend plus the backend, worker, BSC chain, PancakeSwap protocol adapter, Smart Money Check engine, evidence, agent-registry, domain, API-contract, and PostgreSQL foundations for the real financial-agent marketplace.
 
 ## Workspace
 
@@ -23,6 +23,7 @@ packages/
   protocol-pancakeswap/ PancakeSwap V3 + Infinity CL normalized reads
   market-context/ PancakeSwap V3 onchain TWAP context + deterministic Grid regime
   smart-money/    live check orchestration + deterministic findings + persistence adapters
+  agent-registry/  ERC-8004 canonical identity + 8004scan indexed discovery
 ```
 
 ## Windows PowerShell setup
@@ -113,6 +114,25 @@ GET  http://localhost:3001/v1/checks/:checkSessionId/events
 
 Current live check coverage now has real data foundations across all four required financial categories: Rebalancing from supported PancakeSwap V3 LP range state, Health from Venus Core/Isolated lending risk, Yield from wallet-relevant Venus supply markets, and Grid from wallet-relevant PancakeSwap V3 onchain oracle averages. Agent matching, wallet-wide token discovery, Infinity wallet-wide discovery, and historical realised-performance analytics remain explicitly unsupported/partial instead of being faked.
 
+## Live ERC-8004 / 8004scan agent discovery
+
+Spotriq now separates **agent identity discovery** from **marketplace service activation**. 8004scan is used as an external indexed discovery source, while a selected identity can be rechecked directly against the configured ERC-8004 Identity Registry. A discovered identity is **not** automatically a Spotriq financial service and is not activatable until a later service/readiness layer qualifies it.
+
+```text
+http://localhost:3001/v1/registry/status
+http://localhost:3001/v1/agents?chainId=56&limit=5
+http://localhost:3001/v1/agents/search?q=yield%20agent%20BSC&chainId=56&limit=5
+http://localhost:3001/v1/agents/56/AGENT_TOKEN_ID
+http://localhost:3001/v1/agents/56/AGENT_TOKEN_ID/feedback
+http://localhost:3001/v1/accounts/0xOWNER_ADDRESS/agents
+```
+
+The consumer Explore screen keeps Spotriq's current reference services clearly labelled **Sample data** and shows live registry identities in a separate **Live ERC-8004 registry discoveries** section. Registry-derived financial category labels are metadata hints only and remain **Operator supplied**, not marketplace-tested capability. External 8004scan feedback remains external evidence and is never converted into a Spotriq marketplace review or opaque trust score.
+
+Default discovery uses BSC Mainnet (`AGENT_DISCOVERY_CHAIN_ID=56`) so the marketplace can inspect live BSC identities while transactional engineering can continue on BSC Testnet. The discovery chain can be changed to 97 for testing. An 8004scan API key is optional; configure `SCAN8004_API_KEY` when available.
+
+Remote HTTPS/IPFS registration URIs are intentionally not fetched server-side in this milestone. `data:` registration files can be parsed and backlink-checked safely; remote URIs remain visible but are marked as not fetched until Spotriq adds a hardened metadata-fetch subsystem.
+
 ## BSC RPC configuration
 
 Development works without creating an RPC account: blank `BSC_RPC_PRIMARY` and `BSC_RPC_SECONDARY` use official public BSC fallback endpoints.
@@ -137,7 +157,7 @@ pnpm db:health
 pnpm db:migrate
 ```
 
-Migration `0002_chain_evidence_spine.sql` introduces Spotriq's data-source, evidence-method, raw-observation, freshness, and conflict schema. Migration `0003_smart_money_rebalancing.sql` adds check-event persistence and the additional Smart Money finding fields. Migration `0004_venus_health_positions.sql` adds normalized Venus pool/market lending snapshots. Migration `0005_yield_opportunities.sql` persists Yield opportunity snapshots. Migration `0006_grid_market_context.sql` persists Grid market-context snapshots plus Grid evidence methods.
+Migration `0002_chain_evidence_spine.sql` introduces Spotriq's data-source, evidence-method, raw-observation, freshness, and conflict schema. Migration `0003_smart_money_rebalancing.sql` adds check-event persistence and the additional Smart Money finding fields. Migration `0004_venus_health_positions.sql` adds normalized Venus pool/market lending snapshots. Migration `0005_yield_opportunities.sql` persists Yield opportunity snapshots. Migration `0006_grid_market_context.sql` persists Grid market-context snapshots plus Grid evidence methods. Migration `0007_agent_registry_discovery.sql` extends canonical agent identity fields, discovery cache, external feedback records, and registry sync history.
 
 ## Run one process only
 
@@ -149,7 +169,8 @@ pnpm dev:worker
 
 ## Current product-data state
 
-- Consumer marketplace screens still use clearly-labelled normalized sample marketplace data.
+- Reference financial-service cards remain clearly labelled sample data; Explore now also displays a separate live ERC-8004 registry discovery surface.
+- Live discovered ERC-8004 identities are explicitly `DISCOVERED` / `NOT_CREATED` and are not activatable Spotriq services yet.
 - BSC chain status, block, transaction, native balance, and requested ERC-20 balance APIs are now real provider-backed reads.
 - Those chain reads return normalized evidence/provenance/freshness structures.
 - PancakeSwap V3 and Infinity CL current-state normalization is live at the API layer.
@@ -175,8 +196,14 @@ pnpm dev:worker
 - `docs/IMPLEMENTATION_REPORT_YIELD_FOUNDATION.md`
 - `docs/GRID_MARKET_CONTEXT.md`
 - `docs/IMPLEMENTATION_REPORT_GRID_MARKET_CONTEXT.md`
+- `docs/ERC8004_AGENT_REGISTRY_DISCOVERY.md`
+- `docs/IMPLEMENTATION_REPORT_AGENT_REGISTRY_DISCOVERY.md`
 - `docs/ENGINEERING_STATUS.md`
 
 ## Next milestone
 
-Connect Railway PostgreSQL and run all migrations so Smart Money Check history, evidence, Venus/Yield snapshots, and Grid market contexts are durable. After persistence is live, implement ERC-8004 + 8004scan agent registry/discovery and the normalized Agent Service listing layer.
+Implement the **Agent Service + Marketplace Listing/Readiness Engine**. That layer will turn selected/claimed identities into normalized financial services only after category, protocol, asset/pair, pricing, permission profile, runtime endpoint, and readiness requirements are known. After that, Smart Money Check agent compatibility and deterministic matching can become real rather than sample data.
+
+
+## v0.9.2 registry visibility
+Explore now renders all live ERC-8004 identities in the All view. Recognized financial-category hints are displayed and used only for explicit category filtering; they no longer hide valid registry identities from the general live-discovery surface.

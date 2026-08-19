@@ -8,6 +8,7 @@ import type {
   MetaResponse,
 } from "@spotriq/api-contracts";
 import { BscChainError, createBscChainAdapter, type BscChainReader } from "@spotriq/chain";
+import { AgentRegistryError, createAgentRegistry, MemoryAgentRegistryStore, PostgresAgentRegistryStore, type AgentRegistryReader } from "@spotriq/agent-registry";
 import { loadServerConfig, type ServerConfig } from "@spotriq/config";
 import { getDatabaseHealth, getDatabasePool } from "@spotriq/db";
 import {
@@ -25,6 +26,7 @@ import { registerPancakeSwapRoutes } from "./routes/pancakeswap.js";
 import { registerVenusRoutes } from "./routes/venus.js";
 import { registerCheckRoutes } from "./routes/checks.js";
 import { registerMarketContextRoutes } from "./routes/market-context.js";
+import { registerAgentRoutes } from "./routes/agents.js";
 
 export interface BuildServerOptions {
   config?: ServerConfig;
@@ -34,6 +36,7 @@ export interface BuildServerOptions {
   venus?: VenusReader;
   marketContext?: GridMarketContextReader;
   smartMoney?: SmartMoneyEngine;
+  agentRegistry?: AgentRegistryReader;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -48,6 +51,23 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const venus = options.venus ?? createVenusAdapter({ chain });
   const marketContext = options.marketContext ?? createGridMarketContextEngine({ chain, pancakeSwap });
   const database = getDatabasePool(config.databaseUrl);
+  const registryMainnetChain = config.bscNetwork === "mainnet"
+    ? chain
+    : createBscChainAdapter({ network: "mainnet", primaryRpcUrl: config.agentRegistryMainnetRpc, timeoutMs: config.bscRpcTimeoutMs });
+  const registryTestnetChain = config.bscNetwork === "testnet"
+    ? chain
+    : createBscChainAdapter({ network: "testnet", primaryRpcUrl: config.agentRegistryTestnetRpc, timeoutMs: config.bscRpcTimeoutMs });
+  const agentRegistryStore = database
+    ? new PostgresAgentRegistryStore({ query: (text, values) => database.query(text, values) })
+    : new MemoryAgentRegistryStore();
+  const agentRegistry = options.agentRegistry ?? createAgentRegistry({
+    defaultChainId: config.agentDiscoveryChainId,
+    apiBaseUrl: config.scan8004BaseUrl,
+    apiKey: config.scan8004ApiKey,
+    timeoutMs: config.scan8004TimeoutMs,
+    chainReaders: { 56: registryMainnetChain, 97: registryTestnetChain },
+    store: agentRegistryStore,
+  });
   const smartMoneyStore = database
     ? new PostgresSmartMoneyStore({ query: (text, values) => database.query(text, values) })
     : new MemorySmartMoneyStore();
@@ -72,7 +92,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.8.0",
+      version: "0.9.2",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -99,7 +119,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       persistenceConfigured: Boolean(config.databaseUrl),
       redisConfigured: Boolean(config.redisUrl),
       bscRpcConfigured: Boolean(config.bscRpcPrimary),
-      liveMarketplaceData: false,
+      liveMarketplaceData: true,
       chainAdapterEnabled: true,
       evidenceEngineEnabled: true,
       pancakeSwapAdapterEnabled: true,
@@ -107,6 +127,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       yieldDataEnabled: true,
       gridMarketContextEnabled: true,
       smartMoneyCheckEnabled: true,
+      agentRegistryEnabled: true,
+      externalAgentDiscoveryEnabled: true,
+      canonicalAgentIdentityVerificationEnabled: true,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
@@ -119,7 +142,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "Yield current rates are base Venus supply APY derived from onchain supplyRatePerBlock; incentives, estimated net yield, and realised performance remain separate and are not fabricated.",
         "Venus protocol shortfall is canonical for current liquidation eligibility; Spotriq health factor is a derived explanation and incomplete inputs never become Healthy.",
         "Grid market context now uses supported PancakeSwap V3 onchain 1h/6h/24h oracle averages. TWAP dispersion is not realised volatility and the regime is not a profit forecast.",
-        "Agent matching remains explicitly unsupported in this milestone.",
+        "ERC-8004 identities can now be discovered through 8004scan and individual identities are canonically verified onchain. Registry discovery does not yet equal an activatable Spotriq AgentService.",
+        "Agent matching remains explicitly unsupported until discovered identities are normalized into marketplace services with capability/readiness checks.",
       ],
     };
     const body: ApiEnvelope<CapabilityResponse> = { data, meta: { generatedAt: new Date().toISOString() } };
@@ -132,6 +156,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerVenusRoutes(app, venus);
   await registerMarketContextRoutes(app, marketContext);
   await registerCheckRoutes(app, smartMoney);
+  await registerAgentRoutes(app, agentRegistry, config.agentDiscoveryChainId);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {
@@ -159,6 +184,16 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         },
       };
       return reply.code(400).send(body);
+    }
+
+    if (error instanceof AgentRegistryError) {
+      const statusCode = error.code === "INVALID_INPUT" || error.code === "UNSUPPORTED_CHAIN"
+        ? 400
+        : error.code === "AGENT_NOT_FOUND"
+          ? 404
+          : 502;
+      const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
+      return reply.code(statusCode).send(body);
     }
 
     if (error instanceof GridMarketContextError) {
