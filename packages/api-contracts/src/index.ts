@@ -44,6 +44,7 @@ export interface CapabilityResponse {
   liveMarketplaceData: boolean;
   chainAdapterEnabled: boolean;
   evidenceEngineEnabled: boolean;
+  pancakeSwapAdapterEnabled: boolean;
   notes: string[];
 }
 
@@ -80,4 +81,28 @@ export interface WalletBalancesResponse {
 export interface EvidenceSourcesResponse {
   sources: import("@spotriq/domain").DataSourceDefinition[];
   methods: import("@spotriq/domain").EvidenceMethodDefinition[];
+}
+
+export interface PancakeSwapStatusResponse {
+  protocol: "PancakeSwap";
+  network: BscNetwork;
+  chainId: number;
+  contracts: import("@spotriq/domain").PancakeSwapContractSet;
+  capabilities: {
+    v3WalletDiscovery: true;
+    v3PositionRead: true;
+    infinityClPositionReadByTokenId: true;
+    infinityClWalletDiscovery: false;
+    positionValuation: false;
+    historicalAnalytics: false;
+  };
+  coverageNotes: string[];
+}
+
+export interface PancakeSwapPositionResponse {
+  position: import("@spotriq/domain").PancakeSwapClPositionSnapshot;
+}
+
+export interface PancakeSwapWalletPositionsResponse {
+  snapshot: import("@spotriq/domain").PancakeSwapWalletPositionsSnapshot;
 }

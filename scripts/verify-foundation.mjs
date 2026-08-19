@@ -17,6 +17,10 @@ const required = [
   "packages/chain/src/index.ts",
   "packages/evidence/package.json",
   "packages/evidence/src/index.ts",
+  "packages/protocol-pancakeswap/package.json",
+  "packages/protocol-pancakeswap/src/index.ts",
+  "packages/protocol-pancakeswap/src/abis.ts",
+  "apps/api/src/routes/pancakeswap.ts",
   ".env.example",
   ".gitignore",
 ];
@@ -55,4 +59,18 @@ if (!evidence.includes("CANONICAL_ONCHAIN") || !evidence.includes("assessFreshne
   throw new Error("Evidence Engine must preserve truth layers, freshness, and conflict detection.");
 }
 
-console.log("Spotriq foundation + BSC/evidence verification passed.");
+const pancake = await readFile(path.join(root, "packages/protocol-pancakeswap/src/index.ts"), "utf8");
+for (const marker of ["PANCAKESWAP_CONTRACTS", "getV3Position", "getInfinityClPosition", "getWalletPositions", "classifyLiquidityRange"]) {
+  if (!pancake.includes(marker)) throw new Error(`PancakeSwap adapter is missing ${marker}.`);
+}
+
+const pancakeRoutes = await readFile(path.join(root, "apps/api/src/routes/pancakeswap.ts"), "utf8");
+for (const route of ["/v1/protocols/pancakeswap/status", "/v1/protocols/pancakeswap/positions/:version/:tokenId", "/v1/wallets/:address/pancakeswap/positions"]) {
+  if (!pancakeRoutes.includes(route)) throw new Error(`Missing PancakeSwap route ${route}.`);
+}
+
+if (!evidence.includes("PANCAKE_CL_RANGE_STATE") || !evidence.includes("PANCAKE_CL_SQRT_PRICE") || !evidence.includes("SPOTRIQ_DERIVED")) {
+  throw new Error("Evidence Engine must include PancakeSwap range-state methodology and derived provenance.");
+}
+
+console.log("Spotriq foundation + BSC/evidence + PancakeSwap verification passed.");

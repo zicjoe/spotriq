@@ -462,3 +462,99 @@ export interface WalletBalanceSnapshot {
     failedTokenAddresses: string[];
   };
 }
+
+export type PancakeSwapProtocolVersion = "V3" | "INFINITY_CL";
+export type LiquidityRangeState =
+  | "IN_RANGE"
+  | "NEAR_LOWER"
+  | "NEAR_UPPER"
+  | "OUT_OF_RANGE_BELOW"
+  | "OUT_OF_RANGE_ABOVE"
+  | "NO_LIQUIDITY";
+
+export interface ProtocolTokenMetadata {
+  address: string;
+  symbol?: string;
+  name?: string;
+  decimals?: number;
+  isNative: boolean;
+}
+
+export interface PancakeSwapContractSet {
+  network: BscNetwork;
+  v3Factory: string;
+  v3PositionManager: string;
+  infinityClPoolManager: string;
+  infinityClPositionManager: string;
+  infinityVault: string;
+}
+
+export interface PancakeSwapClPoolSnapshot {
+  protocol: "PancakeSwap";
+  version: PancakeSwapProtocolVersion;
+  network: BscNetwork;
+  chainId: number;
+  poolAddress?: string;
+  poolId?: string;
+  token0: ProtocolTokenMetadata;
+  token1: ProtocolTokenMetadata;
+  hooks?: string;
+  feePips: number;
+  currentLpFeePips?: number;
+  protocolFeePips?: number;
+  tickSpacing: number;
+  currentTick: number;
+  sqrtPriceX96: string;
+  liquidityRaw: string;
+  currentPriceToken0InToken1?: string;
+  blockNumber: string;
+  observedAt: string;
+  evidence: EvidenceEnvelope[];
+}
+
+export interface PancakeSwapClPositionSnapshot {
+  protocol: "PancakeSwap";
+  version: PancakeSwapProtocolVersion;
+  network: BscNetwork;
+  chainId: number;
+  positionManager: string;
+  tokenId: string;
+  owner: string;
+  pool: PancakeSwapClPoolSnapshot;
+  tickLower: number;
+  tickUpper: number;
+  liquidityRaw: string;
+  rangeState: LiquidityRangeState;
+  distanceToLowerTicks?: number;
+  distanceToUpperTicks?: number;
+  recordedTokensOwed0Raw?: string;
+  recordedTokensOwed1Raw?: string;
+  feeGrowthInside0LastX128?: string;
+  feeGrowthInside1LastX128?: string;
+  blockNumber: string;
+  observedAt: string;
+  evidence: EvidenceEnvelope[];
+  coverage: {
+    ownership: "AVAILABLE";
+    poolState: "AVAILABLE";
+    tokenMetadata: "AVAILABLE" | "PARTIAL";
+    fees: "RECORDED_ONLY" | "NOT_SUPPORTED";
+    valuation: "NOT_SUPPORTED";
+  };
+}
+
+export interface PancakeSwapWalletPositionsSnapshot {
+  walletAddress: string;
+  network: BscNetwork;
+  chainId: number;
+  blockNumber: string;
+  observedAt: string;
+  positions: PancakeSwapClPositionSnapshot[];
+  coverage: {
+    v3Discovery: "AVAILABLE" | "PARTIAL";
+    infinityClDiscovery: "TOKEN_ID_REQUIRED";
+    failedV3PositionRefs: string[];
+    truncated: boolean;
+    maxPositions: number;
+  };
+}

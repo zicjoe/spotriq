@@ -98,3 +98,18 @@ test("reads ERC-20 balance and metadata using eth_call", async () => {
   assert.equal(balance.name, "Tether USD");
   assert.equal(balance.decimals, 6);
 });
+
+test("generic contract reads preserve the explicitly observed block", async () => {
+  const fetchImpl = makeFetch((_url, method, params, id) => {
+    if (method === "eth_chainId") return rpcResponse(id, "0x61");
+    if (method === "eth_call") {
+      assert.equal(params[1], "0x64");
+      return rpcResponse(id, "0x01");
+    }
+    throw new Error(`unexpected ${method}`);
+  });
+  const adapter = new BscChainAdapter({ network: "testnet", primaryRpcUrl: "https://rpc.example", fetchImpl });
+  const result = await adapter.callContract("0x2222222222222222222222222222222222222222", "0x1234", "100");
+  assert.equal(result.blockNumber, "100");
+  assert.equal(result.data, "0x01");
+});

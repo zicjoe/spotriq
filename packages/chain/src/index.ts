@@ -84,6 +84,7 @@ export interface BscChainReader {
   getNativeBalance(walletAddress: string, blockNumber?: string): Promise<NativeBalanceSnapshot>;
   getErc20Balance(tokenAddress: string, walletAddress: string, blockNumber?: string): Promise<Erc20BalanceSnapshot>;
   getWalletBalances(walletAddress: string, tokenAddresses?: string[]): Promise<WalletBalanceSnapshot>;
+  callContract(contractAddress: string, data: string, blockNumber?: string): Promise<{ data: string; blockNumber: string }>;
 }
 
 export interface BscChainAdapterOptions {
@@ -154,6 +155,15 @@ function decodeAbiString(result: string): string | undefined {
 function blockTagFromNumber(blockNumber: string): string {
   const value = BigInt(blockNumber);
   return `0x${value.toString(16)}`;
+}
+
+function safeRpcReference(value: string): string {
+  try {
+    const parsed = new URL(value);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return "configured-rpc";
+  }
 }
 
 export class BscChainAdapter implements BscChainReader {
@@ -382,7 +392,7 @@ export class BscChainAdapter implements BscChainReader {
       observedAt,
       confidence: "high",
       method: EVIDENCE_METHODS.NATIVE_BALANCE,
-      methodInputs: [wallet, observedBlock, rpcUrl],
+      methodInputs: [wallet, observedBlock, safeRpcReference(rpcUrl)],
       chainContext: {
         chain: "BSC",
         network: this.network,
@@ -409,6 +419,16 @@ export class BscChainAdapter implements BscChainReader {
 
   private async ethCall(to: string, data: string, blockNumber: string): Promise<{ result: string; rpcUrl: string }> {
     return this.request<string>("eth_call", [{ to: assertAddress(to), data }, blockTagFromNumber(blockNumber)]);
+  }
+
+  async callContract(contractAddress: string, data: string, blockNumber?: string): Promise<{ data: string; blockNumber: string }> {
+    const contract = assertAddress(contractAddress);
+    if (!/^0x[0-9a-fA-F]*$/.test(data) || data.length % 2 !== 0) {
+      throw new BscChainError("Contract calldata must be a 0x-prefixed even-length hexadecimal string.", "RPC_RESPONSE_INVALID");
+    }
+    const observedBlock = blockNumber ?? await this.getBlockNumber();
+    const { result } = await this.ethCall(contract, data, observedBlock);
+    return { data: result, blockNumber: observedBlock };
   }
 
   async getErc20Balance(tokenAddress: string, walletAddress: string, blockNumber?: string): Promise<Erc20BalanceSnapshot> {
@@ -439,7 +459,7 @@ export class BscChainAdapter implements BscChainReader {
         observedAt,
         confidence: "high",
         method: EVIDENCE_METHODS.ERC20_BALANCE,
-        methodInputs: [wallet, token, observedBlock, rpcUrl],
+        methodInputs: [wallet, token, observedBlock, safeRpcReference(rpcUrl)],
         chainContext: {
           chain: "BSC",
           network: this.network,

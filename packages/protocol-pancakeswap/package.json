@@ -1,21 +1,16 @@
 {
-  "name": "@spotriq/api",
+  "name": "@spotriq/protocol-pancakeswap",
   "private": true,
   "version": "0.4.0",
   "type": "module",
+  "exports": { ".": "./src/index.ts" },
   "dependencies": {
-    "@fastify/cors": "11.3.0",
-    "@spotriq/api-contracts": "workspace:*",
-    "@spotriq/config": "workspace:*",
-    "@spotriq/db": "workspace:*",
-    "fastify": "5.10.0",
     "@spotriq/chain": "workspace:*",
+    "@spotriq/domain": "workspace:*",
     "@spotriq/evidence": "workspace:*",
-    "@spotriq/protocol-pancakeswap": "workspace:*"
+    "viem": "2.55.11"
   },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "tsc --noEmit -p tsconfig.json",
     "test": "tsx --test src/**/*.test.ts"

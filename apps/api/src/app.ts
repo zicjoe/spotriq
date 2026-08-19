@@ -10,14 +10,21 @@ import type {
 import { BscChainError, createBscChainAdapter, type BscChainReader } from "@spotriq/chain";
 import { loadServerConfig, type ServerConfig } from "@spotriq/config";
 import { getDatabaseHealth } from "@spotriq/db";
+import {
+  createPancakeSwapAdapter,
+  PancakeSwapAdapterError,
+  type PancakeSwapReader,
+} from "@spotriq/protocol-pancakeswap";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
 import { registerEvidenceRoutes } from "./routes/evidence.js";
+import { registerPancakeSwapRoutes } from "./routes/pancakeswap.js";
 
 export interface BuildServerOptions {
   config?: ServerConfig;
   logger?: boolean;
   chain?: BscChainReader;
+  pancakeSwap?: PancakeSwapReader;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -28,6 +35,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     secondaryRpcUrl: config.bscRpcSecondary,
     timeoutMs: config.bscRpcTimeoutMs,
   });
+  const pancakeSwap = options.pancakeSwap ?? createPancakeSwapAdapter({ chain });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
@@ -48,7 +56,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.3.0",
+      version: "0.4.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -78,12 +86,14 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       liveMarketplaceData: false,
       chainAdapterEnabled: true,
       evidenceEngineEnabled: true,
+      pancakeSwapAdapterEnabled: true,
       notes: [
         config.bscRpcPrimary
           ? "BSC reads use configured RPC endpoints with failover."
           : "Development BSC reads use official public BSC RPC fallbacks; configure BSC_RPC_PRIMARY for production-grade access.",
         "Canonical BSC blocks, transactions, native balances, and requested ERC-20 balances now return evidence envelopes.",
-        "PancakeSwap and Venus normalized protocol adapters are the next data integrations.",
+        "PancakeSwap V3 and Infinity CL current-state reads now normalize concentrated-liquidity positions with evidence-backed range state.",
+        "Venus is the next protocol adapter; historical PancakeSwap analytics and USD position valuation remain intentionally out of scope for this milestone.",
       ],
     };
     const body: ApiEnvelope<CapabilityResponse> = { data, meta: { generatedAt: new Date().toISOString() } };
@@ -92,6 +102,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
 
   await registerChainRoutes(app, chain);
   await registerEvidenceRoutes(app);
+  await registerPancakeSwapRoutes(app, pancakeSwap);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {
@@ -119,6 +130,27 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         },
       };
       return reply.code(400).send(body);
+    }
+
+    if (error instanceof PancakeSwapAdapterError) {
+      const statusCode = error.code === "INVALID_TOKEN_ID"
+        ? 400
+        : error.code === "POSITION_NOT_FOUND" || error.code === "POOL_NOT_FOUND"
+          ? 404
+          : error.code === "POOL_MANAGER_MISMATCH"
+            ? 422
+            : 502;
+      const body: ApiErrorBody = {
+        error: {
+          code: error.code,
+          message: error.message,
+          recoverable: true,
+          retryable: error.retryable,
+          correlationId: request.id,
+          details: config.appEnv === "production" ? undefined : error.details,
+        },
+      };
+      return reply.code(statusCode).send(body);
     }
 
     if (error instanceof BscChainError) {

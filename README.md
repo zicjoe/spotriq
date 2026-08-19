@@ -4,7 +4,7 @@
 
 > Know what your money needs. Spot the right agent for it.
 
-Spotriq is a pnpm monorepo containing the Figma-derived consumer frontend plus the backend, worker, BSC chain, evidence, domain, API-contract, and PostgreSQL foundations for the real financial-agent marketplace.
+Spotriq is a pnpm monorepo containing the Figma-derived consumer frontend plus the backend, worker, BSC chain, PancakeSwap protocol adapter, evidence, domain, API-contract, and PostgreSQL foundations for the real financial-agent marketplace.
 
 ## Workspace
 
@@ -20,6 +20,7 @@ packages/
   db/            PostgreSQL foundation/migrations
   chain/         normalized BSC JSON-RPC adapter
   evidence/      provenance, freshness, methods, source registry
+  protocol-pancakeswap/ PancakeSwap V3 + Infinity CL normalized reads
 ```
 
 ## Windows PowerShell setup
@@ -69,6 +70,19 @@ Transaction lookup:
 http://localhost:3001/v1/chain/transactions/0xTRANSACTION_HASH
 ```
 
+## PancakeSwap current-state APIs
+
+```text
+http://localhost:3001/v1/protocols/pancakeswap/status
+http://localhost:3001/v1/wallets/0xYOUR_BSC_ADDRESS/pancakeswap/positions
+http://localhost:3001/v1/protocols/pancakeswap/positions/v3/POSITION_TOKEN_ID
+http://localhost:3001/v1/protocols/pancakeswap/positions/infinity-cl/POSITION_TOKEN_ID
+```
+
+The wallet endpoint currently auto-discovers PancakeSwap V3 position NFTs. Infinity CL current state can be read by known token ID; wallet-wide Infinity discovery is explicitly marked `TOKEN_ID_REQUIRED` until Spotriq adds an indexed event source.
+
+Range state is returned as one of `IN_RANGE`, `NEAR_LOWER`, `NEAR_UPPER`, `OUT_OF_RANGE_BELOW`, `OUT_OF_RANGE_ABOVE`, or `NO_LIQUIDITY`, with evidence and method metadata. USD valuation and historical performance are intentionally not fabricated in this milestone.
+
 ## BSC RPC configuration
 
 Development works without creating an RPC account: blank `BSC_RPC_PRIMARY` and `BSC_RPC_SECONDARY` use official public BSC fallback endpoints.
@@ -108,7 +122,9 @@ pnpm dev:worker
 - Consumer marketplace screens still use clearly-labelled normalized sample marketplace data.
 - BSC chain status, block, transaction, native balance, and requested ERC-20 balance APIs are now real provider-backed reads.
 - Those chain reads return normalized evidence/provenance/freshness structures.
-- PancakeSwap/Venus protocol normalization has not yet been wired into Smart Money Check.
+- PancakeSwap V3 and Infinity CL current-state normalization is live at the API layer.
+- PancakeSwap data has not yet been wired into persisted Smart Money Check findings.
+- Venus protocol normalization is still pending.
 
 ## Engineering documentation
 
@@ -117,8 +133,10 @@ pnpm dev:worker
 - `docs/FOUNDATION_HARDENING_BACKEND_SKELETON.md`
 - `docs/BSC_CHAIN_EVIDENCE_ENGINE.md`
 - `docs/IMPLEMENTATION_REPORT_BSC_CHAIN_EVIDENCE.md`
+- `docs/PANCAKESWAP_ADAPTER.md`
+- `docs/IMPLEMENTATION_REPORT_PANCAKESWAP_ADAPTER.md`
 - `docs/ENGINEERING_STATUS.md`
 
 ## Next milestone
 
-PancakeSwap Adapter — normalize supported liquidity positions, pool/market data, current range state, and evidence for the Rebalancing vertical.
+Smart Money Check Core + Rebalancing Finding Engine — persist scans/snapshots/evidence and turn supported PancakeSwap range state into deterministic Rebalancing findings.

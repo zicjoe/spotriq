@@ -29,7 +29,7 @@ export const DATA_SOURCES = {
     provider: "PancakeSwap",
     chain: "BSC",
     networks: ["testnet", "mainnet"],
-    description: "Normalized PancakeSwap protocol state. Adapter introduced in a later milestone.",
+    description: "Normalized PancakeSwap V3 and Infinity CL protocol state read through Spotriq protocol adapters.",
   },
   VENUS: {
     sourceId: "venus",
@@ -65,6 +65,13 @@ export const DATA_SOURCES = {
     provider: "Spotriq",
     description: "Evidence observed directly by Spotriq tests, readiness checks, and production activity.",
   },
+  SPOTRIQ_DERIVED: {
+    sourceId: "spotriq-derived",
+    name: "Spotriq Derived",
+    truthLayer: "MARKETPLACE_DERIVED",
+    provider: "Spotriq",
+    description: "Versioned calculations produced by Spotriq from referenced protocol or marketplace evidence.",
+  },
 } satisfies Record<string, DataSourceDefinition>;
 
 export const EVIDENCE_METHODS = {
@@ -81,6 +88,34 @@ export const EVIDENCE_METHODS = {
     name: "ERC-20 balance read",
     description: "Reads ERC-20 balanceOf(wallet) with eth_call at a specific observed block.",
     inputMetrics: ["wallet.address", "token.address", "chain.block"],
+  },
+  PANCAKE_V3_POSITION: {
+    methodId: "pancakeswap.v3-position",
+    version: "1.0.0",
+    name: "PancakeSwap V3 position read",
+    description: "Reads a PancakeSwap V3 NFT position and its pool state directly from BSC contracts at one block.",
+    inputMetrics: ["position.token_id", "position.owner", "pool.slot0", "pool.liquidity"],
+  },
+  PANCAKE_INFINITY_CL_POSITION: {
+    methodId: "pancakeswap.infinity-cl-position",
+    version: "1.0.0",
+    name: "PancakeSwap Infinity CL position read",
+    description: "Reads a PancakeSwap Infinity concentrated-liquidity NFT position and CL pool state directly from BSC contracts at one block.",
+    inputMetrics: ["position.token_id", "position.owner", "pool.key", "pool.slot0", "pool.liquidity"],
+  },
+  PANCAKE_CL_RANGE_STATE: {
+    methodId: "pancakeswap.cl-range-state",
+    version: "1.0.0",
+    name: "Concentrated-liquidity range classification",
+    description: "Classifies a position using current tick, lower/upper ticks, liquidity, tick spacing, and a deterministic near-boundary threshold.",
+    inputMetrics: ["pool.current_tick", "position.tick_lower", "position.tick_upper", "position.liquidity", "pool.tick_spacing"],
+  },
+  PANCAKE_CL_SQRT_PRICE: {
+    methodId: "pancakeswap.cl-sqrt-price",
+    version: "1.0.0",
+    name: "Concentrated-liquidity current price",
+    description: "Derives token0 price in token1 units from the pool's current sqrtPriceX96 adjusted for token decimals.",
+    inputMetrics: ["pool.sqrt_price_x96", "token0.decimals", "token1.decimals"],
   },
 } satisfies Record<string, EvidenceMethodDefinition>;
 
@@ -99,6 +134,9 @@ const FRESHNESS_POLICIES: Record<string, FreshnessPolicy> = {
   "permission.state": { metric: "permission.state", targetAgeSeconds: 15, warnAgeSeconds: 30, hardExpirySeconds: 60 },
   "health.position": { metric: "health.position", targetAgeSeconds: 15, warnAgeSeconds: 30, hardExpirySeconds: 60 },
   "liquidity.position": { metric: "liquidity.position", targetAgeSeconds: 30, warnAgeSeconds: 60, hardExpirySeconds: 120 },
+  "liquidity.range_state": { metric: "liquidity.range_state", targetAgeSeconds: 30, warnAgeSeconds: 60, hardExpirySeconds: 120 },
+  "pancakeswap.pool.tick": { metric: "pancakeswap.pool.tick", targetAgeSeconds: 30, warnAgeSeconds: 60, hardExpirySeconds: 120 },
+  "pancakeswap.pool.liquidity": { metric: "pancakeswap.pool.liquidity", targetAgeSeconds: 30, warnAgeSeconds: 60, hardExpirySeconds: 120 },
   "market.current_price": { metric: "market.current_price", targetAgeSeconds: 30, warnAgeSeconds: 60, hardExpirySeconds: 120 },
   "yield.current_rate": { metric: "yield.current_rate", targetAgeSeconds: 300, warnAgeSeconds: 600, hardExpirySeconds: 900 },
   "grid.market_regime": { metric: "grid.market_regime", targetAgeSeconds: 300, warnAgeSeconds: 600, hardExpirySeconds: 900 },

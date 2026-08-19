@@ -91,3 +91,110 @@ test("invalid wallet address produces a structured 400 instead of an internal er
   assert.equal(response.json().error.code, "INVALID_ADDRESS");
   await app.close();
 });
+
+test("GET PancakeSwap status exposes normalized adapter capabilities", async () => {
+  const pancakeSwap = {
+    getStatus: () => ({
+      protocol: "PancakeSwap" as const,
+      network: "testnet" as const,
+      chainId: 97,
+      contracts: {
+        network: "testnet" as const,
+        v3Factory: "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+        v3PositionManager: "0x427bF5b37357632377eCbEC9de3626C71A5396c1",
+        infinityClPoolManager: "0x36A12c70c9Cf64f24E89ee132BF93Df2DCD199d4",
+        infinityClPositionManager: "0x77DedB52EC6260daC4011313DBEE09616d30d122",
+        infinityVault: "0x2CdB3EC82EE13d341Dc6E73637BE0Eab79cb79dD",
+      },
+      capabilities: {
+        v3WalletDiscovery: true as const,
+        v3PositionRead: true as const,
+        infinityClPositionReadByTokenId: true as const,
+        infinityClWalletDiscovery: false as const,
+        positionValuation: false as const,
+        historicalAnalytics: false as const,
+      },
+      coverageNotes: ["test"],
+    }),
+    getV3Position: async () => { throw new Error("not used"); },
+    getInfinityClPosition: async () => { throw new Error("not used"); },
+    getPosition: async () => { throw new Error("not used"); },
+    getWalletPositions: async (walletAddress: string) => ({
+      walletAddress,
+      network: "testnet" as const,
+      chainId: 97,
+      blockNumber: "100",
+      observedAt: new Date().toISOString(),
+      positions: [],
+      coverage: {
+        v3Discovery: "AVAILABLE" as const,
+        infinityClDiscovery: "TOKEN_ID_REQUIRED" as const,
+        failedV3PositionRefs: [],
+        truncated: false,
+        maxPositions: 50,
+      },
+    }),
+  };
+  const app = await buildServer({ config, chain: makeChain(), pancakeSwap, logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/protocols/pancakeswap/status" });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().data.capabilities.v3WalletDiscovery, true);
+  assert.equal(response.json().data.capabilities.infinityClWalletDiscovery, false);
+  await app.close();
+});
+
+test("GET wallet PancakeSwap positions preserves explicit Infinity discovery coverage", async () => {
+  const pancakeSwap = {
+    getStatus: () => ({
+      protocol: "PancakeSwap" as const,
+      network: "testnet" as const,
+      chainId: 97,
+      contracts: {
+        network: "testnet" as const,
+        v3Factory: "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+        v3PositionManager: "0x427bF5b37357632377eCbEC9de3626C71A5396c1",
+        infinityClPoolManager: "0x36A12c70c9Cf64f24E89ee132BF93Df2DCD199d4",
+        infinityClPositionManager: "0x77DedB52EC6260daC4011313DBEE09616d30d122",
+        infinityVault: "0x2CdB3EC82EE13d341Dc6E73637BE0Eab79cb79dD",
+      },
+      capabilities: {
+        v3WalletDiscovery: true as const, v3PositionRead: true as const, infinityClPositionReadByTokenId: true as const,
+        infinityClWalletDiscovery: false as const, positionValuation: false as const, historicalAnalytics: false as const,
+      },
+      coverageNotes: [],
+    }),
+    getV3Position: async () => { throw new Error("not used"); },
+    getInfinityClPosition: async () => { throw new Error("not used"); },
+    getPosition: async () => { throw new Error("not used"); },
+    getWalletPositions: async (walletAddress: string, maxPositions?: number) => ({
+      walletAddress,
+      network: "testnet" as const,
+      chainId: 97,
+      blockNumber: "100",
+      observedAt: new Date().toISOString(),
+      positions: [],
+      coverage: {
+        v3Discovery: "AVAILABLE" as const,
+        infinityClDiscovery: "TOKEN_ID_REQUIRED" as const,
+        failedV3PositionRefs: [],
+        truncated: false,
+        maxPositions: maxPositions ?? 50,
+      },
+    }),
+  };
+  const app = await buildServer({ config, chain: makeChain(), pancakeSwap, logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/wallets/0x1111111111111111111111111111111111111111/pancakeswap/positions?max=5" });
+  assert.equal(response.statusCode, 200);
+  const payload = response.json();
+  assert.equal(payload.data.snapshot.coverage.infinityClDiscovery, "TOKEN_ID_REQUIRED");
+  assert.equal(payload.data.snapshot.coverage.maxPositions, 5);
+  await app.close();
+});
+
+test("invalid PancakeSwap protocol version returns a structured 400", async () => {
+  const app = await buildServer({ config, chain: makeChain(), logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/protocols/pancakeswap/positions/v2/1" });
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().error.code, "INVALID_PROTOCOL_VERSION");
+  await app.close();
+});
