@@ -213,6 +213,7 @@ export interface SmartMoneyPortfolioSnapshot {
   pancakeSwapPositions: PancakeSwapClPositionSnapshot[];
   venusPositions: VenusPoolPositionSnapshot[];
   yieldOpportunities: YieldOpportunitySnapshot[];
+  gridMarketContexts: GridMarketContextSnapshot[];
   coverage: SmartMoneyCheckCoverage;
 }
 
@@ -675,6 +676,61 @@ export interface YieldWalletSnapshot {
     failedMarketRefs: string[];
     truncated: boolean;
   };
+  limitations: string[];
+}
+
+
+export type GridMarketRegime = "RANGE_LIKE" | "TRENDING_UP" | "TRENDING_DOWN" | "MIXED" | "INSUFFICIENT_HISTORY";
+
+export interface GridTwapWindowSnapshot {
+  seconds: number;
+  label: string;
+  averageTick?: number;
+  averagePriceToken0InToken1?: string;
+  state: "AVAILABLE" | "UNAVAILABLE";
+}
+
+export interface GridMarketContextSnapshot {
+  contextId: string;
+  protocol: "PancakeSwap";
+  version: "V3";
+  network: BscNetwork;
+  chainId: number;
+  poolAddress: string;
+  pairLabel: string;
+  token0: ProtocolTokenMetadata;
+  token1: ProtocolTokenMetadata;
+  feePips: number;
+  currentTick: number;
+  currentPriceToken0InToken1?: string;
+  liquidityRaw: string;
+  windows: GridTwapWindowSnapshot[];
+  twapBandLow?: string;
+  twapBandHigh?: string;
+  twapDispersionBps?: number;
+  regime: GridMarketRegime;
+  confidence: "high" | "medium" | "low" | "unavailable";
+  walletCompatibility: {
+    token0BalanceRaw?: string;
+    token1BalanceRaw?: string;
+    nativeBalanceRaw?: string;
+    hasAnyCompatibleAsset: boolean;
+    positionExposure: boolean;
+  };
+  blockNumber: string;
+  observedAt: string;
+  evidence: EvidenceEnvelope[];
+  coverage: { poolState: "AVAILABLE" | "FAILED"; oracleHistory: "AVAILABLE" | "PARTIAL" | "INSUFFICIENT_HISTORY"; walletBalances: "AVAILABLE" | "PARTIAL" | "FAILED" | "NOT_REQUESTED"; };
+  limitations: string[];
+}
+
+export interface GridWalletMarketSnapshot {
+  walletAddress: string;
+  network: BscNetwork;
+  chainId: number;
+  observedAt: string;
+  contexts: GridMarketContextSnapshot[];
+  coverage: { configuredMarkets: "AVAILABLE" | "PARTIAL" | "FAILED"; failedMarketRefs: string[]; };
   limitations: string[];
 }
 

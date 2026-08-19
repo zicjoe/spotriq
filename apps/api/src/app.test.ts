@@ -113,9 +113,13 @@ test("GET PancakeSwap status exposes normalized adapter capabilities", async () 
         infinityClWalletDiscovery: false as const,
         positionValuation: false as const,
         historicalAnalytics: false as const,
+        v3OracleTwap: true as const,
       },
       coverageNotes: ["test"],
     }),
+    getV3Pool: async () => { throw new Error("not used"); },
+    findBestV3Pool: async () => undefined,
+    observeV3Pool: async () => { throw new Error("not used"); },
     getV3Position: async () => { throw new Error("not used"); },
     getInfinityClPosition: async () => { throw new Error("not used"); },
     getPosition: async () => { throw new Error("not used"); },
@@ -160,9 +164,13 @@ test("GET wallet PancakeSwap positions preserves explicit Infinity discovery cov
       capabilities: {
         v3WalletDiscovery: true as const, v3PositionRead: true as const, infinityClPositionReadByTokenId: true as const,
         infinityClWalletDiscovery: false as const, positionValuation: false as const, historicalAnalytics: false as const,
+        v3OracleTwap: true as const,
       },
       coverageNotes: [],
     }),
+    getV3Pool: async () => { throw new Error("not used"); },
+    findBestV3Pool: async () => undefined,
+    observeV3Pool: async () => { throw new Error("not used"); },
     getV3Position: async () => { throw new Error("not used"); },
     getInfinityClPosition: async () => { throw new Error("not used"); },
     getPosition: async () => { throw new Error("not used"); },
@@ -273,5 +281,29 @@ test("GET Venus yield opportunities exposes normalized current-rate context", as
   const response = await app.inject({ method: "GET", url: "/v1/wallets/0x1111111111111111111111111111111111111111/venus/yield-opportunities" });
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().data.snapshot.coverage.venusMarkets, "AVAILABLE");
+  await app.close();
+});
+
+
+test("GET Grid market context exposes normalized TWAP regime context", async () => {
+  const context = {
+    contextId: "gridctx_api", protocol: "PancakeSwap" as const, version: "V3" as const, network: "testnet" as const, chainId: 97,
+    poolAddress: "0x3333333333333333333333333333333333333333", pairLabel: "tBNB/USDT",
+    token0: { address: "0x4444444444444444444444444444444444444444", symbol: "tBNB", decimals: 18, isNative: false },
+    token1: { address: "0x5555555555555555555555555555555555555555", symbol: "USDT", decimals: 18, isNative: false },
+    feePips: 2500, currentTick: 500, currentPriceToken0InToken1: "620.5", liquidityRaw: "1000",
+    windows: [{ seconds: 3600, label: "1h", averageTick: 500, averagePriceToken0InToken1: "620.5", state: "AVAILABLE" as const }],
+    twapBandLow: "620", twapBandHigh: "620.5", twapDispersionBps: 8, regime: "RANGE_LIKE" as const, confidence: "high" as const,
+    walletCompatibility: { token0BalanceRaw: "1", hasAnyCompatibleAsset: true, positionExposure: false }, blockNumber: "100", observedAt: new Date().toISOString(), evidence: [],
+    coverage: { poolState: "AVAILABLE" as const, oracleHistory: "PARTIAL" as const, walletBalances: "AVAILABLE" as const }, limitations: [],
+  };
+  const marketContext = {
+    getWalletMarketContexts: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, observedAt: context.observedAt, contexts: [context], coverage: { configuredMarkets: "AVAILABLE" as const, failedMarketRefs: [] }, limitations: [] }),
+    getPoolContext: async () => context,
+  };
+  const app = await buildServer({ config, chain: makeChain(), marketContext, logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/wallets/0x1111111111111111111111111111111111111111/grid/market-context" });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().data.snapshot.contexts[0].regime, "RANGE_LIKE");
   await app.close();
 });

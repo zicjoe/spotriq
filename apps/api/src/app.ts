@@ -15,6 +15,7 @@ import {
   PancakeSwapAdapterError,
   type PancakeSwapReader,
 } from "@spotriq/protocol-pancakeswap";
+import { createGridMarketContextEngine, GridMarketContextError, type GridMarketContextReader } from "@spotriq/market-context";
 import { createSmartMoneyEngine, MemorySmartMoneyStore, PostgresSmartMoneyStore, type SmartMoneyEngine } from "@spotriq/smart-money";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
@@ -23,6 +24,7 @@ import { registerEvidenceRoutes } from "./routes/evidence.js";
 import { registerPancakeSwapRoutes } from "./routes/pancakeswap.js";
 import { registerVenusRoutes } from "./routes/venus.js";
 import { registerCheckRoutes } from "./routes/checks.js";
+import { registerMarketContextRoutes } from "./routes/market-context.js";
 
 export interface BuildServerOptions {
   config?: ServerConfig;
@@ -30,6 +32,7 @@ export interface BuildServerOptions {
   chain?: BscChainReader;
   pancakeSwap?: PancakeSwapReader;
   venus?: VenusReader;
+  marketContext?: GridMarketContextReader;
   smartMoney?: SmartMoneyEngine;
 }
 
@@ -43,11 +46,12 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   });
   const pancakeSwap = options.pancakeSwap ?? createPancakeSwapAdapter({ chain });
   const venus = options.venus ?? createVenusAdapter({ chain });
+  const marketContext = options.marketContext ?? createGridMarketContextEngine({ chain, pancakeSwap });
   const database = getDatabasePool(config.databaseUrl);
   const smartMoneyStore = database
     ? new PostgresSmartMoneyStore({ query: (text, values) => database.query(text, values) })
     : new MemorySmartMoneyStore();
-  const smartMoney = options.smartMoney ?? createSmartMoneyEngine({ chain, pancakeSwap, venus, store: smartMoneyStore });
+  const smartMoney = options.smartMoney ?? createSmartMoneyEngine({ chain, pancakeSwap, venus, marketContext, store: smartMoneyStore });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
@@ -68,7 +72,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.7.0",
+      version: "0.8.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -101,6 +105,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       pancakeSwapAdapterEnabled: true,
       venusAdapterEnabled: true,
       yieldDataEnabled: true,
+      gridMarketContextEnabled: true,
       smartMoneyCheckEnabled: true,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
@@ -113,7 +118,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "Smart Money Check generates deterministic Rebalancing findings from supported PancakeSwap positions, Health findings from Venus lending state, and Yield findings from wallet-relevant Venus supply markets.",
         "Yield current rates are base Venus supply APY derived from onchain supplyRatePerBlock; incentives, estimated net yield, and realised performance remain separate and are not fabricated.",
         "Venus protocol shortfall is canonical for current liquidation eligibility; Spotriq health factor is a derived explanation and incomplete inputs never become Healthy.",
-        "Historical market context and agent matching remain explicitly unsupported in this milestone.",
+        "Grid market context now uses supported PancakeSwap V3 onchain 1h/6h/24h oracle averages. TWAP dispersion is not realised volatility and the regime is not a profit forecast.",
+        "Agent matching remains explicitly unsupported in this milestone.",
       ],
     };
     const body: ApiEnvelope<CapabilityResponse> = { data, meta: { generatedAt: new Date().toISOString() } };
@@ -124,6 +130,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerEvidenceRoutes(app);
   await registerPancakeSwapRoutes(app, pancakeSwap);
   await registerVenusRoutes(app, venus);
+  await registerMarketContextRoutes(app, marketContext);
   await registerCheckRoutes(app, smartMoney);
 
   app.setNotFoundHandler(async (request, reply) => {
@@ -152,6 +159,11 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         },
       };
       return reply.code(400).send(body);
+    }
+
+    if (error instanceof GridMarketContextError) {
+      const body: ApiErrorBody = { error: { code: "GRID_MARKET_CONTEXT_ERROR", message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id } };
+      return reply.code(502).send(body);
     }
 
     if (error instanceof PancakeSwapAdapterError) {

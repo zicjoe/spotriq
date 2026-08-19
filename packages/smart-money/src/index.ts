@@ -6,6 +6,7 @@ import type {
   CheckSourceProgress,
   EvidenceEnvelope,
   Finding,
+  GridMarketContextSnapshot,
   LiquidityRangeState,
   PancakeSwapClPositionSnapshot,
   SmartMoneyCheckCoverage,
@@ -17,6 +18,7 @@ import type {
 } from "@spotriq/domain";
 import type { PancakeSwapReader } from "@spotriq/protocol-pancakeswap";
 import type { VenusReader } from "@spotriq/protocol-venus";
+import type { GridMarketContextReader } from "@spotriq/market-context";
 
 export const SMART_MONEY_REBALANCING_METHOD = {
   methodId: "smart-money.rebalancing-finding",
@@ -63,7 +65,7 @@ const CHECK_SOURCE_TEMPLATE: CheckSourceProgress[] = [
   { key: "pancakeswap_positions", label: "PancakeSwap positions", state: "QUEUED" },
   { key: "venus_positions", label: "Venus lending positions", state: "QUEUED" },
   { key: "yield_opportunities", label: "Yield opportunities", state: "QUEUED" },
-  { key: "market_context", label: "Market context", state: "NOT_SUPPORTED", detail: "Historical market context is not enabled in this milestone." },
+  { key: "market_context", label: "Grid market context", state: "QUEUED" },
   { key: "agent_compatibility", label: "Agent compatibility", state: "NOT_SUPPORTED", detail: "Recommendation matching is not enabled in this milestone." },
 ];
 
@@ -304,20 +306,66 @@ export function createYieldFinding(
   };
 }
 
+
+export const SMART_MONEY_GRID_METHOD = {
+  methodId: "smart-money.grid-finding",
+  version: "1.0.0",
+  name: "PancakeSwap V3 grid market-context finding",
+  description: "Surfaces wallet-relevant Grid Trading context from a supported PancakeSwap V3 pool and deterministic onchain TWAP regime classification without predicting profit.",
+} as const;
+
+export function createGridFinding(checkSessionId: string, context: GridMarketContextSnapshot, now = new Date(), idFactory: () => string = randomUUID): Finding | undefined {
+  if (!context.walletCompatibility.hasAnyCompatibleAsset) return undefined;
+  const dispersion = context.twapDispersionBps === undefined ? "Unavailable" : `${context.twapDispersionBps.toLocaleString(undefined, { maximumFractionDigits: 1 })} bps`;
+  const band = context.twapBandLow && context.twapBandHigh ? `${Number(context.twapBandLow).toLocaleString(undefined,{maximumSignificantDigits:7})}–${Number(context.twapBandHigh).toLocaleString(undefined,{maximumSignificantDigits:7})}` : "Insufficient history";
+  const common = "This is deterministic market context from available PancakeSwap V3 oracle averages. It is not realised volatility, a profit forecast, or a recommendation to trade.";
+  const state: Finding["state"] = context.regime === "RANGE_LIKE" ? "opportunity" : context.regime === "INSUFFICIENT_HISTORY" ? "could-not-assess" : "informational";
+  const severity: Finding["severity"] = state === "opportunity" ? "opportunity" : "info";
+  const headline = context.regime === "RANGE_LIKE"
+    ? `Recent ${context.pairLabel} onchain averages are relatively range-like.`
+    : context.regime === "TRENDING_UP"
+      ? `Recent ${context.pairLabel} onchain averages show upward directional divergence.`
+      : context.regime === "TRENDING_DOWN"
+        ? `Recent ${context.pairLabel} onchain averages show downward directional divergence.`
+        : context.regime === "MIXED"
+          ? `Recent ${context.pairLabel} onchain averages are mixed.`
+          : `Spotriq could not establish enough ${context.pairLabel} oracle history for Grid context.`;
+  const summary = context.regime === "RANGE_LIKE"
+    ? `The available 1h/6h/24h average-price observations remain within a relatively narrow TWAP band for Spotriq’s versioned method. ${common}`
+    : context.regime === "INSUFFICIENT_HISTORY"
+      ? `The pool does not currently expose enough usable oracle history across Spotriq’s required windows. Spotriq will not guess a market regime. ${common}`
+      : `The available average-price windows do not meet Spotriq’s range-like rule. ${common}`;
+  return {
+    findingId: `finding_${idFactory()}`, checkSessionId, category: "grid", state, severity, headline, summary, confidence: context.confidence === "unavailable" ? "low" : context.confidence, freshness: ageLabel(context.observedAt, now),
+    primaryAction: { label: state === "opportunity" ? "Compare Grid Strategies" : "Explore Grid Agents" }, targetRoute: "explore",
+    keyValues: [
+      { label: "Pair", value: context.pairLabel, note: `PancakeSwap V3 · ${(context.feePips/10000).toFixed(2)}% fee` },
+      { label: "Market regime", value: context.regime.replaceAll("_", " "), note: `${context.confidence} confidence` },
+      { label: "TWAP dispersion", value: dispersion, note: "Average-price dispersion · not realised volatility" },
+      { label: "Observed average band", value: band, note: "Spot + available 1h/6h/24h averages" },
+    ],
+    whatCouldAgentDo: "A compatible Grid Trading agent could use this pair context after you explicitly choose capital, price range, stop conditions, and risk limits. Spotriq has not inferred those preferences from your wallet.",
+    uncertainties: context.limitations.join(" "),
+    subject: { protocol: "PancakeSwap", poolAddress: context.poolAddress, pair: context.pairLabel, regime: context.regime, contextId: context.contextId, network: context.network, blockNumber: context.blockNumber },
+    evidenceIds: context.evidence.map((item) => item.evidenceId), methodVersion: `${SMART_MONEY_GRID_METHOD.methodId}@${SMART_MONEY_GRID_METHOD.version}`, generatedAt: now.toISOString(), expiresAt: new Date(now.getTime() + 5 * 60_000).toISOString(),
+  };
+}
+
 function defaultCoverage(): SmartMoneyCheckCoverage {
   return {
     walletAssets: "PARTIAL",
     pancakeSwapPositions: "PARTIAL",
     venusPositions: "PARTIAL",
     yieldOpportunities: "PARTIAL",
-    marketContext: "NOT_SUPPORTED",
+    marketContext: "PARTIAL",
     agentCompatibility: "NOT_SUPPORTED",
     notes: [
       "Wallet-wide ERC-20 discovery is not enabled yet; this check reads the native BNB/tBNB balance plus token metadata attached to discovered supported positions.",
       "PancakeSwap V3 wallet discovery is enabled. Infinity CL wallet discovery requires a future indexed event source.",
       "Venus Core Pool and Isolated Pool positions are checked onchain. Missing risk inputs are surfaced as partial/could-not-assess rather than Healthy.",
       "Yield scans compare wallet-held or already-supplied assets with supported Venus base supply-rate markets; user risk and liquidity preferences are not inferred.",
-      "Historical market context and agent matching are intentionally not represented as completed checks yet.",
+      "Grid market context uses supported PancakeSwap V3 onchain oracle averages. TWAP dispersion is not labelled as realised volatility and no profit forecast is made.",
+      "Agent matching is intentionally not represented as a completed check yet.",
     ],
   };
 }
@@ -406,6 +454,15 @@ export class PostgresSmartMoneyStore implements SmartMoneyStore {
           yield_opportunity_snapshot_id,portfolio_snapshot_id,check_session_id,wallet_address,protocol,pool_kind,pool_name,comptroller,vtoken_address,underlying,wallet_balance_raw,wallet_balance_formatted,existing_supply_underlying_raw,existing_supply_formatted,current_supply_rate_per_block_raw,current_supply_apy_percent,current_rate_type,available_liquidity_raw,coverage,limitations,block_number,observed_at
         ) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20::jsonb,$21,$22)`,
         [opportunity.opportunityId,snapshot.portfolioSnapshotId,snapshot.checkSessionId,snapshot.walletAddress,opportunity.protocol,opportunity.poolKind,opportunity.poolName,opportunity.comptroller,opportunity.vToken,JSON.stringify(opportunity.underlying),opportunity.walletBalanceRaw,opportunity.walletBalanceFormatted ?? null,opportunity.existingSupplyUnderlyingRaw,opportunity.existingSupplyFormatted ?? null,opportunity.currentSupplyRatePerBlockRaw,opportunity.currentSupplyApyPercent ?? null,opportunity.currentRateType,opportunity.availableLiquidityRaw ?? null,JSON.stringify(opportunity.coverage),JSON.stringify(opportunity.limitations),opportunity.blockNumber,opportunity.observedAt],
+      );
+    }
+    await this.db.query(`delete from grid_market_context_snapshots where portfolio_snapshot_id=$1`, [snapshot.portfolioSnapshotId]);
+    for (const context of snapshot.gridMarketContexts ?? []) {
+      await this.db.query(
+        `insert into grid_market_context_snapshots(
+          grid_market_context_snapshot_id,portfolio_snapshot_id,check_session_id,wallet_address,protocol,pool_address,pair_label,token0,token1,fee_pips,current_tick,current_price_token0_in_token1,liquidity_raw,windows,twap_band_low,twap_band_high,twap_dispersion_bps,regime,confidence,wallet_compatibility,coverage,limitations,block_number,observed_at
+        ) values($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18,$19,$20::jsonb,$21::jsonb,$22::jsonb,$23,$24)`,
+        [context.contextId,snapshot.portfolioSnapshotId,snapshot.checkSessionId,snapshot.walletAddress,context.protocol,context.poolAddress,context.pairLabel,JSON.stringify(context.token0),JSON.stringify(context.token1),context.feePips,context.currentTick,context.currentPriceToken0InToken1 ?? null,context.liquidityRaw,JSON.stringify(context.windows),context.twapBandLow ?? null,context.twapBandHigh ?? null,context.twapDispersionBps ?? null,context.regime,context.confidence,JSON.stringify(context.walletCompatibility),JSON.stringify(context.coverage),JSON.stringify(context.limitations),context.blockNumber,context.observedAt],
       );
     }
     await this.db.query(`delete from lending_position_snapshots where portfolio_snapshot_id=$1`, [snapshot.portfolioSnapshotId]);
@@ -512,6 +569,7 @@ export interface SmartMoneyEngineOptions {
   chain: BscChainReader;
   pancakeSwap: PancakeSwapReader;
   venus: VenusReader;
+  marketContext: GridMarketContextReader;
   store?: SmartMoneyStore;
   now?: () => Date;
   idFactory?: () => string;
@@ -587,6 +645,7 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
     let positions: PancakeSwapClPositionSnapshot[] = [];
     let venusPositions: VenusPoolPositionSnapshot[] = [];
     let yieldOpportunities: YieldOpportunitySnapshot[] = [];
+    let gridMarketContexts: GridMarketContextSnapshot[] = [];
     let blockNumber = "0";
     let observedAt = now().toISOString();
     const coverage = defaultCoverage();
@@ -654,6 +713,20 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
       await updateSource(session, "yield_opportunities", "FAILED", error instanceof Error ? error.message : "Yield opportunity scan failed.");
     }
 
+    try {
+      await updateSource(session, "market_context", "RUNNING");
+      const grid = await options.marketContext.getWalletMarketContexts(session.walletAddress, positions.map((position) => position.pool));
+      gridMarketContexts = grid.contexts;
+      await store.saveEvidence(gridMarketContexts.flatMap((item) => item.evidence));
+      coverage.marketContext = grid.coverage.configuredMarkets === "AVAILABLE" ? "AVAILABLE" : grid.coverage.configuredMarkets === "PARTIAL" ? "PARTIAL" : "FAILED";
+      const usable = gridMarketContexts.filter((item) => item.regime !== "INSUFFICIENT_HISTORY").length;
+      const detail = `Checked ${gridMarketContexts.length} supported PancakeSwap V3 market context${gridMarketContexts.length === 1 ? "" : "s"}; ${usable} have sufficient oracle history for a deterministic regime classification.`;
+      await updateSource(session, "market_context", coverage.marketContext === "AVAILABLE" ? "COMPLETED" : coverage.marketContext === "PARTIAL" ? "PARTIAL" : "FAILED", detail);
+    } catch (error) {
+      coverage.marketContext = "FAILED";
+      await updateSource(session, "market_context", "FAILED", error instanceof Error ? error.message : "Grid market-context scan failed.");
+    }
+
     const portfolio: SmartMoneyPortfolioSnapshot = {
       portfolioSnapshotId: `portfolio_${idFactory()}`,
       checkSessionId,
@@ -666,6 +739,7 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
       pancakeSwapPositions: positions,
       venusPositions,
       yieldOpportunities,
+      gridMarketContexts,
       coverage,
     };
     await store.savePortfolio(portfolio);
@@ -696,11 +770,18 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
       await publish(checkSessionId, "finding.created", "yield_opportunities", { findingId: finding.findingId, category: finding.category, state: finding.state, severity: finding.severity });
     }
 
+    for (const context of gridMarketContexts) {
+      const finding = createGridFinding(checkSessionId, context, now(), idFactory);
+      if (!finding) continue;
+      await store.saveFinding(finding);
+      await publish(checkSessionId, "finding.created", "market_context", { findingId: finding.findingId, category: finding.category, state: finding.state, severity: finding.severity });
+    }
+
     session.coverage = coverage;
-    session.state = coverage.walletAssets === "FAILED" && coverage.pancakeSwapPositions === "FAILED" && coverage.venusPositions === "FAILED" && coverage.yieldOpportunities === "FAILED" ? "FAILED" : "PARTIAL";
+    session.state = coverage.walletAssets === "FAILED" && coverage.pancakeSwapPositions === "FAILED" && coverage.venusPositions === "FAILED" && coverage.yieldOpportunities === "FAILED" && coverage.marketContext === "FAILED" ? "FAILED" : "PARTIAL";
     session.completedAt = now().toISOString();
     session.updatedAt = session.completedAt;
-    if (session.state === "FAILED") session.failureReason = "Wallet, PancakeSwap, Venus health, and Yield source reads all failed.";
+    if (session.state === "FAILED") session.failureReason = "Wallet, PancakeSwap, Venus health, Yield, and Grid market-context source reads all failed.";
     await store.updateSession(session);
     await publish(checkSessionId, session.state === "FAILED" ? "check.failed" : "check.completed", undefined, { state: session.state, findings: (await store.listFindings(checkSessionId)).length });
     return { session, portfolio, findings: await store.listFindings(checkSessionId) };

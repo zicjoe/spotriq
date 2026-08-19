@@ -36,3 +36,16 @@ Grid Trading market-context foundation so all four required financial categories
 
 ## Rule
 Every completed replacement becomes the new source of truth.
+
+
+## v0.8.0 — Grid Trading Market-Context Foundation
+
+- Added `@spotriq/market-context`.
+- Added PancakeSwap V3 pool reads and `observe()`-based 1h/6h/24h TWAP observations.
+- Added deterministic Grid regime classification: `RANGE_LIKE`, `TRENDING_UP`, `TRENDING_DOWN`, `MIXED`, `INSUFFICIENT_HISTORY`.
+- Added wallet-relevant Grid Smart Money findings and live scan source progress.
+- Added Grid market-context API routes and PostgreSQL migration `0006_grid_market_context.sql`.
+- All four required financial categories now have real data foundations.
+- Explicit limitation: TWAP dispersion is not realised volatility and Grid context is not a profit forecast or recommendation.
+
+Next: Railway PostgreSQL persistence, then ERC-8004/8004scan discovery + Agent Service listing engine.

@@ -145,6 +145,13 @@ export const EVIDENCE_METHODS = {
     description: "Derives an explanatory health ratio from Venus canonical account liquidity/shortfall plus observed debt valuation. Canonical Venus shortfall and forced-liquidation configuration take precedence.",
     inputMetrics: ["venus.market-position", "venus.account-liquidity"],
   },
+  GRID_MARKET_REGIME: {
+    methodId: "grid.market-regime",
+    version: "1.0.0",
+    name: "PancakeSwap V3 TWAP market-regime context",
+    description: "Classifies supported Grid market context from current PancakeSwap V3 price plus available 1h/6h/24h onchain TWAP observations. TWAP dispersion is not realised volatility or a profitability forecast.",
+    inputMetrics: ["market.current_price", "pancakeswap.v3.twap.1h", "pancakeswap.v3.twap.6h", "pancakeswap.v3.twap.24h"],
+  },
 } satisfies Record<string, EvidenceMethodDefinition>;
 
 const DEFAULT_FRESHNESS_POLICY: FreshnessPolicy = {

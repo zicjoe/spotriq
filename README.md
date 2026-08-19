@@ -21,6 +21,7 @@ packages/
   chain/         normalized BSC JSON-RPC adapter
   evidence/      provenance, freshness, methods, source registry
   protocol-pancakeswap/ PancakeSwap V3 + Infinity CL normalized reads
+  market-context/ PancakeSwap V3 onchain TWAP context + deterministic Grid regime
   smart-money/    live check orchestration + deterministic findings + persistence adapters
 ```
 
@@ -85,6 +86,16 @@ The wallet endpoint currently auto-discovers PancakeSwap V3 position NFTs. Infin
 Range state is returned as one of `IN_RANGE`, `NEAR_LOWER`, `NEAR_UPPER`, `OUT_OF_RANGE_BELOW`, `OUT_OF_RANGE_ABOVE`, or `NO_LIQUIDITY`, with evidence and method metadata. USD valuation and historical performance are intentionally not fabricated in this milestone.
 
 
+## Grid Trading market-context APIs
+
+```text
+http://localhost:3001/v1/wallets/0xYOUR_BSC_ADDRESS/grid/market-context
+http://localhost:3001/v1/grid/pools/0xPANCAKE_V3_POOL/context
+```
+
+The Grid context layer reads supported PancakeSwap V3 current pool state and available onchain oracle observations for 1h, 6h, and 24h windows. Spotriq uses a deterministic, versioned classifier to describe directional/range context. It does **not** call TWAP dispersion realised volatility, predict profitability, infer capital size, or infer the user's risk tolerance. If required pool oracle history is unavailable, the result is `INSUFFICIENT_HISTORY` / Could Not Assess rather than a guessed regime.
+
+
 ## Live Smart Money Check
 
 The existing Figma Smart Money Check is now wired to a real read-only backend for supported BSC data.
@@ -100,7 +111,7 @@ GET  http://localhost:3001/v1/checks/:checkSessionId/findings
 GET  http://localhost:3001/v1/checks/:checkSessionId/events
 ```
 
-Current live check coverage is intentionally partial but now spans two real financial categories: BSC native balance + PancakeSwap V3 wallet positions + deterministic Rebalancing findings, plus Venus Core/Isolated lending positions + deterministic Health findings. Historical market context, agent matching, wallet-wide token discovery, and Infinity wallet-wide discovery are explicitly marked unsupported/partial instead of being faked.
+Current live check coverage now has real data foundations across all four required financial categories: Rebalancing from supported PancakeSwap V3 LP range state, Health from Venus Core/Isolated lending risk, Yield from wallet-relevant Venus supply markets, and Grid from wallet-relevant PancakeSwap V3 onchain oracle averages. Agent matching, wallet-wide token discovery, Infinity wallet-wide discovery, and historical realised-performance analytics remain explicitly unsupported/partial instead of being faked.
 
 ## BSC RPC configuration
 
@@ -126,7 +137,7 @@ pnpm db:health
 pnpm db:migrate
 ```
 
-Migration `0002_chain_evidence_spine.sql` introduces Spotriq's data-source, evidence-method, raw-observation, freshness, and conflict schema. Migration `0003_smart_money_rebalancing.sql` adds check-event persistence and the additional Smart Money finding fields. Migration `0004_venus_health_positions.sql` adds normalized Venus pool/market lending snapshots.
+Migration `0002_chain_evidence_spine.sql` introduces Spotriq's data-source, evidence-method, raw-observation, freshness, and conflict schema. Migration `0003_smart_money_rebalancing.sql` adds check-event persistence and the additional Smart Money finding fields. Migration `0004_venus_health_positions.sql` adds normalized Venus pool/market lending snapshots. Migration `0005_yield_opportunities.sql` persists Yield opportunity snapshots. Migration `0006_grid_market_context.sql` persists Grid market-context snapshots plus Grid evidence methods.
 
 ## Run one process only
 
@@ -146,6 +157,7 @@ pnpm dev:worker
 - The live Smart Money Check deliberately reports partial coverage for unsupported sources.
 - Venus Core Pool and registered Isolated Pool health normalization is live and feeds Smart Money Check Health findings. Canonical protocol shortfall takes precedence over Spotriq's explanatory derived health factor.
 - Wallet-relevant Venus supply opportunities now expose current base supply APY as a distinct, variable protocol-rate metric and feed Smart Money Check Yield findings. Estimated net APY and observed realised yield remain intentionally unavailable until Spotriq has the evidence required to calculate them credibly.
+- Wallet-relevant PancakeSwap V3 Grid contexts now use current pool price plus available onchain 1h/6h/24h oracle TWAP windows. The versioned regime classifier can return `RANGE_LIKE`, `TRENDING_UP`, `TRENDING_DOWN`, `MIXED`, or `INSUFFICIENT_HISTORY`. TWAP dispersion is not labelled as realised volatility and no profitability/advisability claim is made.
 
 ## Engineering documentation
 
@@ -161,8 +173,10 @@ pnpm dev:worker
 - `docs/VENUS_ADAPTER_HEALTH_MONITORING.md`
 - `docs/IMPLEMENTATION_REPORT_VENUS_HEALTH.md`
 - `docs/IMPLEMENTATION_REPORT_YIELD_FOUNDATION.md`
+- `docs/GRID_MARKET_CONTEXT.md`
+- `docs/IMPLEMENTATION_REPORT_GRID_MARKET_CONTEXT.md`
 - `docs/ENGINEERING_STATUS.md`
 
 ## Next milestone
 
-Grid Trading market-context foundation — add supported pair context, historical price inputs, deterministic regime/volatility calculations, and Grid findings without making profit predictions.
+Connect Railway PostgreSQL and run all migrations so Smart Money Check history, evidence, Venus/Yield snapshots, and Grid market contexts are durable. After persistence is live, implement ERC-8004 + 8004scan agent registry/discovery and the normalized Agent Service listing layer.

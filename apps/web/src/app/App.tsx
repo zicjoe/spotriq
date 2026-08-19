@@ -816,7 +816,8 @@ function CheckStartPage({ navigate }: { navigate: (r: Route, p?: Partial<NavStat
     "BSC native wallet balance", "Supported PancakeSwap V3 positions", "Rebalancing range-state findings",
     "Venus Core Pool and Isolated Pool lending positions", "Venus health / liquidation-buffer findings",
     "Wallet-relevant Venus supply opportunities and current base APY",
-    "PancakeSwap Infinity CL reads by known token ID", "Grid market context / agent matching as coverage expands"
+    "PancakeSwap V3 Grid market context from onchain oracle averages",
+    "PancakeSwap Infinity CL reads by known token ID", "Agent matching as coverage expands"
   ];
 
   const startLiveCheck = async (walletAddress: string, control: "WATCH_ONLY" | "CONNECTED" | "VERIFIED_CONTROL") => {

@@ -1,13 +1,14 @@
 {
   "name": "@spotriq/smart-money",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "dependencies": {
     "@spotriq/domain": "workspace:*",
     "@spotriq/chain": "workspace:*",
     "@spotriq/protocol-pancakeswap": "workspace:*",
-    "@spotriq/protocol-venus": "workspace:*"
+    "@spotriq/protocol-venus": "workspace:*",
+    "@spotriq/market-context": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

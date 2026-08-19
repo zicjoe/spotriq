@@ -26,6 +26,10 @@ const required = [
   "packages/db/migrations/0004_venus_health_positions.sql",
   "packages/db/migrations/0005_yield_opportunities.sql",
   "apps/api/src/routes/venus.ts",
+  "packages/market-context/package.json",
+  "packages/market-context/src/index.ts",
+  "packages/db/migrations/0006_grid_market_context.sql",
+  "apps/api/src/routes/market-context.ts",
   "packages/smart-money/package.json",
   "packages/smart-money/src/index.ts",
   "packages/db/migrations/0003_smart_money_rebalancing.sql",
@@ -105,6 +109,18 @@ const smartMoney = await readFile(path.join(root, "packages/smart-money/src/inde
 for (const marker of ["createSmartMoneyEngine", "createRebalancingFinding", "createHealthFinding", "createYieldFinding", "SMART_MONEY_YIELD_METHOD", "PostgresSmartMoneyStore", "MemorySmartMoneyStore", "SMART_MONEY_REBALANCING_METHOD", "SMART_MONEY_HEALTH_METHOD"]) {
   if (!smartMoney.includes(marker)) throw new Error(`Smart Money engine is missing ${marker}.`);
 }
+
+const grid = await readFile(path.join(root, "packages/market-context/src/index.ts"), "utf8");
+for (const marker of ["classifyGridRegime", "getWalletMarketContexts", "observeV3Pool", "RANGE_LIKE", "INSUFFICIENT_HISTORY"]) {
+  if (!grid.includes(marker)) throw new Error(`Grid market-context engine is missing ${marker}.`);
+}
+const marketContextRoutes = await readFile(path.join(root, "apps/api/src/routes/market-context.ts"), "utf8");
+for (const route of ["/v1/wallets/:address/grid/market-context", "/v1/grid/pools/:poolAddress/context"]) {
+  if (!marketContextRoutes.includes(route)) throw new Error(`Missing Grid market-context route ${route}.`);
+}
+if (!evidence.includes("GRID_MARKET_REGIME")) throw new Error("Evidence Engine must include Grid market-regime methodology.");
+if (!smartMoney.includes("createGridFinding") || !smartMoney.includes("SMART_MONEY_GRID_METHOD")) throw new Error("Smart Money engine must include deterministic Grid findings.");
+
 const checkRoutes = await readFile(path.join(root, "apps/api/src/routes/checks.ts"), "utf8");
 for (const route of ["/v1/checks", "/v1/checks/:checkSessionId", "/v1/checks/:checkSessionId/findings", "/v1/checks/:checkSessionId/events"]) {
   if (!checkRoutes.includes(route)) throw new Error(`Missing Smart Money Check route ${route}.`);
@@ -114,4 +130,4 @@ if (!appUi.includes("smartMoneyRepository.startCheck") || !appUi.includes("subsc
   throw new Error("Smart Money Check UI must be wired to the live API while retaining example mode.");
 }
 
-console.log("Spotriq foundation + BSC/evidence + PancakeSwap + Venus Health + Yield + Smart Money Check verification passed.");
+console.log("Spotriq foundation + BSC/evidence + PancakeSwap + Venus Health + Yield + Grid market context + Smart Money Check verification passed.");

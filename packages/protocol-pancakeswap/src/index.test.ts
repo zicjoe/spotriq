@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   PANCAKESWAP_CONTRACTS,
+  averageTickFromCumulatives,
   classifyLiquidityRange,
   decodeInfinityTickSpacing,
   deriveSqrtPriceX96Price,
@@ -38,4 +39,11 @@ test("Infinity CL tick spacing decodes from PoolKey parameters bits 16 through 3
   const signedMinusTen = (0x1000000n - 10n) << 16n;
   const encodedNegative = `0x${signedMinusTen.toString(16).padStart(64, "0")}` as `0x${string}`;
   assert.equal(decodeInfinityTickSpacing(encodedNegative), -10);
+});
+
+
+test("V3 TWAP average tick floors negative cumulative deltas toward negative infinity", () => {
+  assert.equal(averageTickFromCumulatives(1000n, 100), 10);
+  assert.equal(averageTickFromCumulatives(-1000n, 100), -10);
+  assert.equal(averageTickFromCumulatives(-1001n, 100), -11);
 });

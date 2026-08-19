@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { BscChainReader } from "@spotriq/chain";
-import type { EvidenceEnvelope, PancakeSwapClPositionSnapshot, VenusPoolPositionSnapshot, YieldOpportunitySnapshot } from "@spotriq/domain";
+import type { EvidenceEnvelope, GridMarketContextSnapshot, PancakeSwapClPositionSnapshot, VenusPoolPositionSnapshot, YieldOpportunitySnapshot } from "@spotriq/domain";
 import type { PancakeSwapReader } from "@spotriq/protocol-pancakeswap";
+import type { GridMarketContextReader } from "@spotriq/market-context";
 import type { VenusReader } from "@spotriq/protocol-venus";
-import { createYieldFinding, createHealthFinding, createRebalancingFinding, createSmartMoneyEngine, MemorySmartMoneyStore } from "./index.js";
+import { createGridFinding, createYieldFinding, createHealthFinding, createRebalancingFinding, createSmartMoneyEngine, MemorySmartMoneyStore } from "./index.js";
 
 const observedAt = "2026-08-19T04:00:00.000Z";
 const evidence: EvidenceEnvelope = {
@@ -134,6 +135,41 @@ test("incomplete Venus inputs become Could Not Assess, never Healthy", () => {
   assert.match(finding.summary, /will not label this position Healthy/i);
 });
 
+
+function makeGridContext(regime: GridMarketContextSnapshot["regime"] = "RANGE_LIKE"): GridMarketContextSnapshot {
+  return {
+    contextId: "gridctx_test", protocol: "PancakeSwap", version: "V3", network: "testnet", chainId: 97,
+    poolAddress: "0x3333333333333333333333333333333333333333", pairLabel: "tBNB/USDT",
+    token0: { address: "0x4444444444444444444444444444444444444444", symbol: "tBNB", decimals: 18, isNative: false },
+    token1: { address: "0x5555555555555555555555555555555555555555", symbol: "USDT", decimals: 18, isNative: false },
+    feePips: 2500, currentTick: 500, currentPriceToken0InToken1: "620.5", liquidityRaw: "1000000",
+    windows: [
+      { seconds: 3600, label: "1h", averageTick: 499, averagePriceToken0InToken1: "620.4", state: "AVAILABLE" },
+      { seconds: 21600, label: "6h", averageTick: 498, averagePriceToken0InToken1: "620.2", state: "AVAILABLE" },
+      { seconds: 86400, label: "24h", averageTick: 497, averagePriceToken0InToken1: "620.0", state: "AVAILABLE" },
+    ],
+    twapBandLow: "620", twapBandHigh: "620.5", twapDispersionBps: 8.06, regime, confidence: regime === "INSUFFICIENT_HISTORY" ? "unavailable" : "high",
+    walletCompatibility: { token0BalanceRaw: "1000000000000000000", token1BalanceRaw: "0", nativeBalanceRaw: "1000000000000000000", hasAnyCompatibleAsset: true, positionExposure: true },
+    blockNumber: "100", observedAt, evidence: [evidence], coverage: { poolState: "AVAILABLE", oracleHistory: regime === "INSUFFICIENT_HISTORY" ? "INSUFFICIENT_HISTORY" : "AVAILABLE", walletBalances: "AVAILABLE" },
+    limitations: ["TWAP dispersion is not realised volatility.", "A range-like classification does not imply profitability."],
+  };
+}
+
+test("Grid finding surfaces range-like context as an opportunity without predicting profit", () => {
+  const finding = createGridFinding("check_grid", makeGridContext("RANGE_LIKE"), new Date(observedAt), () => "grid");
+  assert.ok(finding);
+  assert.equal(finding?.category, "grid");
+  assert.equal(finding?.state, "opportunity");
+  assert.match(finding?.summary ?? "", /not realised volatility/i);
+  assert.doesNotMatch(`${finding?.headline} ${finding?.summary}`, /perfect|guaranteed|will profit|profitable strategy/i);
+});
+
+test("Grid finding becomes Could Not Assess when required oracle history is unavailable", () => {
+  const finding = createGridFinding("check_grid2", makeGridContext("INSUFFICIENT_HISTORY"), new Date(observedAt), () => "grid2");
+  assert.equal(finding?.state, "could-not-assess");
+  assert.equal(finding?.confidence, "low");
+});
+
 test("Smart Money Check runs as PARTIAL while unsupported sources stay explicit", async () => {
   const chain = {
     network: "testnet" as const,
@@ -157,6 +193,9 @@ test("Smart Money Check runs as PARTIAL while unsupported sources stay explicit"
 
   const pancake = {
     getStatus: () => { throw new Error("not used"); },
+    getV3Pool: async () => makePosition("IN_RANGE").pool,
+    findBestV3Pool: async () => makePosition("IN_RANGE").pool,
+    observeV3Pool: async (_poolAddress: string, secondsAgo: number) => ({ poolAddress: "0x3333333333333333333333333333333333333333", secondsAgo, averageTick: 500, averagePriceToken0InToken1: "620.5", blockNumber: "100", observedAt }),
     getV3Position: async () => makePosition("OUT_OF_RANGE_ABOVE"),
     getInfinityClPosition: async () => makePosition("IN_RANGE"),
     getPosition: async () => makePosition("OUT_OF_RANGE_ABOVE"),
@@ -169,17 +208,24 @@ test("Smart Money Check runs as PARTIAL while unsupported sources stay explicit"
     getYieldOpportunities: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt, opportunities: [], coverage: { venusMarkets: "AVAILABLE" as const, pancakeSwapYieldContext: "NOT_AVAILABLE" as const, failedMarketRefs: [], truncated: false }, limitations: [] }),
   } satisfies VenusReader;
 
-  const engine = createSmartMoneyEngine({ chain, pancakeSwap: pancake, venus, store: new MemorySmartMoneyStore(), now: () => new Date(observedAt), idFactory: (() => { let i = 0; return () => String(++i); })() });
+  const marketContext: GridMarketContextReader = {
+    getWalletMarketContexts: async (walletAddress: string) => ({ walletAddress, network: "testnet", chainId: 97, observedAt, contexts: [makeGridContext("RANGE_LIKE")], coverage: { configuredMarkets: "AVAILABLE", failedMarketRefs: [] }, limitations: [] }),
+    getPoolContext: async () => makeGridContext("RANGE_LIKE"),
+  };
+
+  const engine = createSmartMoneyEngine({ chain, pancakeSwap: pancake, venus, marketContext, store: new MemorySmartMoneyStore(), now: () => new Date(observedAt), idFactory: (() => { let i = 0; return () => String(++i); })() });
   const session = await engine.startCheck({ walletAddress: "0x2222222222222222222222222222222222222222" });
   const result = await engine.runCheck(session.checkSessionId);
   assert.equal(result.session.state, "PARTIAL");
-  assert.equal(result.findings.length, 2);
+  assert.equal(result.findings.length, 3);
   assert.equal(result.findings[0]?.state, "needs-attention");
   assert.equal(result.session.coverage?.venusPositions, "AVAILABLE");
   assert.equal(result.session.sourceProgress?.find((item) => item.key === "pancakeswap_positions")?.state, "PARTIAL");
   assert.equal(result.session.sourceProgress?.find((item) => item.key === "venus_positions")?.state, "COMPLETED");
   assert.equal(result.session.sourceProgress?.find((item) => item.key === "yield_opportunities")?.state, "COMPLETED");
+  assert.equal(result.session.sourceProgress?.find((item) => item.key === "market_context")?.state, "COMPLETED");
   assert.ok(result.findings.some((finding) => finding.category === "health" && finding.state === "needs-attention"));
+  assert.ok(result.findings.some((finding) => finding.category === "grid" && finding.state === "opportunity"));
   const events = await engine.listEvents(session.checkSessionId);
   assert.ok(events.some((event) => event.type === "finding.created"));
   assert.equal(events.at(-1)?.type, "check.completed");

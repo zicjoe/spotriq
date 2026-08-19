@@ -47,6 +47,7 @@ export interface CapabilityResponse {
   pancakeSwapAdapterEnabled: boolean;
   venusAdapterEnabled: boolean;
   yieldDataEnabled: boolean;
+  gridMarketContextEnabled: boolean;
   smartMoneyCheckEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
@@ -99,6 +100,7 @@ export interface PancakeSwapStatusResponse {
     infinityClWalletDiscovery: false;
     positionValuation: false;
     historicalAnalytics: false;
+    v3OracleTwap: true;
   };
   coverageNotes: string[];
 }
@@ -152,3 +154,6 @@ export interface SmartMoneyCheckResponse {
 export interface SmartMoneyCheckEventsResponse {
   events: import("@spotriq/domain").SmartMoneyCheckEvent[];
 }
+
+export interface GridMarketContextResponse { snapshot: import("@spotriq/domain").GridWalletMarketSnapshot; }
+export interface GridPoolContextResponse { context: import("@spotriq/domain").GridMarketContextSnapshot; }

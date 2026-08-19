@@ -18,9 +18,13 @@ export const pancakeV3FactoryAbi = parseAbi([
 ]);
 
 export const pancakeV3PoolAbi = parseAbi([
+  "function token0() view returns (address)",
+  "function token1() view returns (address)",
+  "function fee() view returns (uint24)",
   "function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint32 feeProtocol, bool unlocked)",
   "function liquidity() view returns (uint128)",
   "function tickSpacing() view returns (int24)",
+  "function observe(uint32[] secondsAgos) view returns (int56[] tickCumulatives, uint160[] secondsPerLiquidityCumulativeX128s)",
 ]);
 
 // Infinity's positions() returns a nested PoolKey tuple. Keep this ABI explicit instead of

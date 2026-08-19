@@ -75,12 +75,25 @@ export interface PancakeSwapStatus {
     infinityClWalletDiscovery: false;
     positionValuation: false;
     historicalAnalytics: false;
+    v3OracleTwap: true;
   };
   coverageNotes: string[];
 }
 
+export interface PancakeSwapV3OracleObservation {
+  poolAddress: string;
+  secondsAgo: number;
+  averageTick: number;
+  averagePriceToken0InToken1?: string;
+  blockNumber: string;
+  observedAt: string;
+}
+
 export interface PancakeSwapReader {
   getStatus(): PancakeSwapStatus;
+  getV3Pool(poolAddress: string, blockNumber?: string): Promise<PancakeSwapClPoolSnapshot>;
+  findBestV3Pool(tokenA: string, tokenB: string, feeCandidates?: number[], blockNumber?: string): Promise<PancakeSwapClPoolSnapshot | undefined>;
+  observeV3Pool(poolAddress: string, secondsAgo: number, blockNumber?: string): Promise<PancakeSwapV3OracleObservation>;
   getV3Position(tokenId: string | number | bigint, blockNumber?: string): Promise<PancakeSwapClPositionSnapshot>;
   getInfinityClPosition(tokenId: string | number | bigint, blockNumber?: string): Promise<PancakeSwapClPositionSnapshot>;
   getPosition(version: PancakeSwapProtocolVersion, tokenId: string | number | bigint, blockNumber?: string): Promise<PancakeSwapClPositionSnapshot>;
@@ -210,6 +223,17 @@ export function deriveTickPrice(currentTick: number, token0Decimals?: number, to
   return stringifyPrice(rawRatio * decimalScale);
 }
 
+export function averageTickFromCumulatives(delta: bigint, secondsAgo: number): number {
+  if (!Number.isInteger(secondsAgo) || secondsAgo <= 0) {
+    throw new PancakeSwapAdapterError("secondsAgo must be a positive integer.", "CONTRACT_READ_FAILED");
+  }
+  const seconds = BigInt(secondsAgo);
+  let averageTick = delta / seconds;
+  // Solidity integer division truncates toward zero. V3 oracle arithmetic needs floor toward -∞.
+  if (delta < 0n && delta % seconds !== 0n) averageTick -= 1n;
+  return toNumber(averageTick);
+}
+
 export function deriveSqrtPriceX96Price(sqrtPriceX96: bigint | string, token0Decimals?: number, token1Decimals?: number): string | undefined {
   if (token0Decimals === undefined || token1Decimals === undefined) return undefined;
   const sqrt = Number(typeof sqrtPriceX96 === "string" ? BigInt(sqrtPriceX96) : sqrtPriceX96);
@@ -277,11 +301,12 @@ export class PancakeSwapAdapter {
         infinityClWalletDiscovery: false,
         positionValuation: false,
         historicalAnalytics: false,
+        v3OracleTwap: true,
       },
       coverageNotes: [
         "PancakeSwap V3 concentrated-liquidity NFTs can be discovered directly from the official V3 position manager.",
         "Infinity CL positions can be read by token ID from the official CL position manager; wallet-wide Infinity discovery requires an indexed event source and is intentionally not guessed from public RPC state.",
-        "Current range state is deterministic from protocol ticks. USD valuation and historical performance are not part of this milestone.",
+        "Current range state is deterministic from protocol ticks. V3 oracle TWAP observations are available when the pool has sufficient observation history. USD valuation and historical performance are not inferred from TWAP data.",
       ],
     };
   }
@@ -637,6 +662,66 @@ export class PancakeSwapAdapter {
         valuation: "NOT_SUPPORTED",
       },
     };
+  }
+
+  async getV3Pool(poolAddressInput: string, blockNumber?: string): Promise<PancakeSwapClPoolSnapshot> {
+    const poolAddress = normalizeAddress(poolAddressInput);
+    const observedBlock = blockNumber ?? await this.chain.getBlockNumber();
+    const observedAt = new Date().toISOString();
+    const [token0Read, token1Read, feeRead, slot0Read, liquidityRead, spacingRead] = await Promise.all([
+      this.read(pancakeV3PoolAbi, "token0", [], poolAddress, observedBlock),
+      this.read(pancakeV3PoolAbi, "token1", [], poolAddress, observedBlock),
+      this.read(pancakeV3PoolAbi, "fee", [], poolAddress, observedBlock),
+      this.read(pancakeV3PoolAbi, "slot0", [], poolAddress, observedBlock),
+      this.read(pancakeV3PoolAbi, "liquidity", [], poolAddress, observedBlock),
+      this.read(pancakeV3PoolAbi, "tickSpacing", [], poolAddress, observedBlock),
+    ]);
+    const token0Address = normalizeAddress(String(token0Read.result));
+    const token1Address = normalizeAddress(String(token1Read.result));
+    const [token0Meta, token1Meta] = await Promise.all([
+      this.getTokenMetadata(token0Address, observedBlock),
+      this.getTokenMetadata(token1Address, observedBlock),
+    ]);
+    const slot0 = slot0Read.result as readonly [bigint, number, number, number, number, number, boolean];
+    const currentTick = slot0[1];
+    const sqrtPriceX96 = slot0[0].toString();
+    const currentPrice = deriveSqrtPriceX96Price(slot0[0], token0Meta.token.decimals, token1Meta.token.decimals);
+    const chainContext = makeChainContext(this.chain, observedBlock);
+    const evidence = [
+      createEvidenceEnvelope({ subjectType: "market", subjectId: poolAddress, metric: "pancakeswap.pool.tick", value: currentTick, provenance: "external", source: DATA_SOURCES.PANCAKESWAP, sourceRef: explorerAddressRef(this.network, poolAddress), observedAt, confidence: "high", method: EVIDENCE_METHODS.PANCAKE_V3_POSITION, methodInputs: [observedBlock], chainContext }),
+      createEvidenceEnvelope({ subjectType: "market", subjectId: poolAddress, metric: "pancakeswap.pool.liquidity", value: String(liquidityRead.result), provenance: "external", source: DATA_SOURCES.PANCAKESWAP, sourceRef: explorerAddressRef(this.network, poolAddress), observedAt, confidence: "high", method: EVIDENCE_METHODS.PANCAKE_V3_POSITION, methodInputs: [observedBlock], chainContext }),
+    ];
+    if (currentPrice) evidence.push(createEvidenceEnvelope({ subjectType: "market", subjectId: poolAddress, metric: "market.current_price", value: currentPrice, unit: "token1-per-token0", provenance: "marketplace-derived", source: DATA_SOURCES.SPOTRIQ_DERIVED, observedAt, confidence: "high", method: EVIDENCE_METHODS.PANCAKE_CL_SQRT_PRICE, methodInputs: [sqrtPriceX96], chainContext }));
+    return { protocol: "PancakeSwap", version: "V3", network: this.network, chainId: this.chain.definition.chainId, poolAddress, token0: token0Meta.token, token1: token1Meta.token, feePips: toNumber(feeRead.result as bigint | number), currentLpFeePips: toNumber(feeRead.result as bigint | number), tickSpacing: toNumber(spacingRead.result as bigint | number), currentTick, sqrtPriceX96, liquidityRaw: String(liquidityRead.result), currentPriceToken0InToken1: currentPrice, blockNumber: observedBlock, observedAt, evidence };
+  }
+
+  async findBestV3Pool(tokenA: string, tokenB: string, feeCandidates = [100, 500, 2500, 10000], blockNumber?: string): Promise<PancakeSwapClPoolSnapshot | undefined> {
+    const observedBlock = blockNumber ?? await this.chain.getBlockNumber();
+    const pools: PancakeSwapClPoolSnapshot[] = [];
+    for (const fee of feeCandidates) {
+      try {
+        const read = await this.read(pancakeV3FactoryAbi, "getPool", [normalizeAddress(tokenA), normalizeAddress(tokenB), fee], this.contracts.v3Factory, observedBlock);
+        const address = normalizeAddress(String(read.result));
+        if (address === ZERO_ADDRESS) continue;
+        pools.push(await this.getV3Pool(address, observedBlock));
+      } catch { /* one fee tier must not block other candidate tiers */ }
+    }
+    pools.sort((a, b) => { const aa = BigInt(a.liquidityRaw); const bb = BigInt(b.liquidityRaw); return aa === bb ? 0 : aa > bb ? -1 : 1; });
+    return pools[0];
+  }
+
+  async observeV3Pool(poolAddressInput: string, secondsAgo: number, blockNumber?: string): Promise<PancakeSwapV3OracleObservation> {
+    if (!Number.isInteger(secondsAgo) || secondsAgo <= 0) throw new PancakeSwapAdapterError("secondsAgo must be a positive integer.", "CONTRACT_READ_FAILED");
+    const poolAddress = normalizeAddress(poolAddressInput);
+    const observedBlock = blockNumber ?? await this.chain.getBlockNumber();
+    const pool = await this.getV3Pool(poolAddress, observedBlock);
+    const observation = await this.read(pancakeV3PoolAbi, "observe", [[secondsAgo, 0]], poolAddress, observedBlock);
+    const tuple = observation.result as readonly [readonly bigint[], readonly bigint[]];
+    const cumulatives = tuple[0];
+    if (cumulatives.length < 2) throw new PancakeSwapAdapterError("PancakeSwap V3 oracle returned insufficient cumulative observations.", "CONTRACT_READ_FAILED", true);
+    const delta = cumulatives[1] - cumulatives[0];
+    const tick = averageTickFromCumulatives(delta, secondsAgo);
+    return { poolAddress, secondsAgo, averageTick: tick, averagePriceToken0InToken1: deriveTickPrice(tick, pool.token0.decimals, pool.token1.decimals), blockNumber: observedBlock, observedAt: new Date().toISOString() };
   }
 
   async getPosition(version: PancakeSwapProtocolVersion, tokenId: string | number | bigint, blockNumber?: string): Promise<PancakeSwapClPositionSnapshot> {
