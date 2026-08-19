@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { ApiEnvelope, VenusStatusResponse, VenusWalletPositionsResponse } from "@spotriq/api-contracts";
+import type { ApiEnvelope, VenusStatusResponse, VenusWalletPositionsResponse, VenusYieldOpportunitiesResponse } from "@spotriq/api-contracts";
 import type { VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "../errors.js";
 
@@ -13,6 +13,14 @@ export async function registerVenusRoutes(app: FastifyInstance, venus: VenusRead
   app.get("/v1/protocols/venus/status", async (request, reply) => {
     const data: VenusStatusResponse = await venus.getStatus();
     const body: ApiEnvelope<VenusStatusResponse> = { data, meta: { requestId: request.id, generatedAt: generatedAt() } };
+    return reply.send(body);
+  });
+
+  app.get<{ Params: { address: string } }>("/v1/wallets/:address/venus/yield-opportunities", async (request, reply) => {
+    const address = assertWalletAddress(request.params.address);
+    const snapshot = await venus.getYieldOpportunities(address);
+    const data: VenusYieldOpportunitiesResponse = { snapshot };
+    const body: ApiEnvelope<VenusYieldOpportunitiesResponse> = { data, meta: { requestId: request.id, generatedAt: generatedAt() } };
     return reply.send(body);
   });
 

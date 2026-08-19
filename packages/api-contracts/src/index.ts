@@ -46,6 +46,7 @@ export interface CapabilityResponse {
   evidenceEngineEnabled: boolean;
   pancakeSwapAdapterEnabled: boolean;
   venusAdapterEnabled: boolean;
+  yieldDataEnabled: boolean;
   smartMoneyCheckEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
@@ -123,12 +124,18 @@ export interface VenusStatusResponse {
     marketSnapshots: true;
     derivedHealthFactor: true;
     automatedProtection: false;
+    yieldMarketDiscovery: true;
+    currentBaseSupplyApy: true;
   };
   coverageNotes: string[];
 }
 
 export interface VenusWalletPositionsResponse {
   snapshot: import("@spotriq/domain").VenusWalletPositionsSnapshot;
+}
+
+export interface VenusYieldOpportunitiesResponse {
+  snapshot: import("@spotriq/domain").YieldWalletSnapshot;
 }
 
 export interface StartSmartMoneyCheckRequest {

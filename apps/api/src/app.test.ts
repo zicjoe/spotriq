@@ -249,14 +249,29 @@ test("GET Venus status exposes health-monitoring capabilities", async () => {
     getStatus: async () => ({
       protocol: "Venus" as const, network: "testnet" as const, chainId: 97,
       contracts: { network: "testnet" as const, protocolShareReserve: "0x25c7c7D6Bf710949fD7f03364E9BA19a1b3c10E3", corePoolComptroller: "0x1111111111111111111111111111111111111111", poolRegistry: "0x2222222222222222222222222222222222222222" },
-      capabilities: { corePoolDiscovery: true, isolatedPoolDiscovery: true, accountLiquidity: true as const, marketSnapshots: true as const, derivedHealthFactor: true as const, automatedProtection: false as const },
+      capabilities: { corePoolDiscovery: true, isolatedPoolDiscovery: true, accountLiquidity: true as const, marketSnapshots: true as const, derivedHealthFactor: true as const, automatedProtection: false as const, yieldMarketDiscovery: true as const, currentBaseSupplyApy: true as const },
       coverageNotes: ["test"],
     }),
     getWalletPositions: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt: new Date().toISOString(), contracts: { network: "testnet" as const, protocolShareReserve: "0x25c7c7D6Bf710949fD7f03364E9BA19a1b3c10E3" }, positions: [], coverage: { corePool: "AVAILABLE" as const, isolatedPools: "AVAILABLE" as const, failedComptrollers: [] } }),
+    getYieldOpportunities: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt: new Date().toISOString(), opportunities: [], coverage: { venusMarkets: "AVAILABLE" as const, pancakeSwapYieldContext: "NOT_AVAILABLE" as const, failedMarketRefs: [], truncated: false }, limitations: [] }),
   };
   const app = await buildServer({ config, chain: makeChain(), venus, logger: false });
   const response = await app.inject({ method: "GET", url: "/v1/protocols/venus/status" });
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().data.capabilities.derivedHealthFactor, true);
+  assert.equal(response.json().data.capabilities.yieldMarketDiscovery, true);
+  await app.close();
+});
+
+test("GET Venus yield opportunities exposes normalized current-rate context", async () => {
+  const venus = {
+    getStatus: async () => { throw new Error("not used"); },
+    getWalletPositions: async () => { throw new Error("not used"); },
+    getYieldOpportunities: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt: new Date().toISOString(), opportunities: [], coverage: { venusMarkets: "AVAILABLE" as const, pancakeSwapYieldContext: "NOT_AVAILABLE" as const, failedMarketRefs: [], truncated: false }, limitations: [] }),
+  };
+  const app = await buildServer({ config, chain: makeChain(), venus, logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/wallets/0x1111111111111111111111111111111111111111/venus/yield-opportunities" });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().data.snapshot.coverage.venusMarkets, "AVAILABLE");
   await app.close();
 });

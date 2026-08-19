@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { BscChainReader } from "@spotriq/chain";
-import type { EvidenceEnvelope, PancakeSwapClPositionSnapshot, VenusPoolPositionSnapshot } from "@spotriq/domain";
+import type { EvidenceEnvelope, PancakeSwapClPositionSnapshot, VenusPoolPositionSnapshot, YieldOpportunitySnapshot } from "@spotriq/domain";
 import type { PancakeSwapReader } from "@spotriq/protocol-pancakeswap";
 import type { VenusReader } from "@spotriq/protocol-venus";
-import { createHealthFinding, createRebalancingFinding, createSmartMoneyEngine, MemorySmartMoneyStore } from "./index.js";
+import { createYieldFinding, createHealthFinding, createRebalancingFinding, createSmartMoneyEngine, MemorySmartMoneyStore } from "./index.js";
 
 const observedAt = "2026-08-19T04:00:00.000Z";
 const evidence: EvidenceEnvelope = {
@@ -166,6 +166,7 @@ test("Smart Money Check runs as PARTIAL while unsupported sources stay explicit"
   const venus = {
     getStatus: async () => { throw new Error("not used"); },
     getWalletPositions: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt, contracts: { network: "testnet" as const, protocolShareReserve: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", corePoolComptroller: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", poolRegistry: "0xcccccccccccccccccccccccccccccccccccccccc" }, positions: [makeVenusPosition("WATCH")], coverage: { corePool: "AVAILABLE" as const, isolatedPools: "AVAILABLE" as const, failedComptrollers: [] } }),
+    getYieldOpportunities: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt, opportunities: [], coverage: { venusMarkets: "AVAILABLE" as const, pancakeSwapYieldContext: "NOT_AVAILABLE" as const, failedMarketRefs: [], truncated: false }, limitations: [] }),
   } satisfies VenusReader;
 
   const engine = createSmartMoneyEngine({ chain, pancakeSwap: pancake, venus, store: new MemorySmartMoneyStore(), now: () => new Date(observedAt), idFactory: (() => { let i = 0; return () => String(++i); })() });
@@ -177,8 +178,25 @@ test("Smart Money Check runs as PARTIAL while unsupported sources stay explicit"
   assert.equal(result.session.coverage?.venusPositions, "AVAILABLE");
   assert.equal(result.session.sourceProgress?.find((item) => item.key === "pancakeswap_positions")?.state, "PARTIAL");
   assert.equal(result.session.sourceProgress?.find((item) => item.key === "venus_positions")?.state, "COMPLETED");
+  assert.equal(result.session.sourceProgress?.find((item) => item.key === "yield_opportunities")?.state, "COMPLETED");
   assert.ok(result.findings.some((finding) => finding.category === "health" && finding.state === "needs-attention"));
   const events = await engine.listEvents(session.checkSessionId);
   assert.ok(events.some((event) => event.type === "finding.created"));
   assert.equal(events.at(-1)?.type, "check.completed");
+});
+
+
+test("Yield finding keeps current APY separate from realised or guaranteed return", () => {
+  const opportunity: YieldOpportunitySnapshot = {
+    opportunityId: "venus:pool:vtoken:wallet", protocol: "Venus", network: "testnet", chainId: 97, poolKind: "CORE", poolName: "Core Pool", comptroller: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", vToken: "0xcccccccccccccccccccccccccccccccccccccccc",
+    underlying: { address: "0xdddddddddddddddddddddddddddddddddddddddd", symbol: "USDT", decimals: 18, isNative: false }, walletBalanceRaw: "2750000000000000000000", walletBalanceFormatted: "2750", existingSupplyUnderlyingRaw: "0", existingSupplyFormatted: "0", currentSupplyRatePerBlockRaw: "1000000", currentSupplyApyPercent: "4.25", currentRateType: "CURRENT_PROTOCOL_APY", blockNumber: "100", observedAt, evidence: [evidence],
+    coverage: { walletBalance: "AVAILABLE", existingSupply: "AVAILABLE", currentRate: "AVAILABLE", incentives: "NOT_SUPPORTED", estimatedNet: "NOT_SUPPORTED", realisedYield: "NOT_SUPPORTED" }, limitations: [],
+  };
+  const finding = createYieldFinding("check_yield", [opportunity], new Date(observedAt), () => "yield");
+  assert.ok(finding);
+  assert.equal(finding?.category, "yield");
+  assert.equal(finding?.state, "opportunity");
+  assert.match(finding?.summary ?? "", /current base supply APY/i);
+  assert.match(finding?.summary ?? "", /does not mean the funds should be supplied/i);
+  assert.doesNotMatch(`${finding?.headline} ${finding?.summary}`, /guaranteed|guarantee future|realised return of/i);
 });

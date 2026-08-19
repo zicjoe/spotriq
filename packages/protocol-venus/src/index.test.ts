@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { venusSupplyRatePerBlockToApyPercent } from "./index.js";
 import { classifyVenusRisk, VENUS_PRESENTATION_THRESHOLDS } from "./risk.js";
 
 test("protocol shortfall always classifies the position as liquidatable", () => {
@@ -28,4 +29,12 @@ test("Spotriq presentation thresholds preserve a distinct warning band above liq
   assert.equal(VENUS_PRESENTATION_THRESHOLDS.liquidationBoundary, 1);
   assert.ok(VENUS_PRESENTATION_THRESHOLDS.watch > VENUS_PRESENTATION_THRESHOLDS.liquidationBoundary);
   assert.ok(VENUS_PRESENTATION_THRESHOLDS.comfortable > VENUS_PRESENTATION_THRESHOLDS.watch);
+});
+
+
+test("Venus supply rate conversion preserves zero and positive current APY", () => {
+  assert.equal(venusSupplyRatePerBlockToApyPercent(0n), "0");
+  const apy = Number(venusSupplyRatePerBlockToApyPercent(37_893_566n));
+  assert.ok(apy > 0);
+  assert.ok(apy < 100);
 });

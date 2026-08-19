@@ -170,6 +170,7 @@ export type CheckSourceKey =
   | "wallet_assets"
   | "pancakeswap_positions"
   | "venus_positions"
+  | "yield_opportunities"
   | "market_context"
   | "agent_compatibility";
 
@@ -194,6 +195,7 @@ export interface SmartMoneyCheckCoverage {
   walletAssets: "AVAILABLE" | "PARTIAL" | "FAILED";
   pancakeSwapPositions: "AVAILABLE" | "PARTIAL" | "FAILED";
   venusPositions: "NOT_SUPPORTED" | "AVAILABLE" | "PARTIAL" | "FAILED";
+  yieldOpportunities: "NOT_SUPPORTED" | "AVAILABLE" | "PARTIAL" | "FAILED";
   marketContext: "NOT_SUPPORTED" | "AVAILABLE" | "PARTIAL" | "FAILED";
   agentCompatibility: "NOT_SUPPORTED" | "AVAILABLE" | "PARTIAL" | "FAILED";
   notes: string[];
@@ -210,6 +212,7 @@ export interface SmartMoneyPortfolioSnapshot {
   nativeBalance?: NativeBalanceSnapshot;
   pancakeSwapPositions: PancakeSwapClPositionSnapshot[];
   venusPositions: VenusPoolPositionSnapshot[];
+  yieldOpportunities: YieldOpportunitySnapshot[];
   coverage: SmartMoneyCheckCoverage;
 }
 
@@ -619,6 +622,60 @@ export interface VenusWalletPositionsSnapshot {
     isolatedPools: "AVAILABLE" | "PARTIAL" | "FAILED";
     failedComptrollers: string[];
   };
+}
+
+
+
+export type YieldRateType = "CURRENT_PROTOCOL_APY" | "ESTIMATED_NET_APY" | "OBSERVED_REALISED_YIELD";
+
+export interface YieldOpportunitySnapshot {
+  opportunityId: string;
+  protocol: "Venus";
+  network: BscNetwork;
+  chainId: number;
+  poolKind: VenusPoolKind;
+  poolName: string;
+  comptroller: string;
+  vToken: string;
+  underlying: ProtocolTokenMetadata;
+  walletBalanceRaw: string;
+  walletBalanceFormatted?: string;
+  existingSupplyUnderlyingRaw: string;
+  existingSupplyFormatted?: string;
+  currentSupplyRatePerBlockRaw: string;
+  currentSupplyApyPercent?: string;
+  currentRateType: "CURRENT_PROTOCOL_APY";
+  estimatedNetApyPercent?: string;
+  observedRealisedYieldPercent?: string;
+  availableLiquidityRaw?: string;
+  blockNumber: string;
+  observedAt: string;
+  evidence: EvidenceEnvelope[];
+  coverage: {
+    walletBalance: "AVAILABLE" | "FAILED";
+    existingSupply: "AVAILABLE" | "FAILED";
+    currentRate: "AVAILABLE" | "FAILED";
+    incentives: "NOT_SUPPORTED";
+    estimatedNet: "NOT_SUPPORTED";
+    realisedYield: "NOT_SUPPORTED";
+  };
+  limitations: string[];
+}
+
+export interface YieldWalletSnapshot {
+  walletAddress: string;
+  network: BscNetwork;
+  chainId: number;
+  blockNumber: string;
+  observedAt: string;
+  opportunities: YieldOpportunitySnapshot[];
+  coverage: {
+    venusMarkets: "AVAILABLE" | "PARTIAL" | "FAILED";
+    pancakeSwapYieldContext: "POSITION_ONLY" | "NOT_AVAILABLE";
+    failedMarketRefs: string[];
+    truncated: boolean;
+  };
+  limitations: string[];
 }
 
 export type PancakeSwapProtocolVersion = "V3" | "INFINITY_CL";

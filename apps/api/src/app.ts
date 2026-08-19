@@ -68,7 +68,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.6.0",
+      version: "0.7.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -100,6 +100,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       evidenceEngineEnabled: true,
       pancakeSwapAdapterEnabled: true,
       venusAdapterEnabled: true,
+      yieldDataEnabled: true,
       smartMoneyCheckEnabled: true,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
@@ -109,7 +110,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "Canonical BSC blocks, transactions, native balances, and requested ERC-20 balances now return evidence envelopes.",
         "PancakeSwap V3 and Infinity CL current-state reads normalize concentrated-liquidity positions with evidence-backed range state.",
         database ? "Smart Money Check sessions, portfolio snapshots, evidence, findings, and events persist in PostgreSQL." : "Smart Money Check uses in-memory persistence until DATABASE_URL is configured; configure Railway PostgreSQL for durable sessions.",
-        "Smart Money Check generates deterministic Rebalancing findings from supported PancakeSwap positions and Health findings from Venus Core/Isolated Pool onchain state.",
+        "Smart Money Check generates deterministic Rebalancing findings from supported PancakeSwap positions, Health findings from Venus lending state, and Yield findings from wallet-relevant Venus supply markets.",
+        "Yield current rates are base Venus supply APY derived from onchain supplyRatePerBlock; incentives, estimated net yield, and realised performance remain separate and are not fabricated.",
         "Venus protocol shortfall is canonical for current liquidation eligibility; Spotriq health factor is a derived explanation and incomplete inputs never become Healthy.",
         "Historical market context and agent matching remain explicitly unsupported in this milestone.",
       ],

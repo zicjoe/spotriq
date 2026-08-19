@@ -131,6 +131,13 @@ export const EVIDENCE_METHODS = {
     description: "Reads a wallet's vToken balance, borrow balance, exchange rate, collateral membership, risk parameters, and underlying oracle price for a Venus market.",
     inputMetrics: ["vToken.getAccountSnapshot", "comptroller.getAssetsIn", "comptroller.markets", "oracle.getUnderlyingPrice"],
   },
+  VENUS_SUPPLY_APY: {
+    methodId: "venus.supply-apy",
+    version: "1.0.0",
+    name: "Venus current base supply APY",
+    description: "Derives a current base supply APY from vToken.supplyRatePerBlock using Venus-documented BNB Chain block-frequency and daily-compounding assumptions. Incentives, Prime rewards, agent fees, gas, and realised returns are excluded.",
+    inputMetrics: ["vToken.supplyRatePerBlock", "bnb.blocks_per_day"],
+  },
   VENUS_HEALTH_FACTOR: {
     methodId: "venus.health-factor",
     version: "1.0.0",

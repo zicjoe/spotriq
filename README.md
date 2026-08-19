@@ -145,6 +145,7 @@ pnpm dev:worker
 - PancakeSwap V3 data is now wired into live/persisted Smart Money Check Rebalancing findings.
 - The live Smart Money Check deliberately reports partial coverage for unsupported sources.
 - Venus Core Pool and registered Isolated Pool health normalization is live and feeds Smart Money Check Health findings. Canonical protocol shortfall takes precedence over Spotriq's explanatory derived health factor.
+- Wallet-relevant Venus supply opportunities now expose current base supply APY as a distinct, variable protocol-rate metric and feed Smart Money Check Yield findings. Estimated net APY and observed realised yield remain intentionally unavailable until Spotriq has the evidence required to calculate them credibly.
 
 ## Engineering documentation
 
@@ -159,8 +160,9 @@ pnpm dev:worker
 - `docs/IMPLEMENTATION_REPORT_SMART_MONEY_CHECK_REBALANCING.md`
 - `docs/VENUS_ADAPTER_HEALTH_MONITORING.md`
 - `docs/IMPLEMENTATION_REPORT_VENUS_HEALTH.md`
+- `docs/IMPLEMENTATION_REPORT_YIELD_FOUNDATION.md`
 - `docs/ENGINEERING_STATUS.md`
 
 ## Next milestone
 
-Yield Optimisation data foundation — normalize supported Venus supply opportunities and PancakeSwap yield opportunities so Smart Money Check gains its third live financial category.
+Grid Trading market-context foundation — add supported pair context, historical price inputs, deterministic regime/volatility calculations, and Grid findings without making profit predictions.

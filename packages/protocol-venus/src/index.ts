@@ -10,6 +10,8 @@ import type {
   VenusPoolKind,
   VenusPoolPositionSnapshot,
   VenusWalletPositionsSnapshot,
+  YieldOpportunitySnapshot,
+  YieldWalletSnapshot,
 } from "@spotriq/domain";
 import { createEvidenceEnvelope, DATA_SOURCES, EVIDENCE_METHODS } from "@spotriq/evidence";
 import { classifyVenusRisk, VENUS_PRESENTATION_THRESHOLDS } from "./risk.js";
@@ -41,6 +43,8 @@ const isolatedMarketsAbi = parseAbi([
 ]);
 const vTokenAbi = parseAbi([
   "function getAccountSnapshot(address account) view returns (uint256 errorCode,uint256 vTokenBalance,uint256 borrowBalance,uint256 exchangeRateMantissa)",
+  "function supplyRatePerBlock() view returns (uint256)",
+  "function getCash() view returns (uint256)",
   "function underlying() view returns (address)",
   "function symbol() view returns (string)",
 ]);
@@ -88,6 +92,8 @@ export interface VenusStatus {
     marketSnapshots: true;
     derivedHealthFactor: true;
     automatedProtection: false;
+    yieldMarketDiscovery: true;
+    currentBaseSupplyApy: true;
   };
   coverageNotes: string[];
 }
@@ -95,6 +101,7 @@ export interface VenusStatus {
 export interface VenusReader {
   getStatus(): Promise<VenusStatus>;
   getWalletPositions(walletAddress: string): Promise<VenusWalletPositionsSnapshot>;
+  getYieldOpportunities(walletAddress: string): Promise<YieldWalletSnapshot>;
 }
 
 export interface VenusAdapterOptions { chain: BscChainReader; maxPools?: number; maxMarketsPerPool?: number; }
@@ -111,6 +118,23 @@ function formatUsd1e18(value?: bigint): string | undefined {
   const formatted = Number(formatUnits(value, 18));
   if (!Number.isFinite(formatted)) return undefined;
   return formatted.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+}
+
+const VENUS_BLOCKS_PER_DAY = 80 * 60 * 24;
+const VENUS_DAYS_PER_YEAR = 365;
+
+export function venusSupplyRatePerBlockToApyPercent(rateRaw: bigint): string | undefined {
+  const rate = Number(rateRaw) / 1e18;
+  if (!Number.isFinite(rate) || rate < 0) return undefined;
+  const dailyRate = rate * VENUS_BLOCKS_PER_DAY;
+  const apy = (Math.pow(1 + dailyRate, VENUS_DAYS_PER_YEAR - 1) - 1) * 100;
+  if (!Number.isFinite(apy) || apy < 0) return undefined;
+  return apy.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function formatUnderlying(raw: bigint, decimals?: number): string | undefined {
+  if (decimals === undefined) return undefined;
+  try { return formatUnits(raw, decimals); } catch { return undefined; }
 }
 
 
@@ -328,14 +352,15 @@ export function createVenusAdapter(options: VenusAdapterOptions): VenusReader {
     const { contracts } = await bootstrap();
     return {
       protocol: "Venus", network: options.chain.network, chainId: options.chain.definition.chainId, contracts,
-      capabilities: { corePoolDiscovery: Boolean(contracts.corePoolComptroller), isolatedPoolDiscovery: Boolean(contracts.poolRegistry), accountLiquidity: true, marketSnapshots: true, derivedHealthFactor: true, automatedProtection: false },
+      capabilities: { corePoolDiscovery: Boolean(contracts.corePoolComptroller), isolatedPoolDiscovery: Boolean(contracts.poolRegistry), accountLiquidity: true, marketSnapshots: true, derivedHealthFactor: true, automatedProtection: false, yieldMarketDiscovery: true, currentBaseSupplyApy: true },
       coverageNotes: [
         "Core and isolated-pool health positions are read directly from Venus contracts on BSC using the account's entered markets.",
         "Venus getAccountLiquidity/shortfall is treated as the canonical liquidation-risk signal; Spotriq health factor is a derived explanatory metric.",
         "Health thresholds above the protocol liquidation boundary are Spotriq presentation policy, not Venus guarantees.",
         "Core Pool E-Mode can use user-specific risk parameters; Spotriq derives the aggregate health ratio from Venus account liquidity/shortfall rather than rebuilding it from base market LT values.",
         "Isolated-pool forced-liquidation flags are checked for borrowed entered markets; if a flag cannot be read, Spotriq marks the assessment partial rather than assuming it is disabled.",
-        "Supply-only markets that are not entered as collateral/borrow markets are intentionally left to the future Yield data path.",
+        "Supply-only markets are scanned separately by the Yield data path so Health monitoring remains bounded to entered lending-risk markets.",
+        "Yield rates are current base supply APY derived from vToken.supplyRatePerBlock using Venus-documented BNB Chain assumptions; incentives, Prime rewards, agent fees, gas, and realised returns are not included.",
         "Automated protection and alert delivery are not enabled in this milestone.",
       ],
     };
@@ -364,7 +389,103 @@ export function createVenusAdapter(options: VenusAdapterOptions): VenusReader {
     };
   }
 
-  return { getStatus, getWalletPositions };
+
+
+  async function getYieldOpportunities(walletAddress: string): Promise<YieldWalletSnapshot> {
+    if (!/^0x[0-9a-fA-F]{40}$/.test(walletAddress)) throw new VenusAdapterError("walletAddress must be a valid EVM address.", "CONTRACT_READ_FAILED");
+    const wallet = normalizeAddress(walletAddress);
+    const observedAt = new Date().toISOString();
+    const { contracts, blockNumber } = await bootstrap();
+    const discovered = await discoverPools(contracts, blockNumber);
+    const failedMarketRefs: string[] = [];
+    let truncated = false;
+
+    const marketRefs: Array<{ pool: PoolRef; vToken: string }> = [];
+    for (const pool of discovered.pools) {
+      try {
+        const all = await read<readonly Address[]>(pool.comptroller, commonComptrollerAbi, "getAllMarkets", [], blockNumber);
+        const markets = all.result.map((address) => normalizeAddress(address));
+        if (markets.length > maxMarkets) truncated = true;
+        for (const vToken of markets.slice(0, maxMarkets)) marketRefs.push({ pool, vToken });
+      } catch {
+        failedMarketRefs.push(`${pool.comptroller}:market-list`);
+      }
+    }
+
+    const scanned = await mapWithConcurrency(marketRefs, 5, async ({ pool, vToken }): Promise<YieldOpportunitySnapshot | undefined> => {
+      try {
+        const isVbnb = Boolean(contracts.vBNB && normalizeAddress(vToken) === normalizeAddress(contracts.vBNB));
+        const [snapshotCall, rateCall, cashCall, underlyingAddressCall] = await Promise.all([
+          read<readonly [bigint, bigint, bigint, bigint]>(vToken, vTokenAbi, "getAccountSnapshot", [wallet], blockNumber),
+          read<bigint>(vToken, vTokenAbi, "supplyRatePerBlock", [], blockNumber),
+          read<bigint>(vToken, vTokenAbi, "getCash", [], blockNumber).catch(() => undefined),
+          isVbnb ? Promise.resolve(undefined) : read<Address>(vToken, vTokenAbi, "underlying", [], blockNumber).catch(() => undefined),
+        ]);
+        const [snapshotError, vTokenBalance, _borrowBalance, exchangeRate] = snapshotCall.result;
+        if (snapshotError !== 0n) throw new Error(`Venus account snapshot error ${snapshotError}`);
+        const underlyingAddress = isVbnb ? ZERO_ADDRESS : underlyingAddressCall ? normalizeAddress(underlyingAddressCall.result) : ZERO_ADDRESS;
+        const underlying: ProtocolTokenMetadata = isVbnb
+          ? { address: ZERO_ADDRESS, symbol: options.chain.definition.nativeSymbol, name: options.chain.definition.nativeSymbol, decimals: 18, isNative: true }
+          : isAddress(underlyingAddress) ? await tokenMetadata(underlyingAddress, blockNumber) : { address: underlyingAddress, isNative: false };
+        const walletSnapshot = isVbnb
+          ? await options.chain.getNativeBalance(wallet, blockNumber)
+          : isAddress(underlyingAddress) ? await options.chain.getErc20Balance(underlyingAddress, wallet, blockNumber) : undefined;
+        if (!walletSnapshot) throw new Error("Underlying wallet balance could not be read.");
+        const walletBalanceRaw = BigInt(walletSnapshot.balanceRaw);
+        const suppliedUnderlying = vTokenBalance * exchangeRate / ONE_18;
+        // Keep only wallet-relevant markets. This avoids presenting every Venus market as a personal recommendation.
+        if (walletBalanceRaw === 0n && suppliedUnderlying === 0n) return undefined;
+        const currentSupplyApyPercent = venusSupplyRatePerBlockToApyPercent(rateCall.result);
+        const subjectId = `${pool.comptroller}:${vToken}:${wallet}`;
+        const rateEvidence = createEvidenceEnvelope({
+          subjectType: "venus-yield-market", subjectId, metric: "yield.current_rate", value: currentSupplyApyPercent ?? rateCall.result.toString(), unit: currentSupplyApyPercent ? "percent-apy" : "rate-per-block-1e18",
+          provenance: "marketplace-derived", source: DATA_SOURCES.SPOTRIQ_DERIVED, observedAt, method: EVIDENCE_METHODS.VENUS_SUPPLY_APY,
+          methodInputs: ["vToken.supplyRatePerBlock", String(VENUS_BLOCKS_PER_DAY), String(VENUS_DAYS_PER_YEAR)], confidence: currentSupplyApyPercent ? "high" : "low",
+          limitation: "Current base Venus supply APY only. It is variable and excludes incentives/Prime rewards, transaction costs, agent fees, taxes, and realised performance.",
+          chainContext: { chain: "BSC", network: options.chain.network, chainId: options.chain.definition.chainId, blockNumber },
+        });
+        const supplyEvidence = createEvidenceEnvelope({
+          subjectType: "venus-yield-position", subjectId, metric: "yield.position", value: suppliedUnderlying.toString(), unit: "underlying-raw",
+          provenance: "external", source: DATA_SOURCES.VENUS, sourceRef: explorerAddressRef(options.chain.network, vToken), observedAt, method: EVIDENCE_METHODS.VENUS_MARKET_POSITION,
+          methodInputs: ["vToken.getAccountSnapshot"], confidence: "high", chainContext: { chain: "BSC", network: options.chain.network, chainId: options.chain.definition.chainId, blockNumber },
+        });
+        const walletEvidence = walletSnapshot.evidence;
+        return {
+          opportunityId: `venus:${pool.comptroller}:${vToken}:${wallet}`, protocol: "Venus", network: options.chain.network, chainId: options.chain.definition.chainId,
+          poolKind: pool.kind, poolName: pool.name, comptroller: pool.comptroller, vToken, underlying,
+          walletBalanceRaw: walletBalanceRaw.toString(), walletBalanceFormatted: walletSnapshot.balanceFormatted,
+          existingSupplyUnderlyingRaw: suppliedUnderlying.toString(), existingSupplyFormatted: formatUnderlying(suppliedUnderlying, underlying.decimals),
+          currentSupplyRatePerBlockRaw: rateCall.result.toString(), currentSupplyApyPercent, currentRateType: "CURRENT_PROTOCOL_APY",
+          availableLiquidityRaw: cashCall?.result.toString(), blockNumber, observedAt, evidence: [walletEvidence, supplyEvidence, rateEvidence],
+          coverage: { walletBalance: "AVAILABLE", existingSupply: "AVAILABLE", currentRate: currentSupplyApyPercent ? "AVAILABLE" : "FAILED", incentives: "NOT_SUPPORTED", estimatedNet: "NOT_SUPPORTED", realisedYield: "NOT_SUPPORTED" },
+          limitations: [
+            "Current base supply APY is variable and can change with market utilization.",
+            "Spotriq has not included XVS/Prime incentives, gas, agent fees, tax effects, or realised historical yield in this rate.",
+            "A supported market and wallet balance do not establish that supplying the asset is appropriate for the user; risk tolerance and liquidity needs are not inferred.",
+            "Supply caps, paused actions, and transaction-time eligibility must be refreshed before any future activation or execution.",
+          ],
+        };
+      } catch (error) {
+        failedMarketRefs.push(`${pool.comptroller}:${vToken}`);
+        return undefined;
+      }
+    });
+    const opportunities = scanned.filter((item): item is YieldOpportunitySnapshot => Boolean(item));
+    return {
+      walletAddress: wallet, network: options.chain.network, chainId: options.chain.definition.chainId, blockNumber, observedAt, opportunities,
+      coverage: {
+        venusMarkets: failedMarketRefs.length === 0 && discovered.isolatedOk ? "AVAILABLE" : marketRefs.length > 0 ? "PARTIAL" : "FAILED",
+        pancakeSwapYieldContext: "NOT_AVAILABLE", failedMarketRefs, truncated,
+      },
+      limitations: [
+        "This Yield data path currently uses Venus base supply-rate opportunities for wallet-held or already-supplied assets.",
+        "PancakeSwap concentrated-liquidity positions are detected elsewhere, but live fee APR/realised LP yield is not yet calculated because the required historical fee and valuation inputs are not in the current adapter.",
+      ],
+    };
+  }
+
+
+  return { getStatus, getWalletPositions, getYieldOpportunities };
 }
 
 export { classifyVenusRisk, VENUS_PRESENTATION_THRESHOLDS } from "./risk.js";

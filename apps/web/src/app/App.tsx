@@ -815,7 +815,8 @@ function CheckStartPage({ navigate }: { navigate: (r: Route, p?: Partial<NavStat
   const coverage = [
     "BSC native wallet balance", "Supported PancakeSwap V3 positions", "Rebalancing range-state findings",
     "Venus Core Pool and Isolated Pool lending positions", "Venus health / liquidation-buffer findings",
-    "PancakeSwap Infinity CL reads by known token ID", "Market context / agent matching as coverage expands"
+    "Wallet-relevant Venus supply opportunities and current base APY",
+    "PancakeSwap Infinity CL reads by known token ID", "Grid market context / agent matching as coverage expands"
   ];
 
   const startLiveCheck = async (walletAddress: string, control: "WATCH_ONLY" | "CONNECTED" | "VERIFIED_CONTROL") => {
@@ -918,8 +919,9 @@ function CheckScanPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState
     { key: "wallet", label: "Wallet assets", status: progress > 0 ? "done" : "running" },
     { key: "pancake", label: "PancakeSwap positions", status: progress > 1 ? "done" : progress === 1 ? "running" : "queued" },
     { key: "venus", label: "Venus lending positions", status: progress > 2 ? "done" : progress === 2 ? "running" : "queued" },
-    { key: "market", label: "Market context", status: progress > 3 ? "done" : progress === 3 ? "running" : "queued" },
-    { key: "agents", label: "Agent compatibility", status: progress > 4 ? "done" : progress === 4 ? "running" : "queued" },
+    { key: "yield", label: "Yield opportunities", status: progress > 3 ? "done" : progress === 3 ? "running" : "queued" },
+    { key: "market", label: "Market context", status: progress > 4 ? "done" : progress === 4 ? "running" : "queued" },
+    { key: "agents", label: "Agent compatibility", status: progress > 5 ? "done" : progress === 5 ? "running" : "queued" },
   ];
 
   useEffect(() => {
@@ -1024,6 +1026,7 @@ function CheckResultsPage({ navigate }: { navigate: (r: Route, p?: Partial<NavSt
   }
 
   const needsAttention = snapshot.findings.filter((finding) => finding.state === "needs-attention");
+  const opportunities = snapshot.findings.filter((finding) => finding.state === "opportunity");
   const healthy = snapshot.findings.filter((finding) => finding.state === "healthy" || finding.state === "informational");
   const couldNotAssess = snapshot.findings.filter((finding) => finding.state === "could-not-assess");
   const findingAction = (finding: Finding) => navigate("explore", { exploreCategory: finding.category, fromFinding: finding.findingId });
@@ -1041,6 +1044,7 @@ function CheckResultsPage({ navigate }: { navigate: (r: Route, p?: Partial<NavSt
           <span className="flex items-center gap-1.5"><Wallet className="w-4 h-4" /> {shortWallet}</span>
           <span className="flex items-center gap-1.5"><Clock className="w-4 h-4" /> Checked {snapshot.session.completedAt ? new Date(snapshot.session.completedAt).toLocaleTimeString() : "just now"}</span>
           {needsAttention.length > 0 && <span className="text-[#f59e0b] flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" /> {needsAttention.length} need attention</span>}
+          {opportunities.length > 0 && <span className="text-[#2dd4bf] flex items-center gap-1.5"><Sparkles className="w-4 h-4" /> {opportunities.length} opportunit{opportunities.length === 1 ? "y" : "ies"}</span>}
           <span className="text-[#2dd4bf] flex items-center gap-1.5"><CircleDot className="w-4 h-4" /> {snapshot.portfolio?.pancakeSwapPositions.length ?? 0} supported LP positions</span>
           <span className="text-[#4ade80] flex items-center gap-1.5"><Shield className="w-4 h-4" /> {snapshot.portfolio?.venusPositions.length ?? 0} Venus pool positions</span>
         </div>
@@ -1048,12 +1052,14 @@ function CheckResultsPage({ navigate }: { navigate: (r: Route, p?: Partial<NavSt
 
       {needsAttention.length > 0 && <section className="mb-8"><SectionHeader label="Needs Attention" /><div className="space-y-4">{needsAttention.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => findingAction(finding)} />)}</div></section>}
 
+      {opportunities.length > 0 && <section className="mb-8"><SectionHeader label="Opportunities" /><div className="space-y-4">{opportunities.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => findingAction(finding)} />)}</div></section>}
+
       {healthy.length > 0 && <section className="mb-8"><SectionHeader label="Healthy / Informational" /><div className="space-y-4">{healthy.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => findingAction(finding)} />)}</div></section>}
 
       {couldNotAssess.length > 0 && <section className="mb-8"><SectionHeader label="Could Not Assess" /><div className="space-y-4">{couldNotAssess.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => findingAction(finding)} />)}</div></section>}
 
       {snapshot.findings.length === 0 && (
-        <section className="mb-8"><Card className="p-6"><h3 className="font-medium text-[#dde3ef] mb-2">No findings in the currently supported live checks</h3><p className="text-sm text-[#6b7d99]">Spotriq did not detect a supported PancakeSwap V3 LP finding or an active Venus pool position for this wallet on the current network. This does not mean the wallet has no DeFi positions or financial risks.</p></Card></section>
+        <section className="mb-8"><Card className="p-6"><h3 className="font-medium text-[#dde3ef] mb-2">No findings in the currently supported live checks</h3><p className="text-sm text-[#6b7d99]">Spotriq did not detect a supported PancakeSwap V3 LP finding, active Venus health position, or wallet-relevant Venus yield context for this wallet on the current network. This does not mean the wallet has no DeFi positions or financial risks.</p></Card></section>
       )}
 
       <section>

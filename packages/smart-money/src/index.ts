@@ -13,6 +13,7 @@ import type {
   SmartMoneyPortfolioSnapshot,
   WalletControlState,
   VenusPoolPositionSnapshot,
+  YieldOpportunitySnapshot,
 } from "@spotriq/domain";
 import type { PancakeSwapReader } from "@spotriq/protocol-pancakeswap";
 import type { VenusReader } from "@spotriq/protocol-venus";
@@ -61,6 +62,7 @@ const CHECK_SOURCE_TEMPLATE: CheckSourceProgress[] = [
   { key: "wallet_assets", label: "Wallet assets", state: "QUEUED" },
   { key: "pancakeswap_positions", label: "PancakeSwap positions", state: "QUEUED" },
   { key: "venus_positions", label: "Venus lending positions", state: "QUEUED" },
+  { key: "yield_opportunities", label: "Yield opportunities", state: "QUEUED" },
   { key: "market_context", label: "Market context", state: "NOT_SUPPORTED", detail: "Historical market context is not enabled in this milestone." },
   { key: "agent_compatibility", label: "Agent compatibility", state: "NOT_SUPPORTED", detail: "Recommendation matching is not enabled in this milestone." },
 ];
@@ -249,17 +251,72 @@ export function createHealthFinding(checkSessionId: string, position: VenusPoolP
   };
 }
 
+export const SMART_MONEY_YIELD_METHOD = {
+  methodId: "smart-money.yield-finding",
+  version: "1.0.0",
+  name: "Supported Venus yield opportunity finding",
+  description: "Groups wallet-relevant Venus supply markets by underlying asset and surfaces current base supply-rate context without inferring user intent or future return.",
+} as const;
+
+function toNumber(value?: string): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+export function createYieldFinding(
+  checkSessionId: string,
+  opportunities: YieldOpportunitySnapshot[],
+  now = new Date(),
+  idFactory: () => string = randomUUID,
+): Finding | undefined {
+  if (opportunities.length === 0) return undefined;
+  const ranked = [...opportunities].filter((item) => item.currentSupplyApyPercent !== undefined).sort((a, b) => (toNumber(b.currentSupplyApyPercent) ?? -1) - (toNumber(a.currentSupplyApyPercent) ?? -1));
+  const best = ranked[0] ?? opportunities[0];
+  const symbol = best.underlying.symbol ?? `${best.underlying.address.slice(0, 6)}…`;
+  const walletRaw = BigInt(best.walletBalanceRaw);
+  const totalSupplied = opportunities.reduce((sum, item) => sum + BigInt(item.existingSupplyUnderlyingRaw), 0n);
+  const hasWalletBalance = walletRaw > 0n;
+  const hasExistingSupply = totalSupplied > 0n;
+  const currentRate = best.currentSupplyApyPercent ? `${Number(best.currentSupplyApyPercent).toLocaleString(undefined, { maximumFractionDigits: 3 })}%` : "Current rate unavailable";
+  const state: Finding["state"] = hasWalletBalance ? "opportunity" : hasExistingSupply ? "healthy" : "informational";
+  const headline = hasWalletBalance
+    ? `You hold ${best.walletBalanceFormatted ?? "a balance of"} ${symbol} that is not currently supplied in the supported Venus markets we checked.`
+    : `You already have ${symbol} supplied in a supported Venus market.`;
+  const summary = hasWalletBalance
+    ? `Spotriq found ${opportunities.length} supported Venus supply market${opportunities.length === 1 ? "" : "s"} for ${symbol}. The highest current base supply APY among the wallet-relevant markets checked is ${currentRate}. This does not mean the funds should be supplied; rates are variable and Spotriq has not inferred your risk tolerance or liquidity needs.`
+    : `Spotriq detected an existing Venus supply position for ${symbol}. The current base supply APY shown here is ${currentRate}; it is a point-in-time protocol rate, not a realised-return figure.`;
+  return {
+    findingId: `finding_${idFactory()}`, checkSessionId, category: "yield", state, severity: state === "opportunity" ? "opportunity" : "info", headline, summary,
+    confidence: best.coverage.currentRate === "AVAILABLE" ? "high" : "medium", freshness: ageLabel(best.observedAt, now),
+    primaryAction: { label: state === "opportunity" ? "Find Yield Agents" : "Explore Yield Agents" }, targetRoute: "explore",
+    keyValues: [
+      { label: "Asset", value: symbol, note: best.poolName },
+      { label: "Wallet balance", value: `${best.walletBalanceFormatted ?? best.walletBalanceRaw} ${symbol}`, note: hasWalletBalance ? "Not currently supplied in this specific market" : "No free balance detected" },
+      { label: "Current base APY", value: currentRate, note: "Current protocol rate · not guaranteed" },
+      { label: "Supported markets", value: String(opportunities.length), note: ranked.length > 1 ? "Rates differ by Venus pool" : undefined },
+    ],
+    whatCouldAgentDo: "A compatible Yield Optimisation agent could compare supported opportunities using your explicit risk and liquidity preferences, then prepare or execute an allocation only after a separate permission flow.",
+    uncertainties: "Current Venus base supply APY can change with utilization. Incentives, Prime rewards, gas, agent fees, taxes, transaction-time supply caps, and realised yield are not included. Spotriq has not inferred whether you want this asset deployed.",
+    subject: { protocol: "Venus", asset: symbol, underlyingAddress: best.underlying.address, marketCount: opportunities.length, bestCurrentBaseApyPercent: best.currentSupplyApyPercent, network: best.network, blockNumber: best.blockNumber },
+    evidenceIds: opportunities.flatMap((item) => item.evidence.map((ev) => ev.evidenceId)),
+    methodVersion: `${SMART_MONEY_YIELD_METHOD.methodId}@${SMART_MONEY_YIELD_METHOD.version}`, generatedAt: now.toISOString(), expiresAt: new Date(now.getTime() + 5 * 60_000).toISOString(),
+  };
+}
+
 function defaultCoverage(): SmartMoneyCheckCoverage {
   return {
     walletAssets: "PARTIAL",
     pancakeSwapPositions: "PARTIAL",
     venusPositions: "PARTIAL",
+    yieldOpportunities: "PARTIAL",
     marketContext: "NOT_SUPPORTED",
     agentCompatibility: "NOT_SUPPORTED",
     notes: [
       "Wallet-wide ERC-20 discovery is not enabled yet; this check reads the native BNB/tBNB balance plus token metadata attached to discovered supported positions.",
       "PancakeSwap V3 wallet discovery is enabled. Infinity CL wallet discovery requires a future indexed event source.",
       "Venus Core Pool and Isolated Pool positions are checked onchain. Missing risk inputs are surfaced as partial/could-not-assess rather than Healthy.",
+      "Yield scans compare wallet-held or already-supplied assets with supported Venus base supply-rate markets; user risk and liquidity preferences are not inferred.",
       "Historical market context and agent matching are intentionally not represented as completed checks yet.",
     ],
   };
@@ -342,6 +399,15 @@ export class PostgresSmartMoneyStore implements SmartMoneyStore {
        on conflict (check_session_id) do update set portfolio_snapshot_id=excluded.portfolio_snapshot_id, wallet_address=excluded.wallet_address, observed_at=excluded.observed_at, coverage=excluded.coverage, snapshot=excluded.snapshot`,
       [snapshot.portfolioSnapshotId, snapshot.checkSessionId, snapshot.walletAddress, snapshot.observedAt, JSON.stringify(snapshot.coverage), JSON.stringify(serialize(snapshot))],
     );
+    await this.db.query(`delete from yield_opportunity_snapshots where portfolio_snapshot_id=$1`, [snapshot.portfolioSnapshotId]);
+    for (const opportunity of snapshot.yieldOpportunities ?? []) {
+      await this.db.query(
+        `insert into yield_opportunity_snapshots(
+          yield_opportunity_snapshot_id,portfolio_snapshot_id,check_session_id,wallet_address,protocol,pool_kind,pool_name,comptroller,vtoken_address,underlying,wallet_balance_raw,wallet_balance_formatted,existing_supply_underlying_raw,existing_supply_formatted,current_supply_rate_per_block_raw,current_supply_apy_percent,current_rate_type,available_liquidity_raw,coverage,limitations,block_number,observed_at
+        ) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20::jsonb,$21,$22)`,
+        [opportunity.opportunityId,snapshot.portfolioSnapshotId,snapshot.checkSessionId,snapshot.walletAddress,opportunity.protocol,opportunity.poolKind,opportunity.poolName,opportunity.comptroller,opportunity.vToken,JSON.stringify(opportunity.underlying),opportunity.walletBalanceRaw,opportunity.walletBalanceFormatted ?? null,opportunity.existingSupplyUnderlyingRaw,opportunity.existingSupplyFormatted ?? null,opportunity.currentSupplyRatePerBlockRaw,opportunity.currentSupplyApyPercent ?? null,opportunity.currentRateType,opportunity.availableLiquidityRaw ?? null,JSON.stringify(opportunity.coverage),JSON.stringify(opportunity.limitations),opportunity.blockNumber,opportunity.observedAt],
+      );
+    }
     await this.db.query(`delete from lending_position_snapshots where portfolio_snapshot_id=$1`, [snapshot.portfolioSnapshotId]);
     for (const position of snapshot.venusPositions ?? []) {
       const positionId = `${snapshot.portfolioSnapshotId}:venus:${position.comptroller}`;
@@ -520,6 +586,7 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
     let nativeBalance: SmartMoneyPortfolioSnapshot["nativeBalance"];
     let positions: PancakeSwapClPositionSnapshot[] = [];
     let venusPositions: VenusPoolPositionSnapshot[] = [];
+    let yieldOpportunities: YieldOpportunitySnapshot[] = [];
     let blockNumber = "0";
     let observedAt = now().toISOString();
     const coverage = defaultCoverage();
@@ -571,6 +638,22 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
       await updateSource(session, "venus_positions", "FAILED", error instanceof Error ? error.message : "Venus position scan failed.");
     }
 
+    try {
+      await updateSource(session, "yield_opportunities", "RUNNING");
+      const yieldSnapshot = await options.venus.getYieldOpportunities(session.walletAddress);
+      yieldOpportunities = yieldSnapshot.opportunities;
+      blockNumber = yieldSnapshot.blockNumber;
+      observedAt = yieldSnapshot.observedAt;
+      await store.saveEvidence(yieldOpportunities.flatMap((item) => item.evidence));
+      coverage.yieldOpportunities = yieldSnapshot.coverage.venusMarkets === "AVAILABLE" ? "AVAILABLE" : yieldSnapshot.coverage.venusMarkets === "PARTIAL" ? "PARTIAL" : "FAILED";
+      const assets = new Set(yieldOpportunities.map((item) => item.underlying.address.toLowerCase())).size;
+      const detail = `Checked wallet-relevant Venus supply markets. Found ${yieldOpportunities.length} market context${yieldOpportunities.length === 1 ? "" : "s"} across ${assets} asset${assets === 1 ? "" : "s"}. Rates are current base supply APY only.`;
+      await updateSource(session, "yield_opportunities", coverage.yieldOpportunities === "AVAILABLE" ? "COMPLETED" : coverage.yieldOpportunities === "PARTIAL" ? "PARTIAL" : "FAILED", detail);
+    } catch (error) {
+      coverage.yieldOpportunities = "FAILED";
+      await updateSource(session, "yield_opportunities", "FAILED", error instanceof Error ? error.message : "Yield opportunity scan failed.");
+    }
+
     const portfolio: SmartMoneyPortfolioSnapshot = {
       portfolioSnapshotId: `portfolio_${idFactory()}`,
       checkSessionId,
@@ -582,6 +665,7 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
       nativeBalance,
       pancakeSwapPositions: positions,
       venusPositions,
+      yieldOpportunities,
       coverage,
     };
     await store.savePortfolio(portfolio);
@@ -598,13 +682,27 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
       await publish(checkSessionId, "finding.created", "venus_positions", { findingId: finding.findingId, category: finding.category, state: finding.state, severity: finding.severity });
     }
 
+    const yieldGroups = new Map<string, YieldOpportunitySnapshot[]>();
+    for (const opportunity of yieldOpportunities) {
+      const key = opportunity.underlying.address.toLowerCase();
+      const existing = yieldGroups.get(key) ?? [];
+      existing.push(opportunity);
+      yieldGroups.set(key, existing);
+    }
+    for (const group of yieldGroups.values()) {
+      const finding = createYieldFinding(checkSessionId, group, now(), idFactory);
+      if (!finding) continue;
+      await store.saveFinding(finding);
+      await publish(checkSessionId, "finding.created", "yield_opportunities", { findingId: finding.findingId, category: finding.category, state: finding.state, severity: finding.severity });
+    }
+
     session.coverage = coverage;
-    session.state = coverage.walletAssets === "FAILED" && coverage.pancakeSwapPositions === "FAILED" && coverage.venusPositions === "FAILED" ? "FAILED" : "PARTIAL";
+    session.state = coverage.walletAssets === "FAILED" && coverage.pancakeSwapPositions === "FAILED" && coverage.venusPositions === "FAILED" && coverage.yieldOpportunities === "FAILED" ? "FAILED" : "PARTIAL";
     session.completedAt = now().toISOString();
     session.updatedAt = session.completedAt;
-    if (session.state === "FAILED") session.failureReason = "Wallet, PancakeSwap, and Venus source reads all failed.";
+    if (session.state === "FAILED") session.failureReason = "Wallet, PancakeSwap, Venus health, and Yield source reads all failed.";
     await store.updateSession(session);
-    await publish(checkSessionId, session.state === "FAILED" ? "check.failed" : "check.completed", undefined, { state: session.state, findings: positions.length + venusPositions.length });
+    await publish(checkSessionId, session.state === "FAILED" ? "check.failed" : "check.completed", undefined, { state: session.state, findings: (await store.listFindings(checkSessionId)).length });
     return { session, portfolio, findings: await store.listFindings(checkSessionId) };
   }
 

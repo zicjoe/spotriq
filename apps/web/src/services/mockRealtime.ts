@@ -9,7 +9,7 @@
 export type CheckEvent =
   | { type: "check.started" }
   | { type: "check.source.completed"; progress: number }
-  | { type: "check.completed"; progress: 5 };
+  | { type: "check.completed"; progress: 6 };
 
 export function subscribeToMockCheck(
   onEvent: (event: CheckEvent) => void,
@@ -17,13 +17,13 @@ export function subscribeToMockCheck(
 ) {
   onEvent({ type: "check.started" });
 
-  const timers = [1, 2, 3, 4, 5].map((progress, index) =>
+  const timers = [1, 2, 3, 4, 5, 6].map((progress, index) =>
     window.setTimeout(() => {
       onEvent({
-        type: progress === 5 ? "check.completed" : "check.source.completed",
-        progress: progress as 1 | 2 | 3 | 4 | 5,
+        type: progress === 6 ? "check.completed" : "check.source.completed",
+        progress: progress as 1 | 2 | 3 | 4 | 5 | 6,
       });
-      if (progress === 5) {
+      if (progress === 6) {
         window.setTimeout(onComplete, 350);
       }
     }, 650 * (index + 1)),
