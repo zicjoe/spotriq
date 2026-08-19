@@ -198,3 +198,47 @@ test("invalid PancakeSwap protocol version returns a structured 400", async () =
   assert.equal(response.json().error.code, "INVALID_PROTOCOL_VERSION");
   await app.close();
 });
+
+test("POST /v1/checks creates an async Smart Money Check session", async () => {
+  const createdAt = "2026-08-19T04:00:00.000Z";
+  const session = {
+    checkSessionId: "check_test",
+    walletAddress: "0x1111111111111111111111111111111111111111",
+    walletControl: "WATCH_ONLY" as const,
+    state: "CREATED" as const,
+    createdAt,
+    updatedAt: createdAt,
+    sourceProgress: [],
+  };
+  const smartMoney = {
+    startCheck: async () => session,
+    runCheck: async () => ({ session: { ...session, state: "PARTIAL" as const }, findings: [] }),
+    getCheck: async () => ({ session, findings: [] }),
+    listEvents: async () => [],
+    subscribe: () => () => undefined,
+  };
+  const app = await buildServer({ config, chain: makeChain(), smartMoney, logger: false });
+  const response = await app.inject({
+    method: "POST",
+    url: "/v1/checks",
+    payload: { walletAddress: session.walletAddress, walletControl: "WATCH_ONLY" },
+  });
+  assert.equal(response.statusCode, 202);
+  assert.equal(response.json().data.session.checkSessionId, "check_test");
+  await app.close();
+});
+
+test("GET /v1/checks/:id returns a structured 404 for unknown checks", async () => {
+  const smartMoney = {
+    startCheck: async () => { throw new Error("not used"); },
+    runCheck: async () => { throw new Error("not used"); },
+    getCheck: async () => undefined,
+    listEvents: async () => [],
+    subscribe: () => () => undefined,
+  };
+  const app = await buildServer({ config, chain: makeChain(), smartMoney, logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/checks/check_missing" });
+  assert.equal(response.statusCode, 404);
+  assert.equal(response.json().error.code, "CHECK_NOT_FOUND");
+  await app.close();
+});

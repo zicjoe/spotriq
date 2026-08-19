@@ -17,13 +17,18 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
 import { FOOTER_CONFIG } from "../config/footer";
 import { subscribeToMockCheck, runMockActivation, runMockAgentTest } from "../services/mockRealtime";
 import { walletHandlers } from "../services/walletHandlers";
+import {
+  getActiveCheckMode, getActiveCheckSessionId, setActiveLiveCheck, setExampleCheckMode, smartMoneyRepository,
+  type SmartMoneyCheckView,
+} from "../repositories/smartMoneyRepository";
+import { subscribeToSmartMoneyCheck } from "../services/smartMoneyRealtime";
 
 const {
   services: SERVICES,
@@ -803,10 +808,28 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
 // ─── PAGE: SMART MONEY CHECK ──────────────────────────────────────────────────
 
 function CheckStartPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => void }) {
+  const [address, setAddress] = useState("");
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string>();
   const coverage = [
-    "BSC wallet balances", "Supported PancakeSwap V3 positions", "Supported Venus lending positions",
-    "Eligible yield opportunities", "Grid-compatible market context", "Marketplace agent matches"
+    "BSC native wallet balance", "Supported PancakeSwap V3 positions", "Rebalancing range-state findings",
+    "PancakeSwap Infinity CL reads by known token ID", "Venus / market context / agent matching as coverage expands"
   ];
+
+  const startLiveCheck = async (walletAddress: string, control: "WATCH_ONLY" | "CONNECTED" | "VERIFIED_CONTROL") => {
+    setStarting(true);
+    setError(undefined);
+    try {
+      const result = await smartMoneyRepository.startCheck(walletAddress, control);
+      setActiveLiveCheck(result.session.checkSessionId);
+      navigate("check", { checkPhase: "scan" });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Spotriq could not start this Smart Money Check.");
+    } finally {
+      setStarting(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto px-6 py-12 space-y-8">
       <div className="text-center space-y-3">
@@ -821,32 +844,55 @@ function CheckStartPage({ navigate }: { navigate: (r: Route, p?: Partial<NavStat
       </div>
 
       <Card className="p-6 space-y-4">
-        <Btn variant="primary" className="w-full justify-center" onClick={async () => {
-          await walletHandlers.connectWallet();
-          navigate("check", { checkPhase: "scan" });
+        <Btn variant="primary" className="w-full justify-center" disabled={starting} onClick={async () => {
+          try {
+            setStarting(true);
+            setError(undefined);
+            const wallet = await walletHandlers.connectWallet();
+            await startLiveCheck(wallet.address, wallet.controlState);
+          } catch (cause) {
+            setError(cause instanceof Error ? cause.message : "Wallet connection failed.");
+            setStarting(false);
+          }
         }}>
-          <Wallet className="w-4 h-4" /> Connect Wallet
+          <Wallet className="w-4 h-4" /> {starting ? "Starting…" : "Connect Wallet"}
         </Btn>
         <div className="relative flex items-center gap-3">
           <div className="flex-1 border-t border-white/8" />
           <span className="text-xs text-[#6b7d99]">or</span>
           <div className="flex-1 border-t border-white/8" />
         </div>
-        <input className="w-full bg-[#1c2433] border border-white/8 rounded-md px-4 py-3 text-sm text-[#dde3ef] placeholder:text-[#6b7d99] focus:outline-none focus:border-[#2dd4bf]/40 transition-colors"
-          placeholder="Enter BSC address: 0x..." />
+        <div className="flex gap-2">
+          <input className="flex-1 min-w-0 bg-[#1c2433] border border-white/8 rounded-md px-4 py-3 text-sm text-[#dde3ef] placeholder:text-[#6b7d99] focus:outline-none focus:border-[#2dd4bf]/40 transition-colors"
+            value={address}
+            onChange={(event) => setAddress(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && /^0x[0-9a-fA-F]{40}$/.test(address.trim()) && !starting) void startLiveCheck(address.trim(), "WATCH_ONLY");
+            }}
+            placeholder="Enter BSC address: 0x..." />
+          <Btn variant="secondary" disabled={starting || !/^0x[0-9a-fA-F]{40}$/.test(address.trim())} onClick={() => void startLiveCheck(address.trim(), "WATCH_ONLY")}>
+            Check
+          </Btn>
+        </div>
         <div className="relative flex items-center gap-3">
           <div className="flex-1 border-t border-white/8" />
           <span className="text-xs text-[#6b7d99]">or</span>
           <div className="flex-1 border-t border-white/8" />
         </div>
-        <Btn variant="secondary" className="w-full justify-center" onClick={() => navigate("check", { checkPhase: "scan" })}>
+        <Btn variant="secondary" className="w-full justify-center" onClick={() => { setExampleCheckMode(); navigate("check", { checkPhase: "scan" }); }}>
           <Eye className="w-4 h-4" /> Try Example Portfolio
         </Btn>
         <p className="text-[11px] text-center text-[#6b7d99]">Entering an address does not prove ownership. Activation requires wallet connection.</p>
+        {error && (
+          <div className="flex items-start gap-2 rounded-lg border border-[#f87171]/20 bg-[#f87171]/5 p-3 text-xs text-[#fca5a5]">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
       </Card>
 
       <Card className="p-5">
-        <div className="text-xs font-mono uppercase text-[#6b7d99] mb-3">What we check</div>
+        <div className="text-xs font-mono uppercase text-[#6b7d99] mb-3">Current live coverage</div>
         <div className="space-y-2">
           {coverage.map(c => (
             <div key={c} className="flex items-center gap-2 text-sm text-[#9aacc4]">
@@ -855,7 +901,7 @@ function CheckStartPage({ navigate }: { navigate: (r: Route, p?: Partial<NavStat
             </div>
           ))}
         </div>
-        <p className="text-xs text-[#6b7d99] mt-3 pt-3 border-t border-white/6">We do not check all BSC protocols. Supported protocols only.</p>
+        <p className="text-xs text-[#6b7d99] mt-3 pt-3 border-t border-white/6">Coverage is intentionally bounded. Spotriq does not claim to inspect every BSC protocol yet.</p>
       </Card>
     </div>
   );
@@ -863,7 +909,10 @@ function CheckStartPage({ navigate }: { navigate: (r: Route, p?: Partial<NavStat
 
 function CheckScanPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => void }) {
   const [progress, setProgress] = useState(0);
-  const sources = [
+  const [liveSources, setLiveSources] = useState<CheckSourceProgress[]>();
+  const [error, setError] = useState<string>();
+  const mode = getActiveCheckMode();
+  const exampleSources = [
     { key: "wallet", label: "Wallet assets", status: progress > 0 ? "done" : "running" },
     { key: "pancake", label: "PancakeSwap positions", status: progress > 1 ? "done" : progress === 1 ? "running" : "queued" },
     { key: "venus", label: "Venus lending positions", status: progress > 2 ? "done" : progress === 2 ? "running" : "queued" },
@@ -872,13 +921,43 @@ function CheckScanPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState
   ];
 
   useEffect(() => {
-    return subscribeToMockCheck(
-      (event) => {
-        if ("progress" in event) setProgress(event.progress);
-      },
+    if (mode === "example") {
+      return subscribeToMockCheck(
+        (event) => { if ("progress" in event) setProgress(event.progress); },
+        () => navigate("check", { checkPhase: "results" }),
+      );
+    }
+
+    const checkSessionId = getActiveCheckSessionId();
+    if (!checkSessionId) {
+      setError("No active Smart Money Check was found. Start a new check.");
+      return;
+    }
+    let closed = false;
+    const refresh = async () => {
+      try {
+        const snapshot = await smartMoneyRepository.getCheck(checkSessionId);
+        if (!closed) setLiveSources(snapshot.session.sourceProgress ?? []);
+      } catch (cause) {
+        if (!closed) setError(cause instanceof Error ? cause.message : "Could not read Smart Money Check progress.");
+      }
+    };
+    void refresh();
+    const subscription = subscribeToSmartMoneyCheck(
+      checkSessionId,
+      (_event: SmartMoneyCheckEvent) => { void refresh(); },
       () => navigate("check", { checkPhase: "results" }),
+      (cause) => setError(cause instanceof Error ? cause.message : "Realtime scan updates were interrupted."),
     );
-  }, [navigate]);
+    return () => { closed = true; subscription.close(); };
+  }, [mode, navigate]);
+
+  const sourceRows = mode === "example" ? exampleSources : (liveSources ?? []).map((source) => ({
+    key: source.key,
+    label: source.label,
+    status: source.state === "COMPLETED" ? "done" : source.state === "RUNNING" ? "running" : source.state === "PARTIAL" ? "partial" : source.state === "FAILED" ? "failed" : source.state === "NOT_SUPPORTED" ? "unsupported" : "queued",
+    detail: source.detail,
+  }));
 
   return (
     <div className="max-w-lg mx-auto px-6 py-16 space-y-8">
@@ -889,21 +968,107 @@ function CheckScanPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState
         </div>
       </div>
       <Card className="p-6 space-y-3">
-        {sources.map(s => (
-          <div key={s.key} className="flex items-center justify-between text-sm">
-            <span className="text-[#9aacc4]">{s.label}</span>
-            {s.status === "done" && <Check className="w-4 h-4 text-[#4ade80]" />}
-            {s.status === "running" && <span className="flex items-center gap-1.5 text-[#2dd4bf] text-xs"><span className="w-2 h-2 rounded-full bg-[#2dd4bf] animate-pulse" />Running</span>}
-            {s.status === "queued" && <span className="w-2 h-2 rounded-full bg-[#1c2433] border border-white/15" />}
+        {sourceRows.length === 0 && <div className="text-sm text-[#6b7d99]">Preparing live BSC sources…</div>}
+        {sourceRows.map(s => (
+          <div key={s.key} className="py-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-[#9aacc4]">{s.label}</span>
+              {s.status === "done" && <Check className="w-4 h-4 text-[#4ade80]" />}
+              {s.status === "partial" && <span className="flex items-center gap-1.5 text-[#f59e0b] text-xs"><AlertTriangle className="w-3.5 h-3.5" />Partial</span>}
+              {s.status === "failed" && <span className="flex items-center gap-1.5 text-[#f87171] text-xs"><AlertCircle className="w-3.5 h-3.5" />Failed</span>}
+              {s.status === "unsupported" && <span className="text-[#6b7d99] text-xs">Not supported yet</span>}
+              {s.status === "running" && <span className="flex items-center gap-1.5 text-[#2dd4bf] text-xs"><span className="w-2 h-2 rounded-full bg-[#2dd4bf] animate-pulse" />Running</span>}
+              {s.status === "queued" && <span className="w-2 h-2 rounded-full bg-[#1c2433] border border-white/15" />}
+            </div>
+            {'detail' in s && s.detail && <p className="text-[11px] text-[#52637b] mt-1 pr-12">{s.detail}</p>}
           </div>
         ))}
       </Card>
-      <p className="text-center text-xs text-[#6b7d99]">Example Portfolio · Sample Data</p>
+      {error && (
+        <div className="rounded-lg border border-[#f87171]/20 bg-[#f87171]/5 p-4 text-sm text-[#fca5a5]">
+          {error}
+          <div className="mt-3"><Btn variant="ghost" onClick={() => navigate("check", { checkPhase: "start" })}>Start Again</Btn></div>
+        </div>
+      )}
+      <p className="text-center text-xs text-[#6b7d99]">{mode === "example" ? "Example Portfolio · Sample Data" : "Live BSC read · Supported sources only"}</p>
     </div>
   );
 }
 
 function CheckResultsPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => void }) {
+  const mode = getActiveCheckMode();
+  const [snapshot, setSnapshot] = useState<SmartMoneyCheckView>();
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    if (mode === "example") return;
+    const checkSessionId = getActiveCheckSessionId();
+    if (!checkSessionId) {
+      setError("No live Smart Money Check was found.");
+      return;
+    }
+    void smartMoneyRepository.getCheck(checkSessionId).then(setSnapshot).catch((cause) => {
+      setError(cause instanceof Error ? cause.message : "Could not load Smart Money Check results.");
+    });
+  }, [mode]);
+
+  if (mode === "example") return <ExampleCheckResultsPage navigate={navigate} />;
+
+  if (error) {
+    return <div className="max-w-2xl mx-auto px-6 py-16"><Card className="p-6"><div className="flex gap-2 text-[#fca5a5]"><AlertCircle className="w-5 h-5 shrink-0" /><span>{error}</span></div><div className="mt-4"><Btn variant="secondary" onClick={() => navigate("check", { checkPhase: "start" })}>Start a New Check</Btn></div></Card></div>;
+  }
+  if (!snapshot) {
+    return <div className="max-w-2xl mx-auto px-6 py-16"><Card className="p-6"><div className="flex items-center gap-2 text-[#9aacc4]"><RefreshCw className="w-4 h-4 animate-spin" />Loading your live results…</div></Card></div>;
+  }
+
+  const needsAttention = snapshot.findings.filter((finding) => finding.state === "needs-attention");
+  const healthy = snapshot.findings.filter((finding) => finding.state === "healthy" || finding.state === "informational");
+  const sources = snapshot.session.sourceProgress ?? [];
+  const shortWallet = `${snapshot.session.walletAddress.slice(0, 6)}…${snapshot.session.walletAddress.slice(-4)}`;
+
+  return (
+    <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="text-[11px] font-mono text-center text-[#2dd4bf] bg-[#2dd4bf]/5 border border-[#2dd4bf]/15 rounded px-3 py-1.5 mb-6">
+        Live BSC data · Read-only · {snapshot.portfolio?.network === "mainnet" ? "BSC Mainnet" : "BSC Testnet"}
+      </div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-[#dde3ef] mb-2">Your Smart Money Check</h1>
+        <div className="flex flex-wrap gap-4 text-sm text-[#6b7d99]">
+          <span className="flex items-center gap-1.5"><Wallet className="w-4 h-4" /> {shortWallet}</span>
+          <span className="flex items-center gap-1.5"><Clock className="w-4 h-4" /> Checked {snapshot.session.completedAt ? new Date(snapshot.session.completedAt).toLocaleTimeString() : "just now"}</span>
+          {needsAttention.length > 0 && <span className="text-[#f59e0b] flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" /> {needsAttention.length} need attention</span>}
+          <span className="text-[#2dd4bf] flex items-center gap-1.5"><CircleDot className="w-4 h-4" /> {snapshot.portfolio?.pancakeSwapPositions.length ?? 0} supported LP positions</span>
+        </div>
+      </div>
+
+      {needsAttention.length > 0 && <section className="mb-8"><SectionHeader label="Needs Attention" /><div className="space-y-4">{needsAttention.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => navigate("explore", { exploreCategory: "rebalancing", fromFinding: finding.findingId })} />)}</div></section>}
+
+      {healthy.length > 0 && <section className="mb-8"><SectionHeader label="Healthy / Informational" /><div className="space-y-4">{healthy.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => navigate("explore", { exploreCategory: "rebalancing", fromFinding: finding.findingId })} />)}</div></section>}
+
+      {snapshot.findings.length === 0 && (
+        <section className="mb-8"><Card className="p-6"><h3 className="font-medium text-[#dde3ef] mb-2">No supported PancakeSwap V3 LP findings</h3><p className="text-sm text-[#6b7d99]">Spotriq did not find a supported PancakeSwap V3 concentrated-liquidity position for this wallet in the current network. This does not mean the wallet has no DeFi positions or financial risks.</p></Card></section>
+      )}
+
+      <section>
+        <SectionHeader label="Coverage & Sources" />
+        <Card className="p-5">
+          <div className="space-y-3">
+            {sources.map((source) => (
+              <div key={source.key} className="flex items-start gap-2 text-sm">
+                {source.state === "COMPLETED" ? <Check className="w-3.5 h-3.5 text-[#4ade80] shrink-0 mt-0.5" /> : source.state === "FAILED" ? <AlertCircle className="w-3.5 h-3.5 text-[#f87171] shrink-0 mt-0.5" /> : source.state === "PARTIAL" ? <AlertTriangle className="w-3.5 h-3.5 text-[#f59e0b] shrink-0 mt-0.5" /> : <Minus className="w-3.5 h-3.5 text-[#6b7d99] shrink-0 mt-0.5" />}
+                <div className="min-w-0"><div className="text-[#9aacc4]">{source.label} <span className="text-[11px] font-mono text-[#52637b] ml-1">{source.state.replaceAll("_", " ")}</span></div>{source.detail && <div className="text-xs text-[#52637b] mt-0.5">{source.detail}</div>}</div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-[#6b7d99] mt-4 pt-4 border-t border-white/6">Spotriq only assessed the supported sources shown above. Partial coverage never means your complete portfolio is safe or risk-free.</p>
+        </Card>
+        <div className="mt-4 flex justify-center"><Btn variant="ghost" onClick={() => navigate("check", { checkPhase: "start" })}><RotateCcw className="w-4 h-4" /> Run Check Again</Btn></div>
+      </section>
+    </div>
+  );
+}
+
+function ExampleCheckResultsPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => void }) {
   const urgent = FINDINGS.filter(f => f.state === "needs-attention");
   const opps = FINDINGS.filter(f => f.state === "opportunity");
 

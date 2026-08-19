@@ -1,12 +1,17 @@
 # Spotriq Source of Truth
 
-This project is Spotriq v0.4.0 and supersedes the previous BSC Chain Adapter + Evidence Engine replacement.
+This project is Spotriq v0.5.1 and supersedes Spotriq v0.5.0.
 
 Use this project as the only source of truth for the next engineering milestone.
 Do not merge future work back into older Figma exports or replacement ZIPs.
 
 Current stage:
-PancakeSwap Adapter complete — normalized PancakeSwap V3 wallet/position reads and Infinity CL position reads, evidence-backed current pool state, and deterministic range-state calculation.
+Smart Money Check Core + Rebalancing Finding Engine complete, with the Windows/runtime workspace hotfix applied. The live read-only BSC wallet check persists/streams source progress and generates deterministic evidence-backed Rebalancing findings from supported PancakeSwap V3 positions.
+
+Hotfixes in v0.5.1:
+- @spotriq/smart-money exports its TypeScript source entrypoint for tsx workspace development.
+- Worker stays alive through its referenced heartbeat interval without an unsettled top-level-await warning.
+- Ineffective app-level pnpm override removed.
 
 Next stage:
-Smart Money Check Core + Rebalancing Finding Engine, with Railway PostgreSQL persistence appropriate at that milestone.
+Venus Adapter + Health Factor Monitoring foundation.

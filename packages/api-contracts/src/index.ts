@@ -45,6 +45,8 @@ export interface CapabilityResponse {
   chainAdapterEnabled: boolean;
   evidenceEngineEnabled: boolean;
   pancakeSwapAdapterEnabled: boolean;
+  smartMoneyCheckEnabled: boolean;
+  smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
 
@@ -105,4 +107,19 @@ export interface PancakeSwapPositionResponse {
 
 export interface PancakeSwapWalletPositionsResponse {
   snapshot: import("@spotriq/domain").PancakeSwapWalletPositionsSnapshot;
+}
+
+export interface StartSmartMoneyCheckRequest {
+  walletAddress: string;
+  walletControl?: import("@spotriq/domain").WalletControlState;
+}
+
+export interface SmartMoneyCheckResponse {
+  session: import("@spotriq/domain").CheckSession;
+  portfolio?: import("@spotriq/domain").SmartMoneyPortfolioSnapshot;
+  findings: import("@spotriq/domain").Finding[];
+}
+
+export interface SmartMoneyCheckEventsResponse {
+  events: import("@spotriq/domain").SmartMoneyCheckEvent[];
 }

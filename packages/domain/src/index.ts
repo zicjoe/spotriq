@@ -146,6 +146,7 @@ export interface EvidenceRecord {
 
 export interface Finding {
   findingId: string;
+  checkSessionId?: string;
   category: ServiceCategory;
   state: FindingState;
   severity: FindingSeverity;
@@ -158,6 +159,57 @@ export interface Finding {
   keyValues: { label: string; value: string; note?: string }[];
   whatCouldAgentDo: string;
   uncertainties?: string;
+  subject?: Record<string, unknown>;
+  evidenceIds?: string[];
+  methodVersion?: string;
+  generatedAt?: string;
+  expiresAt?: string;
+}
+
+export type CheckSourceKey =
+  | "wallet_assets"
+  | "pancakeswap_positions"
+  | "venus_positions"
+  | "market_context"
+  | "agent_compatibility";
+
+export type CheckSourceState =
+  | "QUEUED"
+  | "RUNNING"
+  | "COMPLETED"
+  | "PARTIAL"
+  | "FAILED"
+  | "NOT_SUPPORTED";
+
+export interface CheckSourceProgress {
+  key: CheckSourceKey;
+  label: string;
+  state: CheckSourceState;
+  detail?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface SmartMoneyCheckCoverage {
+  walletAssets: "AVAILABLE" | "PARTIAL" | "FAILED";
+  pancakeSwapPositions: "AVAILABLE" | "PARTIAL" | "FAILED";
+  venusPositions: "NOT_SUPPORTED" | "AVAILABLE" | "PARTIAL" | "FAILED";
+  marketContext: "NOT_SUPPORTED" | "AVAILABLE" | "PARTIAL" | "FAILED";
+  agentCompatibility: "NOT_SUPPORTED" | "AVAILABLE" | "PARTIAL" | "FAILED";
+  notes: string[];
+}
+
+export interface SmartMoneyPortfolioSnapshot {
+  portfolioSnapshotId: string;
+  checkSessionId: string;
+  walletAddress: string;
+  network: BscNetwork;
+  chainId: number;
+  blockNumber: string;
+  observedAt: string;
+  nativeBalance?: NativeBalanceSnapshot;
+  pancakeSwapPositions: PancakeSwapClPositionSnapshot[];
+  coverage: SmartMoneyCheckCoverage;
 }
 
 export interface CheckSession {
@@ -166,6 +218,32 @@ export interface CheckSession {
   walletControl: WalletControlState;
   state: "CREATED" | "SCANNING" | "PARTIAL" | "COMPLETED" | "FAILED" | "STALE";
   createdAt: string;
+  updatedAt?: string;
+  completedAt?: string;
+  failureReason?: string;
+  sourceProgress?: CheckSourceProgress[];
+  coverage?: SmartMoneyCheckCoverage;
+}
+
+export type SmartMoneyCheckEventType =
+  | "check.created"
+  | "check.started"
+  | "check.source.started"
+  | "check.source.completed"
+  | "check.source.partial"
+  | "check.source.failed"
+  | "finding.created"
+  | "check.completed"
+  | "check.failed";
+
+export interface SmartMoneyCheckEvent {
+  eventId: string;
+  checkSessionId: string;
+  sequence: number;
+  type: SmartMoneyCheckEventType;
+  occurredAt: string;
+  source?: CheckSourceKey;
+  data?: Record<string, unknown>;
 }
 
 export interface RecommendationCandidate {

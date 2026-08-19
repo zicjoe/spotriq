@@ -9,22 +9,25 @@ import type {
 } from "@spotriq/api-contracts";
 import { BscChainError, createBscChainAdapter, type BscChainReader } from "@spotriq/chain";
 import { loadServerConfig, type ServerConfig } from "@spotriq/config";
-import { getDatabaseHealth } from "@spotriq/db";
+import { getDatabaseHealth, getDatabasePool } from "@spotriq/db";
 import {
   createPancakeSwapAdapter,
   PancakeSwapAdapterError,
   type PancakeSwapReader,
 } from "@spotriq/protocol-pancakeswap";
+import { createSmartMoneyEngine, MemorySmartMoneyStore, PostgresSmartMoneyStore, type SmartMoneyEngine } from "@spotriq/smart-money";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
 import { registerEvidenceRoutes } from "./routes/evidence.js";
 import { registerPancakeSwapRoutes } from "./routes/pancakeswap.js";
+import { registerCheckRoutes } from "./routes/checks.js";
 
 export interface BuildServerOptions {
   config?: ServerConfig;
   logger?: boolean;
   chain?: BscChainReader;
   pancakeSwap?: PancakeSwapReader;
+  smartMoney?: SmartMoneyEngine;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -36,6 +39,11 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     timeoutMs: config.bscRpcTimeoutMs,
   });
   const pancakeSwap = options.pancakeSwap ?? createPancakeSwapAdapter({ chain });
+  const database = getDatabasePool(config.databaseUrl);
+  const smartMoneyStore = database
+    ? new PostgresSmartMoneyStore({ query: (text, values) => database.query(text, values) })
+    : new MemorySmartMoneyStore();
+  const smartMoney = options.smartMoney ?? createSmartMoneyEngine({ chain, pancakeSwap, store: smartMoneyStore });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
@@ -56,7 +64,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.4.0",
+      version: "0.5.1",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -87,13 +95,16 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       chainAdapterEnabled: true,
       evidenceEngineEnabled: true,
       pancakeSwapAdapterEnabled: true,
+      smartMoneyCheckEnabled: true,
+      smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
           ? "BSC reads use configured RPC endpoints with failover."
           : "Development BSC reads use official public BSC RPC fallbacks; configure BSC_RPC_PRIMARY for production-grade access.",
         "Canonical BSC blocks, transactions, native balances, and requested ERC-20 balances now return evidence envelopes.",
-        "PancakeSwap V3 and Infinity CL current-state reads now normalize concentrated-liquidity positions with evidence-backed range state.",
-        "Venus is the next protocol adapter; historical PancakeSwap analytics and USD position valuation remain intentionally out of scope for this milestone.",
+        "PancakeSwap V3 and Infinity CL current-state reads normalize concentrated-liquidity positions with evidence-backed range state.",
+        database ? "Smart Money Check sessions, portfolio snapshots, evidence, findings, and events persist in PostgreSQL." : "Smart Money Check uses in-memory persistence until DATABASE_URL is configured; configure Railway PostgreSQL for durable sessions.",
+        "Smart Money Check now generates deterministic Rebalancing findings from supported PancakeSwap V3 positions. Venus, historical market context, and agent matching remain explicitly unsupported in this milestone.",
       ],
     };
     const body: ApiEnvelope<CapabilityResponse> = { data, meta: { generatedAt: new Date().toISOString() } };
@@ -103,6 +114,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerChainRoutes(app, chain);
   await registerEvidenceRoutes(app);
   await registerPancakeSwapRoutes(app, pancakeSwap);
+  await registerCheckRoutes(app, smartMoney);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {

@@ -1,9 +1,11 @@
 {
   "name": "@spotriq/protocol-pancakeswap",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.1",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "dependencies": {
     "@spotriq/chain": "workspace:*",
     "@spotriq/domain": "workspace:*",

@@ -20,7 +20,11 @@ export class ApiError extends Error {
 }
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string> }).env;
-const API_BASE_URL = env?.VITE_SPOTRIQ_API_URL ?? env?.VITE_API_BASE_URL ?? "";
+const API_BASE_URL = (env?.VITE_SPOTRIQ_API_URL ?? env?.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+
+export function getApiUrl(path: string): string {
+  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
 
 function normalizeApiError(value: unknown): ApiErrorPayload | undefined {
   if (!value || typeof value !== "object") return undefined;
@@ -42,7 +46,7 @@ function normalizeApiError(value: unknown): ApiErrorPayload | undefined {
 }
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(getApiUrl(path), {
     ...init,
     headers: {
       "content-type": "application/json",

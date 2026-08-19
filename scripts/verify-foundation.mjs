@@ -21,6 +21,12 @@ const required = [
   "packages/protocol-pancakeswap/src/index.ts",
   "packages/protocol-pancakeswap/src/abis.ts",
   "apps/api/src/routes/pancakeswap.ts",
+  "packages/smart-money/package.json",
+  "packages/smart-money/src/index.ts",
+  "packages/db/migrations/0003_smart_money_rebalancing.sql",
+  "apps/api/src/routes/checks.ts",
+  "apps/web/src/repositories/smartMoneyRepository.ts",
+  "apps/web/src/services/smartMoneyRealtime.ts",
   ".env.example",
   ".gitignore",
 ];
@@ -73,4 +79,21 @@ if (!evidence.includes("PANCAKE_CL_RANGE_STATE") || !evidence.includes("PANCAKE_
   throw new Error("Evidence Engine must include PancakeSwap range-state methodology and derived provenance.");
 }
 
-console.log("Spotriq foundation + BSC/evidence + PancakeSwap verification passed.");
+const smartMoneyPackage = JSON.parse(await readFile(path.join(root, "packages/smart-money/package.json"), "utf8"));
+if (smartMoneyPackage?.exports?.["."] !== "./src/index.ts") {
+  throw new Error("@spotriq/smart-money must export ./src/index.ts for tsx workspace development.");
+}
+const smartMoney = await readFile(path.join(root, "packages/smart-money/src/index.ts"), "utf8");
+for (const marker of ["createSmartMoneyEngine", "createRebalancingFinding", "PostgresSmartMoneyStore", "MemorySmartMoneyStore", "SMART_MONEY_REBALANCING_METHOD"]) {
+  if (!smartMoney.includes(marker)) throw new Error(`Smart Money engine is missing ${marker}.`);
+}
+const checkRoutes = await readFile(path.join(root, "apps/api/src/routes/checks.ts"), "utf8");
+for (const route of ["/v1/checks", "/v1/checks/:checkSessionId", "/v1/checks/:checkSessionId/findings", "/v1/checks/:checkSessionId/events"]) {
+  if (!checkRoutes.includes(route)) throw new Error(`Missing Smart Money Check route ${route}.`);
+}
+const appUi = await readFile(path.join(root, "apps/web/src/app/App.tsx"), "utf8");
+if (!appUi.includes("smartMoneyRepository.startCheck") || !appUi.includes("subscribeToSmartMoneyCheck") || !appUi.includes("Live BSC data")) {
+  throw new Error("Smart Money Check UI must be wired to the live API while retaining example mode.");
+}
+
+console.log("Spotriq foundation + BSC/evidence + PancakeSwap + Smart Money Check verification passed.");

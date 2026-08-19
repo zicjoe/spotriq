@@ -1,3 +1,4 @@
+import { getApiUrl } from "../api/client";
 export type RealtimeEvent<T = unknown> = {
   type: string;
   data: T;
@@ -16,7 +17,7 @@ export function subscribeToSse<T>(
   onEvent: (event: RealtimeEvent<T>) => void,
   onError?: (event: Event) => void,
 ): RealtimeSubscription {
-  const source = new EventSource(url);
+  const source = new EventSource(getApiUrl(url));
 
   source.onmessage = (message) => {
     try {
