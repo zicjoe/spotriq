@@ -38,7 +38,7 @@ export const DATA_SOURCES = {
     provider: "Venus",
     chain: "BSC",
     networks: ["testnet", "mainnet"],
-    description: "Normalized Venus lending state. Adapter introduced in a later milestone.",
+    description: "Normalized Venus Core Pool and Isolated Pool lending state read through the Spotriq Venus adapter.",
   },
   ERC8004: {
     sourceId: "erc8004",
@@ -116,6 +116,27 @@ export const EVIDENCE_METHODS = {
     name: "Concentrated-liquidity current price",
     description: "Derives token0 price in token1 units from the pool's current sqrtPriceX96 adjusted for token decimals.",
     inputMetrics: ["pool.sqrt_price_x96", "token0.decimals", "token1.decimals"],
+  },
+  VENUS_ACCOUNT_LIQUIDITY: {
+    methodId: "venus.account-liquidity",
+    version: "1.0.0",
+    name: "Venus account liquidity read",
+    description: "Reads Venus Comptroller account liquidity and shortfall at one BSC block. Protocol shortfall is treated as the canonical liquidation-risk signal.",
+    inputMetrics: ["comptroller.getAccountLiquidity", "chain.block"],
+  },
+  VENUS_MARKET_POSITION: {
+    methodId: "venus.market-position",
+    version: "1.0.0",
+    name: "Venus market position read",
+    description: "Reads a wallet's vToken balance, borrow balance, exchange rate, collateral membership, risk parameters, and underlying oracle price for a Venus market.",
+    inputMetrics: ["vToken.getAccountSnapshot", "comptroller.getAssetsIn", "comptroller.markets", "oracle.getUnderlyingPrice"],
+  },
+  VENUS_HEALTH_FACTOR: {
+    methodId: "venus.health-factor",
+    version: "1.0.0",
+    name: "Spotriq Venus health factor",
+    description: "Derives an explanatory health ratio from Venus canonical account liquidity/shortfall plus observed debt valuation. Canonical Venus shortfall and forced-liquidation configuration take precedence.",
+    inputMetrics: ["venus.market-position", "venus.account-liquidity"],
   },
 } satisfies Record<string, EvidenceMethodDefinition>;
 

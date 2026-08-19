@@ -16,10 +16,12 @@ import {
   type PancakeSwapReader,
 } from "@spotriq/protocol-pancakeswap";
 import { createSmartMoneyEngine, MemorySmartMoneyStore, PostgresSmartMoneyStore, type SmartMoneyEngine } from "@spotriq/smart-money";
+import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
 import { registerEvidenceRoutes } from "./routes/evidence.js";
 import { registerPancakeSwapRoutes } from "./routes/pancakeswap.js";
+import { registerVenusRoutes } from "./routes/venus.js";
 import { registerCheckRoutes } from "./routes/checks.js";
 
 export interface BuildServerOptions {
@@ -27,6 +29,7 @@ export interface BuildServerOptions {
   logger?: boolean;
   chain?: BscChainReader;
   pancakeSwap?: PancakeSwapReader;
+  venus?: VenusReader;
   smartMoney?: SmartMoneyEngine;
 }
 
@@ -39,11 +42,12 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     timeoutMs: config.bscRpcTimeoutMs,
   });
   const pancakeSwap = options.pancakeSwap ?? createPancakeSwapAdapter({ chain });
+  const venus = options.venus ?? createVenusAdapter({ chain });
   const database = getDatabasePool(config.databaseUrl);
   const smartMoneyStore = database
     ? new PostgresSmartMoneyStore({ query: (text, values) => database.query(text, values) })
     : new MemorySmartMoneyStore();
-  const smartMoney = options.smartMoney ?? createSmartMoneyEngine({ chain, pancakeSwap, store: smartMoneyStore });
+  const smartMoney = options.smartMoney ?? createSmartMoneyEngine({ chain, pancakeSwap, venus, store: smartMoneyStore });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
@@ -64,7 +68,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.5.1",
+      version: "0.6.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -95,6 +99,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       chainAdapterEnabled: true,
       evidenceEngineEnabled: true,
       pancakeSwapAdapterEnabled: true,
+      venusAdapterEnabled: true,
       smartMoneyCheckEnabled: true,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
@@ -104,7 +109,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "Canonical BSC blocks, transactions, native balances, and requested ERC-20 balances now return evidence envelopes.",
         "PancakeSwap V3 and Infinity CL current-state reads normalize concentrated-liquidity positions with evidence-backed range state.",
         database ? "Smart Money Check sessions, portfolio snapshots, evidence, findings, and events persist in PostgreSQL." : "Smart Money Check uses in-memory persistence until DATABASE_URL is configured; configure Railway PostgreSQL for durable sessions.",
-        "Smart Money Check now generates deterministic Rebalancing findings from supported PancakeSwap V3 positions. Venus, historical market context, and agent matching remain explicitly unsupported in this milestone.",
+        "Smart Money Check generates deterministic Rebalancing findings from supported PancakeSwap positions and Health findings from Venus Core/Isolated Pool onchain state.",
+        "Venus protocol shortfall is canonical for current liquidation eligibility; Spotriq health factor is a derived explanation and incomplete inputs never become Healthy.",
+        "Historical market context and agent matching remain explicitly unsupported in this milestone.",
       ],
     };
     const body: ApiEnvelope<CapabilityResponse> = { data, meta: { generatedAt: new Date().toISOString() } };
@@ -114,6 +121,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerChainRoutes(app, chain);
   await registerEvidenceRoutes(app);
   await registerPancakeSwapRoutes(app, pancakeSwap);
+  await registerVenusRoutes(app, venus);
   await registerCheckRoutes(app, smartMoney);
 
   app.setNotFoundHandler(async (request, reply) => {
@@ -162,6 +170,12 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
           details: config.appEnv === "production" ? undefined : error.details,
         },
       };
+      return reply.code(statusCode).send(body);
+    }
+
+    if (error instanceof VenusAdapterError) {
+      const statusCode = error.code === "BOOTSTRAP_FAILED" || error.code === "POOL_DISCOVERY_FAILED" || error.code === "CONTRACT_READ_FAILED" ? 502 : 422;
+      const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
       return reply.code(statusCode).send(body);
     }
 

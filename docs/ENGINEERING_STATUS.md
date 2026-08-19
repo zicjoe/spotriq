@@ -9,21 +9,27 @@
 - BSC Chain Adapter + Evidence Engine
 - PancakeSwap Adapter — V3 + Infinity CL current-state normalization
 - Smart Money Check Core + Rebalancing Finding Engine
-- v0.5.1 workspace/runtime hotfix for smart-money package export and worker lifecycle
+- v0.5.1 workspace/runtime hotfix
+- Venus Adapter + Health Factor Monitoring
 
 ## Current source of truth
-Use Spotriq v0.5.1 produced after the Smart Money Check + Rebalancing runtime hotfix.
+Use Spotriq v0.6.0.
 
 ## Current live-data spine
-BSC JSON-RPC → Chain Adapter → PancakeSwap Adapter → Evidence Engine → Smart Money Engine → persisted/live Rebalancing Finding → Spotriq Smart Money Check UI.
+BSC JSON-RPC → Chain Adapter → protocol adapters → Evidence Engine → Smart Money Engine → persisted/live Findings → Spotriq UI.
+
+Live financial categories:
+1. Rebalancing — PancakeSwap LP range state
+2. Health Factor Monitoring — Venus Core/Isolated lending risk
 
 ## Persistence
-- No DATABASE_URL: in-memory local development store.
-- DATABASE_URL configured: PostgreSQL persistence selected automatically.
-- Railway PostgreSQL is now useful and recommended for durable checks/evidence/findings.
+- No `DATABASE_URL`: in-memory local development store.
+- `DATABASE_URL` configured: PostgreSQL persistence selected automatically.
+- Migration 0004 adds normalized Venus lending snapshots.
+- Railway PostgreSQL is recommended now for durable Smart Money Check history.
 
 ## Next
-Venus Adapter + Health Factor Monitoring foundation, then extend Smart Money Check with real lending-risk findings.
+Yield Optimisation data foundation so Spotriq reaches three real financial categories before agent matching.
 
 ## Rule
-Every completed replacement becomes the new source of truth. Do not branch future implementation from an older Figma export or older replacement ZIP.
+Every completed replacement becomes the new source of truth.

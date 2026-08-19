@@ -242,3 +242,21 @@ test("GET /v1/checks/:id returns a structured 404 for unknown checks", async () 
   assert.equal(response.json().error.code, "CHECK_NOT_FOUND");
   await app.close();
 });
+
+
+test("GET Venus status exposes health-monitoring capabilities", async () => {
+  const venus = {
+    getStatus: async () => ({
+      protocol: "Venus" as const, network: "testnet" as const, chainId: 97,
+      contracts: { network: "testnet" as const, protocolShareReserve: "0x25c7c7D6Bf710949fD7f03364E9BA19a1b3c10E3", corePoolComptroller: "0x1111111111111111111111111111111111111111", poolRegistry: "0x2222222222222222222222222222222222222222" },
+      capabilities: { corePoolDiscovery: true, isolatedPoolDiscovery: true, accountLiquidity: true as const, marketSnapshots: true as const, derivedHealthFactor: true as const, automatedProtection: false as const },
+      coverageNotes: ["test"],
+    }),
+    getWalletPositions: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt: new Date().toISOString(), contracts: { network: "testnet" as const, protocolShareReserve: "0x25c7c7D6Bf710949fD7f03364E9BA19a1b3c10E3" }, positions: [], coverage: { corePool: "AVAILABLE" as const, isolatedPools: "AVAILABLE" as const, failedComptrollers: [] } }),
+  };
+  const app = await buildServer({ config, chain: makeChain(), venus, logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/protocols/venus/status" });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().data.capabilities.derivedHealthFactor, true);
+  await app.close();
+});

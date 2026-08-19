@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { BscChainReader } from "@spotriq/chain";
-import type { EvidenceEnvelope, PancakeSwapClPositionSnapshot } from "@spotriq/domain";
+import type { EvidenceEnvelope, PancakeSwapClPositionSnapshot, VenusPoolPositionSnapshot } from "@spotriq/domain";
 import type { PancakeSwapReader } from "@spotriq/protocol-pancakeswap";
-import { createRebalancingFinding, createSmartMoneyEngine, MemorySmartMoneyStore } from "./index.js";
+import type { VenusReader } from "@spotriq/protocol-venus";
+import { createHealthFinding, createRebalancingFinding, createSmartMoneyEngine, MemorySmartMoneyStore } from "./index.js";
 
 const observedAt = "2026-08-19T04:00:00.000Z";
 const evidence: EvidenceEnvelope = {
@@ -80,6 +81,59 @@ test("in-range finding is healthy but does not claim portfolio safety", () => {
   assert.doesNotMatch(`${finding.headline} ${finding.summary}`, /portfolio.*safe|risk-free/i);
 });
 
+
+function makeVenusPosition(riskState: VenusPoolPositionSnapshot["riskState"]): VenusPoolPositionSnapshot {
+  const hasBorrow = riskState !== "NO_BORROW";
+  return {
+    protocol: "Venus", network: "testnet", chainId: 97, poolKind: "ISOLATED", poolName: "Stablecoins",
+    comptroller: "0x6666666666666666666666666666666666666666", oracle: "0x7777777777777777777777777777777777777777",
+    walletAddress: "0x2222222222222222222222222222222222222222", protocolLiquidityRaw: riskState === "LIQUIDATABLE" ? "0" : "500000000000000000000",
+    protocolShortfallRaw: riskState === "LIQUIDATABLE" ? "100000000000000000000" : "0",
+    totalBorrowValueUsd1e18: hasBorrow ? "1000000000000000000000" : "0",
+    liquidationAdjustedCollateralUsd1e18: hasBorrow ? (riskState === "WATCH" ? "1300000000000000000000" : riskState === "HIGHER_ATTENTION" ? "1100000000000000000000" : riskState === "LIQUIDATABLE" ? "900000000000000000000" : "1800000000000000000000") : "0",
+    healthFactor: hasBorrow ? (riskState === "WATCH" ? "1.3" : riskState === "HIGHER_ATTENTION" ? "1.1" : riskState === "LIQUIDATABLE" ? "0.9" : riskState === "COULD_NOT_ASSESS" ? undefined : "1.8") : undefined,
+    riskState,
+    markets: [{
+      protocol: "Venus", poolKind: "ISOLATED", poolName: "Stablecoins", comptroller: "0x6666666666666666666666666666666666666666",
+      vToken: "0x8888888888888888888888888888888888888888", vTokenSymbol: "vUSDT", underlying: { address: "0x9999999999999999999999999999999999999999", symbol: "USDT", decimals: 18, isNative: false },
+      collateralEnabled: true, suppliedVTokenRaw: "100", suppliedUnderlyingRaw: "2000000000000000000000", borrowUnderlyingRaw: hasBorrow ? "1000000000000000000000" : "0", exchangeRateMantissa: "20000000000000000000000000000",
+      collateralFactorMantissa: "700000000000000000", liquidationThresholdMantissa: "800000000000000000", oraclePriceRaw: "1000000000000000000",
+      suppliedValueUsd1e18: "2000000000000000000000", borrowValueUsd1e18: hasBorrow ? "1000000000000000000000" : "0", liquidationAdjustedCollateralUsd1e18: "1600000000000000000000", evidence: [evidence],
+    }],
+    blockNumber: "100", observedAt, evidence: [evidence],
+    coverage: { accountLiquidity: "AVAILABLE", marketPositions: riskState === "COULD_NOT_ASSESS" ? "PARTIAL" : "AVAILABLE", healthFactor: riskState === "COULD_NOT_ASSESS" ? "UNAVAILABLE" : "AVAILABLE" },
+    limitations: riskState === "COULD_NOT_ASSESS" ? ["Oracle price unavailable."] : [],
+  };
+}
+
+test("Venus shortfall produces an urgent Health finding without predicting liquidation timing", () => {
+  const finding = createHealthFinding("check_health", makeVenusPosition("LIQUIDATABLE"), new Date(observedAt), () => "h1");
+  assert.equal(finding.category, "health");
+  assert.equal(finding.state, "needs-attention");
+  assert.equal(finding.severity, "urgent");
+  assert.match(finding.summary, /current protocol state/i);
+  assert.doesNotMatch(`${finding.headline} ${finding.summary}`, /guaranteed|will be liquidated/i);
+});
+
+
+test("Venus forced-liquidation configuration produces urgent wording even without protocol shortfall", () => {
+  const position = makeVenusPosition("LIQUIDATABLE");
+  position.protocolShortfallRaw = "0";
+  position.markets[0]!.forcedLiquidationEnabled = true;
+  const finding = createHealthFinding("check_forced", position, new Date(observedAt), () => "hf");
+  assert.equal(finding.state, "needs-attention");
+  assert.equal(finding.severity, "urgent");
+  assert.match(finding.headline, /forced liquidation/i);
+  assert.match(finding.summary, /regardless of normal account liquidity/i);
+});
+
+test("incomplete Venus inputs become Could Not Assess, never Healthy", () => {
+  const finding = createHealthFinding("check_health2", makeVenusPosition("COULD_NOT_ASSESS"), new Date(observedAt), () => "h2");
+  assert.equal(finding.state, "could-not-assess");
+  assert.equal(finding.confidence, "low");
+  assert.match(finding.summary, /will not label this position Healthy/i);
+});
+
 test("Smart Money Check runs as PARTIAL while unsupported sources stay explicit", async () => {
   const chain = {
     network: "testnet" as const,
@@ -109,14 +163,21 @@ test("Smart Money Check runs as PARTIAL while unsupported sources stay explicit"
     getWalletPositions: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt, positions: [makePosition("OUT_OF_RANGE_ABOVE")], coverage: { v3Discovery: "AVAILABLE" as const, infinityClDiscovery: "TOKEN_ID_REQUIRED" as const, failedV3PositionRefs: [], truncated: false, maxPositions: 50 } }),
   } satisfies PancakeSwapReader;
 
-  const engine = createSmartMoneyEngine({ chain, pancakeSwap: pancake, store: new MemorySmartMoneyStore(), now: () => new Date(observedAt), idFactory: (() => { let i = 0; return () => String(++i); })() });
+  const venus = {
+    getStatus: async () => { throw new Error("not used"); },
+    getWalletPositions: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt, contracts: { network: "testnet" as const, protocolShareReserve: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", corePoolComptroller: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", poolRegistry: "0xcccccccccccccccccccccccccccccccccccccccc" }, positions: [makeVenusPosition("WATCH")], coverage: { corePool: "AVAILABLE" as const, isolatedPools: "AVAILABLE" as const, failedComptrollers: [] } }),
+  } satisfies VenusReader;
+
+  const engine = createSmartMoneyEngine({ chain, pancakeSwap: pancake, venus, store: new MemorySmartMoneyStore(), now: () => new Date(observedAt), idFactory: (() => { let i = 0; return () => String(++i); })() });
   const session = await engine.startCheck({ walletAddress: "0x2222222222222222222222222222222222222222" });
   const result = await engine.runCheck(session.checkSessionId);
   assert.equal(result.session.state, "PARTIAL");
-  assert.equal(result.findings.length, 1);
+  assert.equal(result.findings.length, 2);
   assert.equal(result.findings[0]?.state, "needs-attention");
-  assert.equal(result.session.coverage?.venusPositions, "NOT_SUPPORTED");
+  assert.equal(result.session.coverage?.venusPositions, "AVAILABLE");
   assert.equal(result.session.sourceProgress?.find((item) => item.key === "pancakeswap_positions")?.state, "PARTIAL");
+  assert.equal(result.session.sourceProgress?.find((item) => item.key === "venus_positions")?.state, "COMPLETED");
+  assert.ok(result.findings.some((finding) => finding.category === "health" && finding.state === "needs-attention"));
   const events = await engine.listEvents(session.checkSessionId);
   assert.ok(events.some((event) => event.type === "finding.created"));
   assert.equal(events.at(-1)?.type, "check.completed");

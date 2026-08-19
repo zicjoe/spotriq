@@ -41,6 +41,9 @@ importers:
       '@spotriq/protocol-pancakeswap':
         specifier: workspace:*
         version: link:../../packages/protocol-pancakeswap
+      '@spotriq/protocol-venus':
+        specifier: workspace:*
+        version: link:../../packages/protocol-venus
       '@spotriq/smart-money':
         specifier: workspace:*
         version: link:../../packages/smart-money
@@ -396,6 +399,31 @@ importers:
         specifier: 5.7.3
         version: 5.7.3
 
+  packages/protocol-venus:
+    dependencies:
+      '@spotriq/chain':
+        specifier: workspace:*
+        version: link:../chain
+      '@spotriq/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@spotriq/evidence':
+        specifier: workspace:*
+        version: link:../evidence
+      viem:
+        specifier: 2.55.11
+        version: 2.55.11(typescript@5.7.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      tsx:
+        specifier: 4.23.1
+        version: 4.23.1
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+
   packages/smart-money:
     dependencies:
       '@spotriq/chain':
@@ -407,6 +435,9 @@ importers:
       '@spotriq/protocol-pancakeswap':
         specifier: workspace:*
         version: link:../protocol-pancakeswap
+      '@spotriq/protocol-venus':
+        specifier: workspace:*
+        version: link:../protocol-venus
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

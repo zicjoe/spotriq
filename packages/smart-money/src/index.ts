@@ -12,8 +12,10 @@ import type {
   SmartMoneyCheckEvent,
   SmartMoneyPortfolioSnapshot,
   WalletControlState,
+  VenusPoolPositionSnapshot,
 } from "@spotriq/domain";
 import type { PancakeSwapReader } from "@spotriq/protocol-pancakeswap";
+import type { VenusReader } from "@spotriq/protocol-venus";
 
 export const SMART_MONEY_REBALANCING_METHOD = {
   methodId: "smart-money.rebalancing-finding",
@@ -58,7 +60,7 @@ export interface SqlQueryExecutor {
 const CHECK_SOURCE_TEMPLATE: CheckSourceProgress[] = [
   { key: "wallet_assets", label: "Wallet assets", state: "QUEUED" },
   { key: "pancakeswap_positions", label: "PancakeSwap positions", state: "QUEUED" },
-  { key: "venus_positions", label: "Venus lending positions", state: "NOT_SUPPORTED", detail: "Venus adapter is not enabled in this milestone." },
+  { key: "venus_positions", label: "Venus lending positions", state: "QUEUED" },
   { key: "market_context", label: "Market context", state: "NOT_SUPPORTED", detail: "Historical market context is not enabled in this milestone." },
   { key: "agent_compatibility", label: "Agent compatibility", state: "NOT_SUPPORTED", detail: "Recommendation matching is not enabled in this milestone." },
 ];
@@ -197,17 +199,68 @@ export function createRebalancingFinding(
   };
 }
 
+export const SMART_MONEY_HEALTH_METHOD = {
+  methodId: "smart-money.venus-health-finding",
+  version: "1.0.0",
+  name: "Venus health monitoring finding",
+  description: "Maps Venus protocol liquidity/shortfall and Spotriq's derived health factor into a transparent health-monitoring finding without predicting future liquidation or claiming safety.",
+} as const;
+
+function healthStatusCopy(position: VenusPoolPositionSnapshot): { state: Finding["state"]; severity: Finding["severity"]; headline: string; summary: string; action: string } {
+  const forcedLiquidation = position.markets.some((market) => BigInt(market.borrowUnderlyingRaw) > 0n && market.forcedLiquidationEnabled === true);
+  switch (position.riskState) {
+    case "LIQUIDATABLE": return forcedLiquidation
+      ? { state: "needs-attention", severity: "urgent", headline: `Venus has forced liquidation enabled for a borrowed market in your ${position.poolName} position.`, summary: "That borrowed market may be liquidated regardless of normal account liquidity. This is current Venus configuration, not a prediction of when or whether a liquidation transaction will occur.", action: "Review Protection Agents" }
+      : { state: "needs-attention", severity: "urgent", headline: `Your ${position.poolName} borrowing position is below Venus’s liquidation-threshold requirement.`, summary: "Venus currently reports account shortfall for this pool. This is a current protocol state, not a prediction of when or whether a liquidation transaction will occur.", action: "Review Protection Agents" };
+    case "HIGHER_ATTENTION": return { state: "needs-attention", severity: "urgent", headline: `Your ${position.poolName} borrowing position has a narrow liquidation buffer.`, summary: "Spotriq’s derived health factor is above the current liquidation boundary but below the higher-attention threshold. Venus protocol shortfall remains the canonical liquidation signal.", action: "Review Protection Agents" };
+    case "WATCH": return { state: "needs-attention", severity: "attention", headline: `Your ${position.poolName} borrowing position is in Spotriq’s watch range.`, summary: "The derived health factor indicates a reduced buffer relative to the current Venus liquidation threshold. This watch band is Spotriq presentation policy, not a Venus guarantee.", action: "Review Protection Agents" };
+    case "COMFORTABLE": return { state: "healthy", severity: "info", headline: `No immediate Venus liquidation shortfall is detected for your ${position.poolName} borrowing position.`, summary: "Venus reports no current account shortfall and Spotriq’s derived health factor is above the configured watch range. This applies only to the supported pool state checked now; it does not mean the position is risk-free.", action: "Explore Health Agents" };
+    case "NO_BORROW": return { state: "informational", severity: "info", headline: `No borrowing exposure is detected in your ${position.poolName} position.`, summary: "Spotriq found supplied Venus assets in this pool but no current borrow balance in the supported markets checked.", action: "Explore Health Agents" };
+    case "COULD_NOT_ASSESS": default: return { state: "could-not-assess", severity: "attention", headline: `Spotriq could not reliably assess your ${position.poolName} liquidation buffer.`, summary: "One or more required Venus market, oracle, or risk inputs were unavailable or conflicted with the canonical protocol liquidity state. Spotriq will not label this position Healthy from incomplete data.", action: "View Health Agents" };
+  }
+}
+
+function usdFrom1e18(value?: string): string {
+  if (value === undefined) return "Unavailable";
+  const n = Number(value) / 1e18;
+  return Number.isFinite(n) ? n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 }) : "Unavailable";
+}
+
+export function createHealthFinding(checkSessionId: string, position: VenusPoolPositionSnapshot, now = new Date(), idFactory: () => string = randomUUID): Finding {
+  const copy = healthStatusCopy(position);
+  const borrowedMarkets = position.markets.filter((market) => BigInt(market.borrowUnderlyingRaw) > 0n);
+  const assets = borrowedMarkets.map((market) => market.underlying.symbol ?? market.vTokenSymbol ?? "asset").join(", ") || "None";
+  return {
+    findingId: `finding_${idFactory()}`, checkSessionId, category: "health", state: copy.state, severity: copy.severity, headline: copy.headline, summary: copy.summary,
+    confidence: position.riskState === "COULD_NOT_ASSESS" || position.coverage.healthFactor === "UNAVAILABLE" || position.coverage.healthFactor === "CONFLICT"
+      ? "low"
+      : position.coverage.accountLiquidity === "AVAILABLE" && position.coverage.marketPositions === "AVAILABLE" ? "high" : "medium",
+    freshness: ageLabel(position.observedAt, now), primaryAction: { label: copy.action }, targetRoute: "explore",
+    keyValues: [
+      { label: "Venus pool", value: position.poolName, note: position.poolKind === "CORE" ? "Core Pool" : "Isolated Pool" },
+      { label: "Health factor", value: position.healthFactor ?? "Could not assess", note: position.healthFactor ? "Spotriq derived · Venus shortfall remains canonical" : undefined },
+      { label: "Borrow value", value: usdFrom1e18(position.totalBorrowValueUsd1e18), note: borrowedMarkets.length ? `Borrowing: ${assets}` : undefined },
+      { label: "Protocol shortfall", value: usdFrom1e18(position.protocolShortfallRaw), note: position.protocolShortfallRaw !== "0" ? "Venus reports current shortfall" : "No current Venus shortfall reported" },
+    ],
+    whatCouldAgentDo: "A compatible Health Factor Monitoring agent could monitor supported Venus state and alert you to changes. Automatic intervention would require a separate explicit permission flow and is not enabled by this finding.",
+    uncertainties: position.limitations.length ? position.limitations.join(" ") : "Health state can change as prices, balances, interest and Venus risk parameters change. This finding reflects only the observed BSC block.",
+    subject: { protocol: "Venus", poolKind: position.poolKind, poolName: position.poolName, comptroller: position.comptroller, healthFactor: position.healthFactor, riskState: position.riskState, blockNumber: position.blockNumber, network: position.network },
+    evidenceIds: position.evidence.map((item) => item.evidenceId), methodVersion: `${SMART_MONEY_HEALTH_METHOD.methodId}@${SMART_MONEY_HEALTH_METHOD.version}`, generatedAt: now.toISOString(), expiresAt: new Date(now.getTime() + 30_000).toISOString(),
+  };
+}
+
 function defaultCoverage(): SmartMoneyCheckCoverage {
   return {
     walletAssets: "PARTIAL",
     pancakeSwapPositions: "PARTIAL",
-    venusPositions: "NOT_SUPPORTED",
+    venusPositions: "PARTIAL",
     marketContext: "NOT_SUPPORTED",
     agentCompatibility: "NOT_SUPPORTED",
     notes: [
       "Wallet-wide ERC-20 discovery is not enabled yet; this check reads the native BNB/tBNB balance plus token metadata attached to discovered supported positions.",
       "PancakeSwap V3 wallet discovery is enabled. Infinity CL wallet discovery requires a future indexed event source.",
-      "Venus, historical market context and agent matching are intentionally not represented as completed checks yet.",
+      "Venus Core Pool and Isolated Pool positions are checked onchain. Missing risk inputs are surfaced as partial/could-not-assess rather than Healthy.",
+      "Historical market context and agent matching are intentionally not represented as completed checks yet.",
     ],
   };
 }
@@ -289,6 +342,24 @@ export class PostgresSmartMoneyStore implements SmartMoneyStore {
        on conflict (check_session_id) do update set portfolio_snapshot_id=excluded.portfolio_snapshot_id, wallet_address=excluded.wallet_address, observed_at=excluded.observed_at, coverage=excluded.coverage, snapshot=excluded.snapshot`,
       [snapshot.portfolioSnapshotId, snapshot.checkSessionId, snapshot.walletAddress, snapshot.observedAt, JSON.stringify(snapshot.coverage), JSON.stringify(serialize(snapshot))],
     );
+    await this.db.query(`delete from lending_position_snapshots where portfolio_snapshot_id=$1`, [snapshot.portfolioSnapshotId]);
+    for (const position of snapshot.venusPositions ?? []) {
+      const positionId = `${snapshot.portfolioSnapshotId}:venus:${position.comptroller}`;
+      await this.db.query(
+        `insert into lending_position_snapshots(
+          lending_position_snapshot_id,portfolio_snapshot_id,check_session_id,wallet_address,protocol,pool_kind,pool_name,comptroller,oracle_address,protocol_liquidity_raw,protocol_shortfall_raw,total_borrow_value_usd_1e18,liquidation_adjusted_collateral_usd_1e18,health_factor,risk_state,coverage,limitations,block_number,observed_at
+        ) values($1,$2,$3,$4,'Venus',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18)`,
+        [positionId,snapshot.portfolioSnapshotId,snapshot.checkSessionId,snapshot.walletAddress,position.poolKind,position.poolName,position.comptroller,position.oracle ?? null,position.protocolLiquidityRaw,position.protocolShortfallRaw,position.totalBorrowValueUsd1e18 ?? null,position.liquidationAdjustedCollateralUsd1e18 ?? null,position.healthFactor ?? null,position.riskState,JSON.stringify(position.coverage),JSON.stringify(position.limitations),position.blockNumber,position.observedAt],
+      );
+      for (const market of position.markets) {
+        await this.db.query(
+          `insert into lending_market_position_snapshots(
+            lending_market_position_snapshot_id,lending_position_snapshot_id,vtoken_address,vtoken_symbol,underlying,collateral_enabled,supplied_vtoken_raw,supplied_underlying_raw,borrow_underlying_raw,exchange_rate_mantissa,collateral_factor_mantissa,liquidation_threshold_mantissa,forced_liquidation_enabled,oracle_price_raw,supplied_value_usd_1e18,borrow_value_usd_1e18,liquidation_adjusted_collateral_usd_1e18
+          ) values($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+          [`${positionId}:${market.vToken}`,positionId,market.vToken,market.vTokenSymbol ?? null,JSON.stringify(market.underlying),market.collateralEnabled,market.suppliedVTokenRaw,market.suppliedUnderlyingRaw,market.borrowUnderlyingRaw,market.exchangeRateMantissa,market.collateralFactorMantissa ?? null,market.liquidationThresholdMantissa ?? null,market.forcedLiquidationEnabled ?? null,market.oraclePriceRaw ?? null,market.suppliedValueUsd1e18 ?? null,market.borrowValueUsd1e18 ?? null,market.liquidationAdjustedCollateralUsd1e18 ?? null],
+        );
+      }
+    }
   }
 
   async getPortfolio(checkSessionId: string): Promise<SmartMoneyPortfolioSnapshot | undefined> {
@@ -374,6 +445,7 @@ export class PostgresSmartMoneyStore implements SmartMoneyStore {
 export interface SmartMoneyEngineOptions {
   chain: BscChainReader;
   pancakeSwap: PancakeSwapReader;
+  venus: VenusReader;
   store?: SmartMoneyStore;
   now?: () => Date;
   idFactory?: () => string;
@@ -447,6 +519,7 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
 
     let nativeBalance: SmartMoneyPortfolioSnapshot["nativeBalance"];
     let positions: PancakeSwapClPositionSnapshot[] = [];
+    let venusPositions: VenusPoolPositionSnapshot[] = [];
     let blockNumber = "0";
     let observedAt = now().toISOString();
     const coverage = defaultCoverage();
@@ -481,6 +554,23 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
       await updateSource(session, "pancakeswap_positions", "FAILED", error instanceof Error ? error.message : "PancakeSwap position scan failed.");
     }
 
+    try {
+      await updateSource(session, "venus_positions", "RUNNING");
+      const venus = await options.venus.getWalletPositions(session.walletAddress);
+      venusPositions = venus.positions;
+      blockNumber = venus.blockNumber;
+      observedAt = venus.observedAt;
+      await store.saveEvidence(venusPositions.flatMap((position) => position.evidence));
+      const fullyAvailable = venus.coverage.corePool === "AVAILABLE" && venus.coverage.isolatedPools === "AVAILABLE" && venusPositions.every((position) => position.coverage.marketPositions === "AVAILABLE" && position.coverage.healthFactor !== "CONFLICT");
+      coverage.venusPositions = fullyAvailable ? "AVAILABLE" : "PARTIAL";
+      const borrowed = venusPositions.filter((position) => position.markets.some((market) => BigInt(market.borrowUnderlyingRaw) > 0n)).length;
+      const detail = `Checked Venus Core and isolated pools. Found ${venusPositions.length} active pool position${venusPositions.length === 1 ? "" : "s"}, including ${borrowed} with borrowing exposure.`;
+      await updateSource(session, "venus_positions", fullyAvailable ? "COMPLETED" : "PARTIAL", detail);
+    } catch (error) {
+      coverage.venusPositions = "FAILED";
+      await updateSource(session, "venus_positions", "FAILED", error instanceof Error ? error.message : "Venus position scan failed.");
+    }
+
     const portfolio: SmartMoneyPortfolioSnapshot = {
       portfolioSnapshotId: `portfolio_${idFactory()}`,
       checkSessionId,
@@ -491,6 +581,7 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
       observedAt,
       nativeBalance,
       pancakeSwapPositions: positions,
+      venusPositions,
       coverage,
     };
     await store.savePortfolio(portfolio);
@@ -501,13 +592,19 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
       await publish(checkSessionId, "finding.created", "pancakeswap_positions", { findingId: finding.findingId, category: finding.category, state: finding.state, severity: finding.severity });
     }
 
+    for (const position of venusPositions) {
+      const finding = createHealthFinding(checkSessionId, position, now(), idFactory);
+      await store.saveFinding(finding);
+      await publish(checkSessionId, "finding.created", "venus_positions", { findingId: finding.findingId, category: finding.category, state: finding.state, severity: finding.severity });
+    }
+
     session.coverage = coverage;
-    session.state = coverage.walletAssets === "FAILED" && coverage.pancakeSwapPositions === "FAILED" ? "FAILED" : "PARTIAL";
+    session.state = coverage.walletAssets === "FAILED" && coverage.pancakeSwapPositions === "FAILED" && coverage.venusPositions === "FAILED" ? "FAILED" : "PARTIAL";
     session.completedAt = now().toISOString();
     session.updatedAt = session.completedAt;
-    if (session.state === "FAILED") session.failureReason = "Wallet and PancakeSwap source reads both failed.";
+    if (session.state === "FAILED") session.failureReason = "Wallet, PancakeSwap, and Venus source reads all failed.";
     await store.updateSession(session);
-    await publish(checkSessionId, session.state === "FAILED" ? "check.failed" : "check.completed", undefined, { state: session.state, findings: positions.length });
+    await publish(checkSessionId, session.state === "FAILED" ? "check.failed" : "check.completed", undefined, { state: session.state, findings: positions.length + venusPositions.length });
     return { session, portfolio, findings: await store.listFindings(checkSessionId) };
   }
 

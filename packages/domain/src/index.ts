@@ -209,6 +209,7 @@ export interface SmartMoneyPortfolioSnapshot {
   observedAt: string;
   nativeBalance?: NativeBalanceSnapshot;
   pancakeSwapPositions: PancakeSwapClPositionSnapshot[];
+  venusPositions: VenusPoolPositionSnapshot[];
   coverage: SmartMoneyCheckCoverage;
 }
 
@@ -538,6 +539,85 @@ export interface WalletBalanceSnapshot {
     nativeBalance: "AVAILABLE";
     tokenBalances: "AVAILABLE" | "NOT_REQUESTED" | "PARTIAL";
     failedTokenAddresses: string[];
+  };
+}
+
+
+
+export type VenusPoolKind = "CORE" | "ISOLATED";
+export type VenusRiskState = "NO_BORROW" | "COMFORTABLE" | "WATCH" | "HIGHER_ATTENTION" | "LIQUIDATABLE" | "COULD_NOT_ASSESS";
+
+export interface VenusContractSet {
+  network: BscNetwork;
+  protocolShareReserve: string;
+  poolRegistry?: string;
+  corePoolComptroller?: string;
+  vBNB?: string;
+  wBNB?: string;
+}
+
+export interface VenusMarketPositionSnapshot {
+  protocol: "Venus";
+  poolKind: VenusPoolKind;
+  poolName: string;
+  comptroller: string;
+  vToken: string;
+  vTokenSymbol?: string;
+  underlying: ProtocolTokenMetadata;
+  collateralEnabled: boolean;
+  suppliedVTokenRaw: string;
+  suppliedUnderlyingRaw: string;
+  borrowUnderlyingRaw: string;
+  exchangeRateMantissa: string;
+  collateralFactorMantissa?: string;
+  liquidationThresholdMantissa?: string;
+  forcedLiquidationEnabled?: boolean;
+  oraclePriceRaw?: string;
+  suppliedValueUsd1e18?: string;
+  borrowValueUsd1e18?: string;
+  liquidationAdjustedCollateralUsd1e18?: string;
+  evidence: EvidenceEnvelope[];
+}
+
+export interface VenusPoolPositionSnapshot {
+  protocol: "Venus";
+  network: BscNetwork;
+  chainId: number;
+  poolKind: VenusPoolKind;
+  poolName: string;
+  comptroller: string;
+  oracle?: string;
+  walletAddress: string;
+  protocolLiquidityRaw: string;
+  protocolShortfallRaw: string;
+  totalBorrowValueUsd1e18?: string;
+  liquidationAdjustedCollateralUsd1e18?: string;
+  healthFactor?: string;
+  riskState: VenusRiskState;
+  markets: VenusMarketPositionSnapshot[];
+  blockNumber: string;
+  observedAt: string;
+  evidence: EvidenceEnvelope[];
+  coverage: {
+    accountLiquidity: "AVAILABLE" | "FAILED";
+    marketPositions: "AVAILABLE" | "PARTIAL" | "FAILED";
+    healthFactor: "AVAILABLE" | "UNAVAILABLE" | "CONFLICT";
+  };
+  limitations: string[];
+}
+
+export interface VenusWalletPositionsSnapshot {
+  walletAddress: string;
+  network: BscNetwork;
+  chainId: number;
+  blockNumber: string;
+  observedAt: string;
+  contracts: VenusContractSet;
+  positions: VenusPoolPositionSnapshot[];
+  coverage: {
+    corePool: "AVAILABLE" | "PARTIAL" | "FAILED";
+    isolatedPools: "AVAILABLE" | "PARTIAL" | "FAILED";
+    failedComptrollers: string[];
   };
 }
 

@@ -100,7 +100,7 @@ GET  http://localhost:3001/v1/checks/:checkSessionId/findings
 GET  http://localhost:3001/v1/checks/:checkSessionId/events
 ```
 
-Current live check coverage is intentionally partial: BSC native balance + PancakeSwap V3 wallet positions + deterministic Rebalancing findings. Venus, historical market context, agent matching, wallet-wide token discovery, and Infinity wallet-wide discovery are explicitly marked unsupported/partial instead of being faked.
+Current live check coverage is intentionally partial but now spans two real financial categories: BSC native balance + PancakeSwap V3 wallet positions + deterministic Rebalancing findings, plus Venus Core/Isolated lending positions + deterministic Health findings. Historical market context, agent matching, wallet-wide token discovery, and Infinity wallet-wide discovery are explicitly marked unsupported/partial instead of being faked.
 
 ## BSC RPC configuration
 
@@ -126,7 +126,7 @@ pnpm db:health
 pnpm db:migrate
 ```
 
-Migration `0002_chain_evidence_spine.sql` introduces Spotriq's data-source, evidence-method, raw-observation, freshness, and conflict schema. Migration `0003_smart_money_rebalancing.sql` adds check-event persistence and the additional Smart Money finding fields.
+Migration `0002_chain_evidence_spine.sql` introduces Spotriq's data-source, evidence-method, raw-observation, freshness, and conflict schema. Migration `0003_smart_money_rebalancing.sql` adds check-event persistence and the additional Smart Money finding fields. Migration `0004_venus_health_positions.sql` adds normalized Venus pool/market lending snapshots.
 
 ## Run one process only
 
@@ -144,7 +144,7 @@ pnpm dev:worker
 - PancakeSwap V3 and Infinity CL current-state normalization is live at the API layer.
 - PancakeSwap V3 data is now wired into live/persisted Smart Money Check Rebalancing findings.
 - The live Smart Money Check deliberately reports partial coverage for unsupported sources.
-- Venus protocol normalization is still pending.
+- Venus Core Pool and registered Isolated Pool health normalization is live and feeds Smart Money Check Health findings. Canonical protocol shortfall takes precedence over Spotriq's explanatory derived health factor.
 
 ## Engineering documentation
 
@@ -157,8 +157,10 @@ pnpm dev:worker
 - `docs/IMPLEMENTATION_REPORT_PANCAKESWAP_ADAPTER.md`
 - `docs/SMART_MONEY_CHECK_REBALANCING.md`
 - `docs/IMPLEMENTATION_REPORT_SMART_MONEY_CHECK_REBALANCING.md`
+- `docs/VENUS_ADAPTER_HEALTH_MONITORING.md`
+- `docs/IMPLEMENTATION_REPORT_VENUS_HEALTH.md`
 - `docs/ENGINEERING_STATUS.md`
 
 ## Next milestone
 
-Venus Adapter + Health Factor Monitoring foundation — add real lending-position normalization and protocol-specific health evidence so Smart Money Check gains its second live financial category.
+Yield Optimisation data foundation — normalize supported Venus supply opportunities and PancakeSwap yield opportunities so Smart Money Check gains its third live financial category.

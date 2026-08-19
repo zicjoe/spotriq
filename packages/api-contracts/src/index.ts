@@ -45,6 +45,7 @@ export interface CapabilityResponse {
   chainAdapterEnabled: boolean;
   evidenceEngineEnabled: boolean;
   pancakeSwapAdapterEnabled: boolean;
+  venusAdapterEnabled: boolean;
   smartMoneyCheckEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
@@ -107,6 +108,27 @@ export interface PancakeSwapPositionResponse {
 
 export interface PancakeSwapWalletPositionsResponse {
   snapshot: import("@spotriq/domain").PancakeSwapWalletPositionsSnapshot;
+}
+
+
+export interface VenusStatusResponse {
+  protocol: "Venus";
+  network: BscNetwork;
+  chainId: number;
+  contracts: import("@spotriq/domain").VenusContractSet;
+  capabilities: {
+    corePoolDiscovery: boolean;
+    isolatedPoolDiscovery: boolean;
+    accountLiquidity: true;
+    marketSnapshots: true;
+    derivedHealthFactor: true;
+    automatedProtection: false;
+  };
+  coverageNotes: string[];
+}
+
+export interface VenusWalletPositionsResponse {
+  snapshot: import("@spotriq/domain").VenusWalletPositionsSnapshot;
 }
 
 export interface StartSmartMoneyCheckRequest {

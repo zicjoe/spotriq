@@ -21,6 +21,10 @@ const required = [
   "packages/protocol-pancakeswap/src/index.ts",
   "packages/protocol-pancakeswap/src/abis.ts",
   "apps/api/src/routes/pancakeswap.ts",
+  "packages/protocol-venus/package.json",
+  "packages/protocol-venus/src/index.ts",
+  "packages/db/migrations/0004_venus_health_positions.sql",
+  "apps/api/src/routes/venus.ts",
   "packages/smart-money/package.json",
   "packages/smart-money/src/index.ts",
   "packages/db/migrations/0003_smart_money_rebalancing.sql",
@@ -79,12 +83,25 @@ if (!evidence.includes("PANCAKE_CL_RANGE_STATE") || !evidence.includes("PANCAKE_
   throw new Error("Evidence Engine must include PancakeSwap range-state methodology and derived provenance.");
 }
 
+
+const venus = await readFile(path.join(root, "packages/protocol-venus/src/index.ts"), "utf8");
+for (const marker of ["VENUS_BOOTSTRAP_CONTRACTS", "getWalletPositions", "getAccountLiquidity", "classifyVenusRisk", "ProtocolShareReserve", "isForcedLiquidationEnabled", "liquidationThresholdMantissa,uint256 liquidationIncentiveMantissa"]) {
+  if (!venus.includes(marker)) throw new Error(`Venus adapter is missing ${marker}.`);
+}
+const venusRoutes = await readFile(path.join(root, "apps/api/src/routes/venus.ts"), "utf8");
+for (const route of ["/v1/protocols/venus/status", "/v1/wallets/:address/venus/positions"]) {
+  if (!venusRoutes.includes(route)) throw new Error(`Missing Venus route ${route}.`);
+}
+if (!evidence.includes("VENUS_ACCOUNT_LIQUIDITY") || !evidence.includes("VENUS_HEALTH_FACTOR")) {
+  throw new Error("Evidence Engine must include Venus account-liquidity and health-factor methodologies.");
+}
+
 const smartMoneyPackage = JSON.parse(await readFile(path.join(root, "packages/smart-money/package.json"), "utf8"));
 if (smartMoneyPackage?.exports?.["."] !== "./src/index.ts") {
   throw new Error("@spotriq/smart-money must export ./src/index.ts for tsx workspace development.");
 }
 const smartMoney = await readFile(path.join(root, "packages/smart-money/src/index.ts"), "utf8");
-for (const marker of ["createSmartMoneyEngine", "createRebalancingFinding", "PostgresSmartMoneyStore", "MemorySmartMoneyStore", "SMART_MONEY_REBALANCING_METHOD"]) {
+for (const marker of ["createSmartMoneyEngine", "createRebalancingFinding", "createHealthFinding", "PostgresSmartMoneyStore", "MemorySmartMoneyStore", "SMART_MONEY_REBALANCING_METHOD", "SMART_MONEY_HEALTH_METHOD"]) {
   if (!smartMoney.includes(marker)) throw new Error(`Smart Money engine is missing ${marker}.`);
 }
 const checkRoutes = await readFile(path.join(root, "apps/api/src/routes/checks.ts"), "utf8");
@@ -96,4 +113,4 @@ if (!appUi.includes("smartMoneyRepository.startCheck") || !appUi.includes("subsc
   throw new Error("Smart Money Check UI must be wired to the live API while retaining example mode.");
 }
 
-console.log("Spotriq foundation + BSC/evidence + PancakeSwap + Smart Money Check verification passed.");
+console.log("Spotriq foundation + BSC/evidence + PancakeSwap + Venus + Smart Money Check verification passed.");
