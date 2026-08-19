@@ -1,14 +1,12 @@
 # Spotriq Source of Truth
 
-This project is the current Spotriq engineering source of truth.
+This project is Spotriq v0.3.0 and supersedes the previous Foundation + Backend Skeleton replacement.
 
-Current milestone completed:
-**Foundation Hardening + Backend Skeleton**
+Use this project as the only source of truth for the next engineering milestone.
+Do not merge future work back into older Figma exports or replacement ZIPs.
 
-The Figma-derived consumer product remains preserved under `apps/web`.
-The repository now includes a real TypeScript API, worker, shared domain/config/API contracts, and PostgreSQL persistence foundation.
+Current stage:
+BSC Chain Adapter + Evidence Engine complete.
 
-Next milestone:
-**BSC Chain Adapter + Evidence Engine**
-
-Do not merge future work back into the original Figma export or an older replacement ZIP.
+Next stage:
+PancakeSwap Adapter — normalized liquidity/pool/market/range-state data for Rebalancing.

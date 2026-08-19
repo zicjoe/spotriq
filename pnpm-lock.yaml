@@ -26,12 +26,18 @@ importers:
       '@spotriq/api-contracts':
         specifier: workspace:*
         version: link:../../packages/api-contracts
+      '@spotriq/chain':
+        specifier: workspace:*
+        version: link:../../packages/chain
       '@spotriq/config':
         specifier: workspace:*
         version: link:../../packages/config
       '@spotriq/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@spotriq/evidence':
+        specifier: workspace:*
+        version: link:../../packages/evidence
       fastify:
         specifier: 5.10.0
         version: 5.10.0
@@ -274,6 +280,25 @@ importers:
         specifier: 5.7.3
         version: 5.7.3
 
+  packages/chain:
+    dependencies:
+      '@spotriq/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@spotriq/evidence':
+        specifier: workspace:*
+        version: link:../evidence
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      tsx:
+        specifier: 4.23.1
+        version: 4.23.1
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+
   packages/config:
     dependencies:
       '@spotriq/domain':
@@ -317,6 +342,22 @@ importers:
 
   packages/domain:
     devDependencies:
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+
+  packages/evidence:
+    dependencies:
+      '@spotriq/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      tsx:
+        specifier: 4.23.1
+        version: 4.23.1
       typescript:
         specifier: 5.7.3
         version: 5.7.3

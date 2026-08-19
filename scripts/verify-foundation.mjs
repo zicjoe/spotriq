@@ -12,6 +12,11 @@ const required = [
   "packages/api-contracts/package.json",
   "packages/db/package.json",
   "packages/db/migrations/0001_core_foundation.sql",
+  "packages/db/migrations/0002_chain_evidence_spine.sql",
+  "packages/chain/package.json",
+  "packages/chain/src/index.ts",
+  "packages/evidence/package.json",
+  "packages/evidence/src/index.ts",
   ".env.example",
   ".gitignore",
 ];
@@ -40,4 +45,14 @@ if (!apiApp.includes('/health') || !apiApp.includes('/v1/meta')) {
   throw new Error("The API skeleton must expose health and metadata routes.");
 }
 
-console.log("Spotriq foundation verification passed.");
+const chainRoutes = await readFile(path.join(root, "apps/api/src/routes/chain.ts"), "utf8");
+for (const route of ["/v1/chain/status", "/v1/chain/blocks/:blockNumber", "/v1/chain/transactions/:hash", "/v1/wallets/:address/balances"]) {
+  if (!chainRoutes.includes(route)) throw new Error(`Missing BSC route ${route}.`);
+}
+
+const evidence = await readFile(path.join(root, "packages/evidence/src/index.ts"), "utf8");
+if (!evidence.includes("CANONICAL_ONCHAIN") || !evidence.includes("assessFreshness") || !evidence.includes("detectEvidenceConflicts")) {
+  throw new Error("Evidence Engine must preserve truth layers, freshness, and conflict detection.");
+}
+
+console.log("Spotriq foundation + BSC/evidence verification passed.");

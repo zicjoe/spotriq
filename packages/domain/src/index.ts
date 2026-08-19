@@ -299,3 +299,166 @@ export interface DependencyHealth {
   latencyMs?: number;
   detail?: string;
 }
+
+export type TruthLayer =
+  | "CANONICAL_ONCHAIN"
+  | "PROTOCOL_STATE"
+  | "EXTERNAL_INDEXED"
+  | "OPERATOR_SUPPLIED"
+  | "MARKETPLACE_OBSERVED"
+  | "MARKETPLACE_DERIVED"
+  | "AI_EXPLANATION";
+
+export type FreshnessState = "FRESH" | "AGING" | "STALE" | "UNAVAILABLE";
+export type EvidenceAvailabilityState = "AVAILABLE" | "STALE" | "PARTIAL" | "INSUFFICIENT_HISTORY" | "SOURCE_UNAVAILABLE" | "NOT_APPLICABLE" | "NOT_SUPPORTED";
+export type ChainFinalityState = "LATEST" | "CONFIRMED" | "FINALIZED";
+
+export interface FreshnessPolicy {
+  metric: string;
+  targetAgeSeconds: number;
+  warnAgeSeconds: number;
+  hardExpirySeconds: number;
+}
+
+export interface FreshnessAssessment extends FreshnessPolicy {
+  state: FreshnessState;
+  ageSeconds: number;
+}
+
+export interface DataSourceDefinition {
+  sourceId: string;
+  name: string;
+  truthLayer: TruthLayer;
+  provider?: string;
+  chain?: "BSC";
+  networks?: readonly BscNetwork[];
+  description: string;
+}
+
+export interface EvidenceMethodDefinition {
+  methodId: string;
+  version: string;
+  name: string;
+  description: string;
+  inputMetrics: readonly string[];
+}
+
+export interface ChainEvidenceContext {
+  chain: "BSC";
+  network: BscNetwork;
+  chainId: number;
+  blockNumber?: string;
+  blockHash?: string;
+  transactionHash?: string;
+  finality?: ChainFinalityState;
+}
+
+export interface EvidenceEnvelope extends EvidenceRecord {
+  sourceId: string;
+  truthLayer: TruthLayer;
+  sourceRef?: string;
+  effectiveAt?: string;
+  freshnessAssessment: FreshnessAssessment;
+  availability: EvidenceAvailabilityState;
+  chainContext?: ChainEvidenceContext;
+  methodInputs?: string[];
+}
+
+export interface EvidenceConflict {
+  conflictId: string;
+  subjectType: string;
+  subjectId: string;
+  metric: string;
+  evidenceIds: string[];
+  detectedAt: string;
+  description: string;
+}
+
+export interface BscNetworkDefinition {
+  network: BscNetwork;
+  chainId: 56 | 97;
+  nativeSymbol: "BNB" | "tBNB";
+  explorerUrl: string;
+  defaultRpcUrls: [string, string];
+}
+
+export interface BscBlockSummary {
+  network: BscNetwork;
+  chainId: number;
+  number: string;
+  hash: string;
+  parentHash: string;
+  timestamp: string;
+}
+
+export interface BscTransactionSummary {
+  network: BscNetwork;
+  chainId: number;
+  hash: string;
+  blockNumber?: string;
+  blockHash?: string;
+  from: string;
+  to?: string;
+  valueRaw: string;
+  input: string;
+  transactionIndex?: number;
+}
+
+export interface BscTransactionReceiptSummary {
+  network: BscNetwork;
+  chainId: number;
+  transactionHash: string;
+  blockNumber: string;
+  blockHash: string;
+  status: "SUCCESS" | "REVERTED";
+  gasUsedRaw: string;
+  effectiveGasPriceRaw?: string;
+}
+
+export interface NativeBalanceSnapshot {
+  assetType: "native";
+  chain: "BSC";
+  network: BscNetwork;
+  chainId: number;
+  symbol: "BNB" | "tBNB";
+  decimals: 18;
+  balanceRaw: string;
+  balanceFormatted: string;
+  walletAddress: string;
+  blockNumber: string;
+  observedAt: string;
+  evidence: EvidenceEnvelope;
+}
+
+export interface Erc20BalanceSnapshot {
+  assetType: "erc20";
+  chain: "BSC";
+  network: BscNetwork;
+  chainId: number;
+  tokenAddress: string;
+  symbol?: string;
+  name?: string;
+  decimals?: number;
+  balanceRaw: string;
+  balanceFormatted?: string;
+  walletAddress: string;
+  blockNumber: string;
+  observedAt: string;
+  evidence: EvidenceEnvelope;
+}
+
+export interface WalletBalanceSnapshot {
+  walletAddress: string;
+  chain: "BSC";
+  network: BscNetwork;
+  chainId: number;
+  blockNumber: string;
+  observedAt: string;
+  native: NativeBalanceSnapshot;
+  tokens: Erc20BalanceSnapshot[];
+  coverage: {
+    nativeBalance: "AVAILABLE";
+    tokenBalances: "AVAILABLE" | "NOT_REQUESTED" | "PARTIAL";
+    failedTokenAddresses: string[];
+  };
+}

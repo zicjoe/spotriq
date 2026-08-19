@@ -31,6 +31,7 @@ export interface ServerConfig {
   bscNetwork: BscNetwork;
   bscRpcPrimary?: string;
   bscRpcSecondary?: string;
+  bscRpcTimeoutMs: number;
 }
 
 function optional(value: string | undefined): string | undefined {
@@ -44,6 +45,14 @@ function parsePort(value: string | undefined, fallback: number): number {
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
     throw new Error(`Invalid API_PORT: ${value}`);
   }
+  return parsed;
+}
+
+
+function parsePositiveInt(value: string | undefined, fallback: number, label: string): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`Invalid ${label}: ${value}`);
   return parsed;
 }
 
@@ -75,6 +84,7 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     bscNetwork: parseNetwork(env.BSC_NETWORK),
     bscRpcPrimary: optional(env.BSC_RPC_PRIMARY),
     bscRpcSecondary: optional(env.BSC_RPC_SECONDARY),
+    bscRpcTimeoutMs: parsePositiveInt(env.BSC_RPC_TIMEOUT_MS, 7500, "BSC_RPC_TIMEOUT_MS"),
   };
 
   if (appEnv === "production") {

@@ -7,16 +7,27 @@ import type {
   HealthResponse,
   MetaResponse,
 } from "@spotriq/api-contracts";
+import { BscChainError, createBscChainAdapter, type BscChainReader } from "@spotriq/chain";
 import { loadServerConfig, type ServerConfig } from "@spotriq/config";
 import { getDatabaseHealth } from "@spotriq/db";
+import { ApiInputError } from "./errors.js";
+import { registerChainRoutes } from "./routes/chain.js";
+import { registerEvidenceRoutes } from "./routes/evidence.js";
 
 export interface BuildServerOptions {
   config?: ServerConfig;
   logger?: boolean;
+  chain?: BscChainReader;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
   const config = options.config ?? loadServerConfig();
+  const chain = options.chain ?? createBscChainAdapter({
+    network: config.bscNetwork,
+    primaryRpcUrl: config.bscRpcPrimary,
+    secondaryRpcUrl: config.bscRpcSecondary,
+    timeoutMs: config.bscRpcTimeoutMs,
+  });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
@@ -29,12 +40,15 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   });
 
   app.get("/health", async (_request, reply) => {
-    const database = await getDatabaseHealth(config.databaseUrl);
-    const dependencies = [database];
+    const [database, bsc] = await Promise.all([
+      getDatabaseHealth(config.databaseUrl),
+      chain.getHealth(),
+    ]);
+    const dependencies = [database, bsc];
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.2.0",
+      version: "0.3.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -62,14 +76,22 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       redisConfigured: Boolean(config.redisUrl),
       bscRpcConfigured: Boolean(config.bscRpcPrimary),
       liveMarketplaceData: false,
+      chainAdapterEnabled: true,
+      evidenceEngineEnabled: true,
       notes: [
-        "Frontend still uses normalized demo repositories.",
-        "The next milestone introduces BSC chain reads and evidence ingestion.",
+        config.bscRpcPrimary
+          ? "BSC reads use configured RPC endpoints with failover."
+          : "Development BSC reads use official public BSC RPC fallbacks; configure BSC_RPC_PRIMARY for production-grade access.",
+        "Canonical BSC blocks, transactions, native balances, and requested ERC-20 balances now return evidence envelopes.",
+        "PancakeSwap and Venus normalized protocol adapters are the next data integrations.",
       ],
     };
     const body: ApiEnvelope<CapabilityResponse> = { data, meta: { generatedAt: new Date().toISOString() } };
     return reply.send(body);
   });
+
+  await registerChainRoutes(app, chain);
+  await registerEvidenceRoutes(app);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {
@@ -85,6 +107,39 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   });
 
   app.setErrorHandler(async (error, request, reply) => {
+    if (error instanceof ApiInputError) {
+      const body: ApiErrorBody = {
+        error: {
+          code: error.code,
+          message: error.message,
+          recoverable: true,
+          retryable: false,
+          correlationId: request.id,
+          details: error.details,
+        },
+      };
+      return reply.code(400).send(body);
+    }
+
+    if (error instanceof BscChainError) {
+      const statusCode = error.code === "INVALID_ADDRESS" || error.code === "INVALID_HASH"
+        ? 400
+        : error.code === "RPC_UNAVAILABLE"
+          ? 503
+          : 502;
+      const body: ApiErrorBody = {
+        error: {
+          code: error.code,
+          message: error.message,
+          recoverable: true,
+          retryable: error.retryable,
+          correlationId: request.id,
+          details: config.appEnv === "production" ? undefined : error.details,
+        },
+      };
+      return reply.code(statusCode).send(body);
+    }
+
     request.log.error({ err: error }, "request failed");
     const body: ApiErrorBody = {
       error: {
