@@ -116,7 +116,7 @@ Current live check coverage now has real data foundations across all four requir
 
 ## Live ERC-8004 / 8004scan agent discovery
 
-Spotriq now separates **agent identity discovery** from **marketplace service activation**. 8004scan is used as an external indexed discovery source, while a selected identity can be rechecked directly against the configured ERC-8004 Identity Registry. A discovered identity is **not** automatically a Spotriq financial service. v0.10.0 now normalizes supported-category identities into separate listing/service candidates with explicit Offer, PermissionProfile and deterministic ReadinessSnapshot resources; every registry-derived candidate remains non-activatable until required readiness gates pass.
+Spotriq now separates **agent identity discovery** from **marketplace service activation**. 8004scan is used as an external indexed discovery source, while a selected identity can be rechecked directly against the configured ERC-8004 Identity Registry. A discovered identity is **not** automatically a Spotriq financial service. v0.11.0 now actively searches the registry across all four required financial categories and normalizes only metadata-backed candidates into separate listing/service resources with explicit Offer, PermissionProfile and deterministic ReadinessSnapshot resources; every registry-derived candidate remains non-activatable until required readiness gates pass.
 
 ```text
 http://localhost:3001/v1/registry/status
@@ -198,7 +198,17 @@ pnpm dev:worker
 - `docs/IMPLEMENTATION_REPORT_GRID_MARKET_CONTEXT.md`
 - `docs/ERC8004_AGENT_REGISTRY_DISCOVERY.md`
 - `docs/IMPLEMENTATION_REPORT_AGENT_REGISTRY_DISCOVERY.md`
+- `docs/IMPLEMENTATION_REPORT_MARKETPLACE_SUPPLY_v0.10.0.md`
+- `docs/IMPLEMENTATION_REPORT_FINANCIAL_SUPPLY_DISCOVERY_v0.11.0.md`
 - `docs/ENGINEERING_STATUS.md`
+
+## v0.11.0 targeted financial supply discovery
+
+`GET /v1/services?chainId=56&limit=8` now performs bounded category-aware discovery instead of sampling only the generic newest-agent page. Spotriq issues one live registry search for each required category — Rebalancing, Grid Trading, Yield Optimisation and Health Factor Monitoring — then merges and deduplicates identities.
+
+The response includes a `discovery` object containing per-category search coverage and search-relevant leads. A lead can be relevant to a search without becoming an `AgentService`; promotion still requires an independently matching operator-supplied metadata hint. This preserves the invariant **search relevance ≠ capability proof**. Individual category search failures are isolated so partial live supply can still be returned.
+
+The Explore UI now displays targeted-search coverage and search-only leads separately from normalized financial service candidates.
 
 ## Next milestone
 

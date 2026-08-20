@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -843,6 +843,7 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
   const [registrySource, setRegistrySource] = useState<"8004scan" | "cache">("8004scan");
   const [verifyingDiscoveryId, setVerifyingDiscoveryId] = useState<string>();
   const [serviceCandidates, setServiceCandidates] = useState<MarketplaceServiceRecord[]>([]);
+  const [supplyDiscovery, setSupplyDiscovery] = useState<MarketplaceFinancialDiscovery>();
   const [supplyLoading, setSupplyLoading] = useState(true);
   const [supplyError, setSupplyError] = useState<string>();
   const [inspectingServiceId, setInspectingServiceId] = useState<string>();
@@ -892,7 +893,9 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
         search: searchQuery?.trim() || undefined,
       });
       setServiceCandidates(page.services);
+      setSupplyDiscovery(page.discovery);
     } catch (cause) {
+      setSupplyDiscovery(undefined);
       setSupplyError(cause instanceof Error ? cause.message : "Spotriq could not normalize live marketplace service candidates.");
     } finally {
       setSupplyLoading(false);
@@ -1064,7 +1067,7 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
                   <h2 className="text-lg font-semibold text-[#dde3ef]">Normalized financial service candidates</h2>
                   <Badge variant="teal">Spotriq derived</Badge>
                 </div>
-                <p className="text-xs text-[#6b7d99] max-w-2xl">ERC-8004 identities with a recognized financial-category hint are normalized into distinct AgentListing and AgentService candidates. Readiness is deterministic and activation stays blocked until required authority declarations and marketplace tests exist.</p>
+                <p className="text-xs text-[#6b7d99] max-w-2xl">Spotriq actively searches the live registry across Rebalancing, Grid, Yield and Health rather than sampling only the newest identities. Search relevance stays separate from capability proof; only matching operator metadata can become a normalized AgentService candidate.</p>
               </div>
               <button onClick={() => void loadSupply(searchText)} disabled={supplyLoading} className="text-xs text-[#2dd4bf] flex items-center gap-1.5 shrink-0 disabled:opacity-50">
                 <RefreshCw className={cn("w-3.5 h-3.5", supplyLoading && "animate-spin")} /> Refresh
@@ -1074,6 +1077,48 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
             {supplyError && (
               <div className="mb-4 p-3 rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 text-xs text-[#d6a04a]">
                 Marketplace service normalization unavailable: {supplyError} Live registry identities below remain independently discoverable.
+              </div>
+            )}
+
+            {supplyDiscovery && (
+              <div className="mb-4 rounded-lg border border-[#2dd4bf]/15 bg-[#2dd4bf]/[0.025] p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Target className="w-4 h-4 text-[#2dd4bf]" />
+                      <span className="text-sm font-medium text-[#dde3ef]">{supplyDiscovery.mode === "TARGETED" ? "Targeted financial supply discovery" : "User-directed financial discovery"}</span>
+                      <Badge variant="purple">External search relevance</Badge>
+                    </div>
+                    <p className="text-[11px] text-[#6b7d99] mt-1 max-w-3xl">Search relevance helps Spotriq find candidate identities deeper in the registry. It never becomes capability proof by itself; promotion still requires a matching operator-supplied financial metadata hint.</p>
+                  </div>
+                  <span className="text-[11px] text-[#6b7d99] shrink-0">{supplyDiscovery.leads.length} unique leads</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+                  {supplyDiscovery.searches.map((run, index) => (
+                    <div key={`${run.category ?? "query"}-${index}`} className="rounded-md border border-white/6 bg-white/[0.02] px-3 py-2">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-[11px] font-medium text-[#9aacc4]">{run.category ? CATEGORY_LABELS[run.category] : "Registry search"}</span>
+                        <span className={cn("text-[10px] font-mono", run.state === "COMPLETE" ? "text-[#4ade80]" : run.state === "PARTIAL" ? "text-[#f59e0b]" : "text-[#f87171]")}>{run.state}</span>
+                      </div>
+                      <div className="text-[11px] text-[#6b7d99]">{run.returned} search results</div>
+                      <div className="text-[11px] text-[#9aacc4]">{run.matchingCapabilityHints} metadata-backed · {run.normalizedServices} normalized</div>
+                    </div>
+                  ))}
+                </div>
+                {supplyDiscovery.leads.some((lead) => lead.promotedServiceIds.length === 0) && (
+                  <div className="pt-2 border-t border-white/6">
+                    <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-2">Search-relevant leads · capability not established</div>
+                    <div className="flex flex-wrap gap-2">
+                      {supplyDiscovery.leads.filter((lead) => lead.promotedServiceIds.length === 0).slice(0, 6).map((lead) => (
+                        <div key={lead.identity.discoveryId} className="rounded-md border border-white/6 bg-white/[0.02] px-2.5 py-2 min-w-[180px] max-w-[280px]">
+                          <div className="text-[11px] text-[#dde3ef] truncate">{lead.identity.name}</div>
+                          <div className="text-[10px] text-[#6b7d99] mt-0.5">{lead.matches.map((match) => match.category ? CATEGORY_LABELS[match.category] : "Search").join(" · ")}</div>
+                          <div className="text-[10px] text-[#f59e0b] mt-1">Discovery lead only · not a service claim</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1102,8 +1147,8 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
                 {visibleServiceCandidates.length === 0 && !supplyError && (
                   <div className="p-5 rounded-lg border border-white/6 bg-card text-xs text-[#6b7d99]">
                     {category === "all"
-                      ? "No supported financial service candidate could be normalized from the current live registry result set. Live identities remain visible below; incomplete self-description must not be mistaken for absence of agents."
-                      : `No normalized ${CATEGORY_LABELS[category]} service candidate is present in the current result set. This reflects registry metadata coverage, not a claim that no such agent exists.`}
+                      ? "Targeted registry discovery did not find a metadata-backed Spotriq financial service candidate in this bounded search. Search-relevant leads may still appear above, but relevance alone is not promoted into a capability claim."
+                      : `No normalized ${CATEGORY_LABELS[category]} service candidate is present in the current bounded discovery result. This reflects registry metadata coverage, not a claim that no such agent exists.`}
                   </div>
                 )}
               </>

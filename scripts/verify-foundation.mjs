@@ -46,6 +46,7 @@ const required = [
   "packages/db/migrations/0008_marketplace_service_readiness.sql",
   "apps/api/src/routes/marketplace.ts",
   "apps/web/src/repositories/marketplaceSupplyRepository.ts",
+  "docs/IMPLEMENTATION_REPORT_FINANCIAL_SUPPLY_DISCOVERY_v0.11.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -162,7 +163,7 @@ if (!evidence.includes("ERC8004_IDENTITY") || !evidence.includes("SCAN8004_DISCO
 }
 
 const marketplaceSupply = await readFile(path.join(root, "packages/marketplace-supply/src/index.ts"), "utf8");
-for (const marker of ["createMarketplaceSupply", "normalizeMarketplaceListing", "normalizeMarketplaceService", "MARKETPLACE_SERVICE_NORMALIZATION_METHOD", "MARKETPLACE_SERVICE_READINESS_METHOD", "activationEligible: false", "MARKETPLACE_TESTS"]) {
+for (const marker of ["createMarketplaceSupply", "normalizeMarketplaceListing", "normalizeMarketplaceService", "MARKETPLACE_SERVICE_NORMALIZATION_METHOD", "MARKETPLACE_SERVICE_READINESS_METHOD", "FINANCIAL_SUPPLY_DISCOVERY_METHOD", "FINANCIAL_DISCOVERY_QUERIES", "Promise.allSettled", "activationEligible: false", "MARKETPLACE_TESTS"]) {
   if (!marketplaceSupply.includes(marker)) throw new Error(`Marketplace supply engine is missing ${marker}.`);
 }
 const marketplaceRoutes = await readFile(path.join(root, "apps/api/src/routes/marketplace.ts"), "utf8");
@@ -173,6 +174,13 @@ const marketplaceUiRepo = await readFile(path.join(root, "apps/web/src/repositor
 if (!marketplaceUiRepo.includes("ApiMarketplaceSupplyRepository") || !appUi.includes("Normalized financial service candidates") || !appUi.includes("Activation blocked")) {
   throw new Error("Explore must render normalized live service candidates separately from sample services and keep activation gated.");
 }
+if (!appUi.includes("Targeted financial supply discovery") || !appUi.includes("Discovery lead only · not a service claim")) {
+  throw new Error("Explore must expose targeted financial search coverage and keep search-only leads separate from normalized services.");
+}
+const domain = await readFile(path.join(root, "packages/domain/src/index.ts"), "utf8");
+for (const marker of ["MarketplaceFinancialDiscovery", "FinancialSupplySearchRun", "FinancialSupplyLead", "FinancialSupplyDiscoveryMatch"]) {
+  if (!domain.includes(marker)) throw new Error(`Financial supply discovery domain model is missing ${marker}.`);
+}
 if (!evidence.includes("AGENT_SERVICE_NORMALIZATION") || !evidence.includes("SERVICE_READINESS")) {
   throw new Error("Evidence Engine must include service normalization and readiness methodologies.");
 }
@@ -181,4 +189,4 @@ for (const table of ["service_offers", "permission_profiles", "service_readiness
   if (!migration0008.includes(table)) throw new Error(`Marketplace supply migration is missing ${table}.`);
 }
 
-console.log("Spotriq foundation + four-category financial data + ERC-8004 discovery + marketplace service/readiness verification passed.");
+console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 financial supply + marketplace readiness verification passed.");

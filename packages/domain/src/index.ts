@@ -991,6 +991,46 @@ export interface MarketplaceServiceRecord {
   limitations: string[];
 }
 
+export type FinancialSupplyDiscoveryMode = "TARGETED" | "USER_QUERY";
+
+export interface FinancialSupplySearchRun {
+  category?: ServiceCategory;
+  query: string;
+  returned: number;
+  matchingCapabilityHints: number;
+  normalizedServices: number;
+  source: "8004scan" | "cache";
+  state: "COMPLETE" | "PARTIAL" | "UNAVAILABLE";
+  limitations: string[];
+}
+
+export interface FinancialSupplyDiscoveryMatch {
+  category?: ServiceCategory;
+  query: string;
+  relevanceSource: "8004scan-semantic-search" | "8004scan-keyword-fallback";
+  capabilityEvidence: "OPERATOR_METADATA_HINT" | "NOT_ESTABLISHED";
+  note: string;
+}
+
+export interface FinancialSupplyLead {
+  identity: DiscoveredAgent;
+  matches: FinancialSupplyDiscoveryMatch[];
+  promotedServiceIds: string[];
+  note: string;
+}
+
+export interface MarketplaceFinancialDiscovery {
+  methodVersion: string;
+  mode: FinancialSupplyDiscoveryMode;
+  chainId: AgentRegistryChainId;
+  searches: FinancialSupplySearchRun[];
+  leads: FinancialSupplyLead[];
+  categoriesRequested: ServiceCategory[];
+  categoriesWithNormalizedSupply: ServiceCategory[];
+  generatedAt: string;
+  limitations: string[];
+}
+
 export interface MarketplaceSupplyPage {
   services: MarketplaceServiceRecord[];
   chainId: AgentRegistryChainId;
@@ -1000,6 +1040,7 @@ export interface MarketplaceSupplyPage {
   source: "8004scan" | "cache";
   fetchedAt: string;
   normalizationMethodVersion: string;
+  discovery?: MarketplaceFinancialDiscovery;
   limitations: string[];
 }
 
@@ -1036,6 +1077,7 @@ export interface MarketplaceSupplyStatus {
     permissionProfileNormalization: true;
     offerNormalization: true;
     deterministicReadiness: true;
+    targetedFinancialDiscovery: true;
     marketplaceTesting: false;
     activation: false;
   };

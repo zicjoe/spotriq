@@ -9,6 +9,10 @@ import type {
   EvidenceEnvelope,
   MarketplaceListingPage,
   MarketplaceListingRecord,
+  MarketplaceFinancialDiscovery,
+  FinancialSupplyDiscoveryMatch,
+  FinancialSupplyLead,
+  FinancialSupplySearchRun,
   MarketplaceServiceRecord,
   MarketplaceServiceTestCoverage,
   MarketplaceSupplyPage,
@@ -24,6 +28,16 @@ import { createEvidenceEnvelope, DATA_SOURCES, EVIDENCE_METHODS } from "@spotriq
 
 export const MARKETPLACE_SERVICE_NORMALIZATION_METHOD = "marketplace.agent-service-normalization@1.0.0";
 export const MARKETPLACE_SERVICE_READINESS_METHOD = "marketplace.service-readiness@1.0.0";
+export const FINANCIAL_SUPPLY_DISCOVERY_METHOD = "marketplace.financial-supply-discovery@1.0.0";
+
+export const FINANCIAL_DISCOVERY_QUERIES: Record<ServiceCategory, string> = {
+  rebalancing: "PancakeSwap concentrated liquidity rebalancing LP range management",
+  grid: "grid trading price grid limit order automated trading BNB",
+  yield: "Venus yield optimisation lending supply APY BSC",
+  health: "Venus health factor liquidation monitoring lending risk BSC",
+};
+
+const FINANCIAL_CATEGORIES: ServiceCategory[] = ["rebalancing", "grid", "yield", "health"];
 
 export class MarketplaceSupplyError extends Error {
   constructor(
@@ -498,6 +512,64 @@ export function normalizeMarketplaceListing(agent: DiscoveredAgent): Marketplace
   };
 }
 
+function discoveryRelevanceSource(limitations: string[]): FinancialSupplyDiscoveryMatch["relevanceSource"] {
+  return limitations.some((item) => /fallback|keyword search/i.test(item))
+    ? "8004scan-keyword-fallback"
+    : "8004scan-semantic-search";
+}
+
+function roundRobinServices(groups: Map<ServiceCategory, MarketplaceServiceRecord[]>, limit: number): MarketplaceServiceRecord[] {
+  const output: MarketplaceServiceRecord[] = [];
+  const seen = new Set<string>();
+  let cursor = 0;
+  while (output.length < limit) {
+    let added = false;
+    for (const category of FINANCIAL_CATEGORIES) {
+      const candidate = groups.get(category)?.[cursor];
+      if (!candidate || seen.has(candidate.service.serviceId)) continue;
+      output.push(candidate);
+      seen.add(candidate.service.serviceId);
+      added = true;
+      if (output.length >= limit) break;
+    }
+    if (!added) break;
+    cursor += 1;
+  }
+  return output;
+}
+
+function createDiscoveryLead(
+  agent: DiscoveredAgent,
+  match: FinancialSupplyDiscoveryMatch,
+  promotedServiceIds: string[],
+): FinancialSupplyLead {
+  return {
+    identity: agent,
+    matches: [match],
+    promotedServiceIds,
+    note: promotedServiceIds.length
+      ? "This search result also carries operator-supplied registry metadata supporting at least one normalized Spotriq service candidate. Search relevance itself is not capability proof."
+      : "This is a targeted discovery lead only. Search relevance does not establish a financial capability, service readiness, or activation eligibility.",
+  };
+}
+
+function mergeDiscoveryLead(existing: FinancialSupplyLead | undefined, incoming: FinancialSupplyLead): FinancialSupplyLead {
+  if (!existing) return incoming;
+  const matches = [...existing.matches];
+  for (const match of incoming.matches) {
+    if (!matches.some((item) => item.category === match.category && item.query === match.query)) matches.push(match);
+  }
+  const promotedServiceIds = [...new Set([...existing.promotedServiceIds, ...incoming.promotedServiceIds])];
+  return {
+    identity: incoming.identity,
+    matches,
+    promotedServiceIds,
+    note: promotedServiceIds.length
+      ? "Targeted registry discovery found this identity and operator-supplied metadata supports one or more normalized service candidates. Search relevance remains separate from capability evidence."
+      : "Targeted registry discovery found this identity, but no supported financial capability is established by its current operator metadata.",
+  };
+}
+
 export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions): MarketplaceSupplyReader {
   const registry = options.registry;
   const defaultChainId = options.defaultChainId ?? 56;
@@ -523,28 +595,182 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
   }
 
   async function listServices(input: { chainId?: AgentRegistryChainId; page?: number; limit?: number; search?: string; category?: ServiceCategory } = {}): Promise<MarketplaceSupplyPage> {
-    const page = await registry.listAgents({ chainId: input.chainId ?? defaultChainId, page: input.page, limit: input.limit, search: input.search });
-    const services = page.agents.flatMap((agent) => agent.categoryHints.flatMap((hint) => {
-      if (input.category && hint.category !== input.category) return [];
-      const normalized = normalizeMarketplaceService(agent, hint.category);
-      return normalized ? [normalized] : [];
-    }));
+    const chainId = input.chainId ?? defaultChainId;
+    const limit = Math.max(1, Math.min(input.limit ?? 20, 100));
+    const searchLimit = Math.max(4, Math.min(limit, 10));
+    const userQuery = input.search?.trim();
+    const generatedAt = new Date().toISOString();
+    const leadMap = new Map<string, FinancialSupplyLead>();
+    const servicesByCategory = new Map<ServiceCategory, MarketplaceServiceRecord[]>(FINANCIAL_CATEGORIES.map((category) => [category, []]));
+    const searchRuns: FinancialSupplySearchRun[] = [];
+    const discoveredAgents = new Map<string, DiscoveredAgent>();
+    let sawLiveSource = false;
+
+    if (userQuery) {
+      try {
+        const page = await registry.searchAgents(userQuery, { chainId, limit: searchLimit });
+        sawLiveSource = page.source === "8004scan";
+        const targetCategories = input.category ? [input.category] : FINANCIAL_CATEGORIES;
+        let matchingCapabilityHints = 0;
+        let normalizedServices = 0;
+        const relevanceSource = discoveryRelevanceSource(page.limitations);
+        for (const agent of page.agents) {
+          discoveredAgents.set(agent.discoveryId, agent);
+          const promotable = agent.categoryHints.filter((hint) => targetCategories.includes(hint.category));
+          if (promotable.length) matchingCapabilityHints += 1;
+          const promotedIds: string[] = [];
+          for (const hint of promotable) {
+            const record = normalizeMarketplaceService(agent, hint.category);
+            if (!record) continue;
+            servicesByCategory.get(hint.category)!.push(record);
+            promotedIds.push(record.service.serviceId);
+            normalizedServices += 1;
+          }
+          const capabilityEstablished = promotable.length > 0;
+          leadMap.set(agent.discoveryId, createDiscoveryLead(agent, {
+            category: input.category,
+            query: userQuery,
+            relevanceSource,
+            capabilityEvidence: capabilityEstablished ? "OPERATOR_METADATA_HINT" : "NOT_ESTABLISHED",
+            note: capabilityEstablished
+              ? "The identity matched the user search and carries a supported operator metadata hint. The hint remains untested."
+              : "The identity matched the user search, but current registry metadata does not establish the requested supported financial capability.",
+          }, promotedIds));
+        }
+        searchRuns.push({
+          category: input.category,
+          query: userQuery,
+          returned: page.agents.length,
+          matchingCapabilityHints,
+          normalizedServices,
+          source: page.source,
+          state: page.source === "cache" ? "PARTIAL" : "COMPLETE",
+          limitations: page.limitations,
+        });
+      } catch (error) {
+        searchRuns.push({
+          category: input.category,
+          query: userQuery,
+          returned: 0,
+          matchingCapabilityHints: 0,
+          normalizedServices: 0,
+          source: "8004scan",
+          state: "UNAVAILABLE",
+          limitations: [`The user-directed registry search failed: ${error instanceof Error ? error.message : String(error)}`],
+        });
+      }
+    } else {
+      const categories = input.category ? [input.category] : FINANCIAL_CATEGORIES;
+      const outcomes = await Promise.allSettled(categories.map(async (category) => ({
+        category,
+        query: FINANCIAL_DISCOVERY_QUERIES[category],
+        page: await registry.searchAgents(FINANCIAL_DISCOVERY_QUERIES[category], { chainId, limit: searchLimit }),
+      })));
+
+      outcomes.forEach((outcome, index) => {
+        const category = categories[index]!;
+        const query = FINANCIAL_DISCOVERY_QUERIES[category];
+        if (outcome.status === "rejected") {
+          searchRuns.push({
+            category,
+            query,
+            returned: 0,
+            matchingCapabilityHints: 0,
+            normalizedServices: 0,
+            source: "8004scan",
+            state: "UNAVAILABLE",
+            limitations: [`Targeted ${category} discovery failed without suppressing other categories: ${outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)}`],
+          });
+          return;
+        }
+        const page = outcome.value.page;
+        if (page.source === "8004scan") sawLiveSource = true;
+        const relevanceSource = discoveryRelevanceSource(page.limitations);
+        let matchingCapabilityHints = 0;
+        let normalizedServices = 0;
+        for (const agent of page.agents) {
+          discoveredAgents.set(agent.discoveryId, agent);
+          const hasCapabilityHint = agent.categoryHints.some((hint) => hint.category === category);
+          const promotedIds: string[] = [];
+          if (hasCapabilityHint) {
+            matchingCapabilityHints += 1;
+            const record = normalizeMarketplaceService(agent, category);
+            if (record) {
+              servicesByCategory.get(category)!.push(record);
+              promotedIds.push(record.service.serviceId);
+              normalizedServices += 1;
+            }
+          }
+          const incoming = createDiscoveryLead(agent, {
+            category,
+            query,
+            relevanceSource,
+            capabilityEvidence: hasCapabilityHint ? "OPERATOR_METADATA_HINT" : "NOT_ESTABLISHED",
+            note: hasCapabilityHint
+              ? `8004scan returned this identity for Spotriq's ${category} search and its current operator metadata independently contains a matching category hint.`
+              : `8004scan returned this identity for Spotriq's ${category} search, but its current operator metadata does not independently establish that capability.`,
+          }, promotedIds);
+          leadMap.set(agent.discoveryId, mergeDiscoveryLead(leadMap.get(agent.discoveryId), incoming));
+        }
+        searchRuns.push({
+          category,
+          query,
+          returned: page.agents.length,
+          matchingCapabilityHints,
+          normalizedServices,
+          source: page.source,
+          state: page.source === "cache" ? "PARTIAL" : "COMPLETE",
+          limitations: page.limitations,
+        });
+      });
+    }
+
+    const allNormalized = [...servicesByCategory.values()].flat();
+    const uniqueNormalized = [...new Map(allNormalized.map((record) => [record.service.serviceId, record])).values()];
+    const balancedGroups = new Map<ServiceCategory, MarketplaceServiceRecord[]>(FINANCIAL_CATEGORIES.map((category) => [
+      category,
+      uniqueNormalized.filter((record) => record.service.category === category),
+    ]));
+    const services = roundRobinServices(balancedGroups, limit);
+    const listings = [...discoveredAgents.values()].map(normalizeMarketplaceListing);
     try {
-      await store.saveListings(page.agents.map(normalizeMarketplaceListing));
-      await store.saveServices(services);
+      await store.saveListings(listings);
+      await store.saveServices(uniqueNormalized);
     } catch { /* persistence is best effort in discovery */ }
+
+    const categoriesRequested = input.category ? [input.category] : FINANCIAL_CATEGORIES;
+    const categoriesWithNormalizedSupply = FINANCIAL_CATEGORIES.filter((category) => uniqueNormalized.some((record) => record.service.category === category));
+    const discovery: MarketplaceFinancialDiscovery = {
+      methodVersion: FINANCIAL_SUPPLY_DISCOVERY_METHOD,
+      mode: userQuery ? "USER_QUERY" : "TARGETED",
+      chainId,
+      searches: searchRuns,
+      leads: [...leadMap.values()]
+        .sort((a, b) => Number(b.promotedServiceIds.length > 0) - Number(a.promotedServiceIds.length > 0))
+        .slice(0, 24),
+      categoriesRequested,
+      categoriesWithNormalizedSupply,
+      generatedAt,
+      limitations: [
+        "Search relevance is External discovery evidence and does not establish a financial capability.",
+        "Only operator metadata carrying a supported category hint can be promoted into an AgentService candidate.",
+        "Targeted discovery is bounded to protect the anonymous 8004scan request quota; results are not an exhaustive inventory of all BSC agents.",
+      ],
+    };
+
     return {
       services,
-      chainId: page.chainId,
-      page: page.page,
-      limit: page.limit,
-      total: services.length,
-      source: page.source,
-      fetchedAt: page.fetchedAt,
+      chainId,
+      page: 1,
+      limit,
+      total: uniqueNormalized.length,
+      source: sawLiveSource ? "8004scan" : searchRuns.some((run) => run.source === "cache" && run.state !== "UNAVAILABLE") ? "cache" : "8004scan",
+      fetchedAt: generatedAt,
       normalizationMethodVersion: MARKETPLACE_SERVICE_NORMALIZATION_METHOD,
+      discovery,
       limitations: [
-        ...page.limitations,
-        "Only identities with a supported financial-category hint become AgentService candidates.",
+        "Spotriq actively searches the registry for each supported financial category instead of relying on a generic newest-agents page.",
+        "Only identities with a supported operator metadata hint become AgentService candidates; targeted search relevance alone remains a discovery lead.",
         "Service candidates remain non-activatable until canonical verification, runtime reachability, explicit authority, and marketplace tests satisfy readiness gates.",
       ],
     };
@@ -593,12 +819,14 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
         permissionProfileNormalization: true,
         offerNormalization: true,
         deterministicReadiness: true,
+        targetedFinancialDiscovery: true,
         marketplaceTesting: false,
         activation: false,
       },
       limitations: [
         "ERC-8004 identity proves portable identity/discovery, not functional or safe financial capability.",
-        "Only supported-category candidates are normalized into services; all other live identities remain discoverable listings.",
+        "Spotriq performs bounded targeted registry discovery across all four supported financial categories; search relevance is never treated as capability proof.",
+        "Only supported-category candidates are normalized into services; search-relevant identities without matching operator metadata remain discovery leads.",
         "No registry-derived service is activation-eligible until marketplace tests and explicit authority requirements are implemented.",
       ],
     };

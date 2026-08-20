@@ -103,7 +103,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.10.0",
+      version: "0.11.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,

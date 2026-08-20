@@ -12,9 +12,10 @@
 - Grid Trading Market-Context Foundation
 - ERC-8004 + 8004scan Agent Registry & Discovery
 - Agent Service + Marketplace Listing/Readiness Engine
+- Targeted Financial Supply Discovery
 
 ## Current source of truth
-Use Spotriq **v0.10.0**.
+Use Spotriq **v0.11.0**.
 
 ## Current live-data spine
 BSC JSON-RPC → protocol adapters → Evidence Engine → Smart Money Engine → Findings → Spotriq UI.
@@ -26,7 +27,9 @@ Live financial categories:
 4. Grid Trading — PancakeSwap V3 current price + onchain TWAP market context
 
 ## Current marketplace-supply spine
-8004scan indexed discovery → `DiscoveredAgent` / `AgentIdentity` → `AgentListing` → supported-category `AgentService` candidate → `Offer` + `PermissionProfile` → deterministic `ReadinessSnapshot` → Explore.
+Targeted four-category 8004scan search → deduplicated `FinancialSupplyLead` set → operator-metadata capability gate → `DiscoveredAgent` / `AgentIdentity` → `AgentListing` → supported-category `AgentService` candidate → `Offer` + `PermissionProfile` → deterministic `ReadinessSnapshot` → Explore.
+
+v0.11.0 no longer relies on a generic newest-agents page to populate financial supply. Rebalancing, Grid, Yield and Health each receive one bounded registry search. Search relevance remains External discovery evidence and never becomes capability proof by itself.
 
 The following boundaries are enforced:
 - AgentIdentity is not AgentListing.
@@ -37,7 +40,7 @@ The following boundaries are enforced:
 - Registry capability text is Operator Supplied evidence, not a tested capability.
 - Readiness is operational eligibility, not a trust score or performance prediction.
 
-## Readiness state in v0.10.0
+## Readiness state in v0.11.0
 Registry-derived service candidates are intentionally **not activation eligible**. Deterministic gates cover:
 1. BSC network
 2. Canonical ERC-8004 identity
