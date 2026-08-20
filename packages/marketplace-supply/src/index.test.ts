@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentRegistryReader } from "@spotriq/agent-registry";
-import type { AgentDiscoveryPage, AgentRegistryStatus, DiscoveredAgent, ExternalAgentFeedbackPage } from "@spotriq/domain";
+import type { AgentDiscoveryPage, AgentRegistryStatus, DiscoveredAgent, ExternalAgentFeedbackPage, MarketplaceServiceRecord, MarketplaceServiceTestRun } from "@spotriq/domain";
 import { createMarketplaceSupply, normalizeMarketplaceListing, normalizeMarketplaceService } from "./index.js";
 
 function agent(overrides: Partial<DiscoveredAgent> = {}): DiscoveredAgent {
@@ -105,7 +105,51 @@ test("supply reader exposes test coverage as explicitly NOT_RUN", async () => {
   assert.equal(page.services.length, 1);
   const tests = await supply.getTests(page.services[0]!.service.serviceId);
   assert.equal(tests.coverage, "NOT_RUN");
-  assert.match(tests.note, /not claim.*tested/i);
+  assert.match(tests.note, /no spotriq marketplace test lab run/i);
+});
+
+
+test("a passing Test Lab run updates runtime/test readiness but does not bypass undeclared authority", async () => {
+  const item = agent({
+    active: true,
+    registrationServices: [{ name: "A2A", endpoint: "https://agent.example/a2a", version: "1.0" }],
+    canonicalVerification: {
+      state: "VERIFIED", checkedAt: new Date().toISOString(), registryAddress: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432", ownerAddress: "0x1111111111111111111111111111111111111111", indexedOwnerMatches: true, registrationMetadataState: "PARSED_DATA_URI", registrationBacklinkMatches: true, evidence: [], limitations: [],
+    },
+  });
+  const observedAt = new Date().toISOString();
+  const testLab = {
+    run: async (record: MarketplaceServiceRecord): Promise<MarketplaceServiceTestRun> => ({
+      runId: "test-run:integration",
+      serviceId: record.service.serviceId,
+      state: "COMPLETED",
+      coverage: "PASS",
+      startedAt: observedAt,
+      completedAt: observedAt,
+      methodVersion: "marketplace.test-lab@1.0.0",
+      tests: [
+        { testId: "t1", code: "ENDPOINT_POLICY", label: "policy", state: "PASS", requiredForReadiness: true, detail: "safe", endpoint: "https://agent.example/a2a", interactionKind: "A2A", observedAt },
+        { testId: "t2", code: "ENDPOINT_REACHABILITY", label: "reach", state: "PASS", requiredForReadiness: true, detail: "reachable", endpoint: "https://agent.example/a2a", interactionKind: "A2A", observedAt },
+        { testId: "t3", code: "PROTOCOL_DISCOVERY", label: "discover", state: "PASS", requiredForReadiness: true, detail: "card", endpoint: "https://agent.example/a2a", interactionKind: "A2A", observedAt },
+        { testId: "t4", code: "PROTOCOL_CONTRACT", label: "contract", state: "PASS", requiredForReadiness: true, detail: "valid", endpoint: "https://agent.example/a2a", interactionKind: "A2A", observedAt },
+        { testId: "t5", code: "CATEGORY_CAPABILITY", label: "capability", state: "PASS", requiredForReadiness: true, detail: "rebalancing", endpoint: "https://agent.example/a2a", interactionKind: "A2A", observedAt },
+      ],
+      evidence: [],
+      limitations: ["contract only"],
+    }),
+  };
+  const supply = createMarketplaceSupply({ registry: registryFor(item), testLab });
+  const serviceId = "svc:erc8004:56:7:rebalancing";
+  const result = await supply.runTests(serviceId);
+  assert.equal(result.tests.coverage, "PASS");
+  assert.equal(result.readiness.checks?.find((check) => check.code === "RUNTIME_REACHABILITY")?.state, "PASS");
+  assert.equal(result.readiness.checks?.find((check) => check.code === "MARKETPLACE_TESTS")?.state, "PASS");
+  assert.equal(result.readiness.checks?.find((check) => check.code === "PERMISSION_PROFILE")?.state, "UNKNOWN");
+  assert.equal(result.readiness.state, "LIMITED");
+  assert.equal(result.readiness.activationEligible, false);
+  const reloaded = await supply.getService(serviceId);
+  assert.equal(reloaded.service.evidenceSummary.testsPassed, 5);
+  assert.equal(reloaded.service.marketplaceActivationEligible, false);
 });
 
 test("targeted financial discovery searches all four categories instead of sampling newest agents", async () => {

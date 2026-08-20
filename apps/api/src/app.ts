@@ -18,7 +18,7 @@ import {
 } from "@spotriq/protocol-pancakeswap";
 import { createGridMarketContextEngine, GridMarketContextError, type GridMarketContextReader } from "@spotriq/market-context";
 import { createSmartMoneyEngine, MemorySmartMoneyStore, PostgresSmartMoneyStore, type SmartMoneyEngine } from "@spotriq/smart-money";
-import { createMarketplaceSupply, MemoryMarketplaceSupplyStore, MarketplaceSupplyError, PostgresMarketplaceSupplyStore, type MarketplaceSupplyReader } from "@spotriq/marketplace-supply";
+import { createMarketplaceSupply, createMarketplaceTestLab, MemoryMarketplaceSupplyStore, MarketplaceSupplyError, PostgresMarketplaceSupplyStore, type MarketplaceSupplyReader } from "@spotriq/marketplace-supply";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
@@ -78,6 +78,11 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     registry: agentRegistry,
     defaultChainId: config.agentDiscoveryChainId,
     store: marketplaceSupplyStore,
+    testLab: createMarketplaceTestLab({
+      timeoutMs: config.marketplaceTestTimeoutMs,
+      maxResponseBytes: config.marketplaceTestMaxResponseBytes,
+      maxRedirects: config.marketplaceTestMaxRedirects,
+    }),
   });
   const smartMoneyStore = database
     ? new PostgresSmartMoneyStore({ query: (text, values) => database.query(text, values) })
@@ -103,7 +108,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.11.0",
+      version: "0.12.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -143,6 +148,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       canonicalAgentIdentityVerificationEnabled: true,
       marketplaceServiceNormalizationEnabled: true,
       marketplaceReadinessEngineEnabled: true,
+      marketplaceTestingEnabled: true,
       marketplaceActivationEnabled: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
@@ -158,7 +164,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "Grid market context now uses supported PancakeSwap V3 onchain 1h/6h/24h oracle averages. TWAP dispersion is not realised volatility and the regime is not a profit forecast.",
         "ERC-8004 identities can be discovered through 8004scan and individual identities can be canonically verified onchain. Identity remains distinct from listing and service.",
         "Financial-category identity hints are now normalized into Spotriq AgentListing and AgentService candidates with explicit Offer, PermissionProfile, runtime-endpoint, and deterministic Readiness resources.",
-        "Registry-derived services remain non-activatable until canonical identity, machine endpoint, explicit authority requirements, and marketplace tests satisfy the activation gates.",
+        "Marketplace Test Lab performs bounded A2A/MCP endpoint-policy, reachability, protocol-contract, and category-capability checks without invoking financial actions.",
+        "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, and marketplace tests satisfy the activation gates.",
         "Agent matching remains explicitly unsupported until the recommendation engine can apply hard compatibility constraints against these normalized services.",
       ],
     };

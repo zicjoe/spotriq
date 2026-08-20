@@ -54,6 +54,7 @@ export interface CapabilityResponse {
   canonicalAgentIdentityVerificationEnabled: boolean;
   marketplaceServiceNormalizationEnabled: boolean;
   marketplaceReadinessEngineEnabled: boolean;
+  marketplaceTestingEnabled: boolean;
   marketplaceActivationEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
@@ -208,4 +209,9 @@ export interface MarketplaceServiceEvidenceResponse {
 
 export interface MarketplaceServiceTestsResponse {
   tests: import("@spotriq/domain").MarketplaceServiceTestCoverage;
+}
+
+export interface RunMarketplaceServiceTestsResponse {
+  tests: import("@spotriq/domain").MarketplaceServiceTestCoverage;
+  readiness: import("@spotriq/domain").ReadinessSnapshot;
 }

@@ -180,6 +180,13 @@ export const EVIDENCE_METHODS = {
     description: "Evaluates deterministic readiness gates for identity verification, BSC network, active metadata, machine-callable endpoint presence, declared authority requirements, and marketplace test coverage. It never infers financial performance.",
     inputMetrics: ["service.identity_state", "service.network", "service.active", "service.runtime_endpoint", "service.permission_profile", "service.test_coverage"],
   },
+  MARKETPLACE_TEST_LAB: {
+    methodId: "marketplace.test-lab",
+    version: "1.0.0",
+    name: "Marketplace runtime contract verification",
+    description: "Performs bounded, non-financial runtime checks against declared A2A or MCP endpoints: endpoint safety policy, reachability, protocol discovery/contract validation, and category-relevant machine capability observation. It does not execute financial actions or infer performance.",
+    inputMetrics: ["service.runtime_endpoint", "service.category", "runtime.protocol_discovery", "runtime.capability_catalog"],
+  },
 } satisfies Record<string, EvidenceMethodDefinition>;
 
 const DEFAULT_FRESHNESS_POLICY: FreshnessPolicy = {
@@ -209,6 +216,9 @@ const FRESHNESS_POLICIES: Record<string, FreshnessPolicy> = {
   "agent.uri": { metric: "agent.uri", targetAgeSeconds: 3600, warnAgeSeconds: 21600, hardExpirySeconds: 86400 },
   "service.normalization": { metric: "service.normalization", targetAgeSeconds: 900, warnAgeSeconds: 3600, hardExpirySeconds: 21600 },
   "service.readiness": { metric: "service.readiness", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
+  "service.runtime_reachability": { metric: "service.runtime_reachability", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
+  "service.protocol_contract": { metric: "service.protocol_contract", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
+  "service.category_capability": { metric: "service.category_capability", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
 };
 
 export function listDataSources(): DataSourceDefinition[] {

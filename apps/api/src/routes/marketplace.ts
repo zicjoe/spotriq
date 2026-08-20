@@ -7,6 +7,7 @@ import type {
   MarketplaceServiceReadinessResponse,
   MarketplaceServicesResponse,
   MarketplaceServiceTestsResponse,
+  RunMarketplaceServiceTestsResponse,
   MarketplaceSupplyStatusResponse,
 } from "@spotriq/api-contracts";
 import type { AgentRegistryChainId, ServiceCategory } from "@spotriq/domain";
@@ -93,5 +94,12 @@ export async function registerMarketplaceRoutes(app: FastifyInstance, supply: Ma
     const data: MarketplaceServiceTestsResponse = { tests };
     const body: ApiEnvelope<MarketplaceServiceTestsResponse> = { data, meta: { requestId: request.id, generatedAt: generatedAt() } };
     return reply.send(body);
+  });
+
+  app.post<{ Params: { serviceId: string } }>("/v1/services/:serviceId/tests", async (request, reply) => {
+    const result = await supply.runTests(request.params.serviceId);
+    const data: RunMarketplaceServiceTestsResponse = result;
+    const body: ApiEnvelope<RunMarketplaceServiceTestsResponse> = { data, meta: { requestId: request.id, generatedAt: generatedAt() } };
+    return reply.code(200).send(body);
   });
 }

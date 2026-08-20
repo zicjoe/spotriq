@@ -15,6 +15,7 @@ import type {
   FinancialSupplySearchRun,
   MarketplaceServiceRecord,
   MarketplaceServiceTestCoverage,
+  MarketplaceServiceTestRun,
   MarketplaceSupplyPage,
   MarketplaceSupplyStatus,
   PermissionProfile,
@@ -25,6 +26,9 @@ import type {
   ServiceRuntimeEndpoint,
 } from "@spotriq/domain";
 import { createEvidenceEnvelope, DATA_SOURCES, EVIDENCE_METHODS } from "@spotriq/evidence";
+import { coverageFromRun, createMarketplaceTestLab, emptyMarketplaceTestCoverage, type MarketplaceTestLab } from "./test-lab.js";
+
+export * from "./test-lab.js";
 
 export const MARKETPLACE_SERVICE_NORMALIZATION_METHOD = "marketplace.agent-service-normalization@1.0.0";
 export const MARKETPLACE_SERVICE_READINESS_METHOD = "marketplace.service-readiness@1.0.0";
@@ -55,11 +59,14 @@ export interface MarketplaceSupplyStore {
   saveListings(records: MarketplaceListingRecord[]): Promise<void>;
   saveServices(records: MarketplaceServiceRecord[]): Promise<void>;
   getService(serviceId: string): Promise<MarketplaceServiceRecord | undefined>;
+  saveTestRun(run: MarketplaceServiceTestRun): Promise<void>;
+  getLatestTestRun(serviceId: string): Promise<MarketplaceServiceTestRun | undefined>;
 }
 
 export class MemoryMarketplaceSupplyStore implements MarketplaceSupplyStore {
   private readonly listings = new Map<string, MarketplaceListingRecord>();
   private readonly services = new Map<string, MarketplaceServiceRecord>();
+  private readonly testRuns = new Map<string, MarketplaceServiceTestRun[]>();
 
   async saveListings(records: MarketplaceListingRecord[]): Promise<void> {
     for (const record of records) this.listings.set(record.listing.listingId, structuredClone(record));
@@ -70,6 +77,16 @@ export class MemoryMarketplaceSupplyStore implements MarketplaceSupplyStore {
   async getService(serviceId: string): Promise<MarketplaceServiceRecord | undefined> {
     const record = this.services.get(serviceId);
     return record ? structuredClone(record) : undefined;
+  }
+  async saveTestRun(run: MarketplaceServiceTestRun): Promise<void> {
+    const existing = this.testRuns.get(run.serviceId) ?? [];
+    existing.push(structuredClone(run));
+    existing.sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+    this.testRuns.set(run.serviceId, existing.slice(0, 20));
+  }
+  async getLatestTestRun(serviceId: string): Promise<MarketplaceServiceTestRun | undefined> {
+    const run = this.testRuns.get(serviceId)?.[0];
+    return run ? structuredClone(run) : undefined;
   }
 }
 
@@ -205,6 +222,24 @@ export class PostgresMarketplaceSupplyStore implements MarketplaceSupplyStore {
     const result = await this.database.query("select payload from marketplace_service_cache where service_id = $1", [serviceId]);
     return result.rows[0]?.payload as MarketplaceServiceRecord | undefined;
   }
+
+  async saveTestRun(run: MarketplaceServiceTestRun): Promise<void> {
+    await this.database.query(`
+      insert into marketplace_service_test_runs (run_id, service_id, state, coverage, method_version, payload, started_at, completed_at)
+      values ($1,$2,$3,$4,$5,$6::jsonb,$7,$8)
+      on conflict (run_id) do update set state=excluded.state, coverage=excluded.coverage, method_version=excluded.method_version, payload=excluded.payload, completed_at=excluded.completed_at
+    `, [run.runId, run.serviceId, run.state, run.coverage, run.methodVersion, JSON.stringify(run), run.startedAt, run.completedAt]);
+  }
+
+  async getLatestTestRun(serviceId: string): Promise<MarketplaceServiceTestRun | undefined> {
+    const result = await this.database.query(`
+      select payload from marketplace_service_test_runs
+      where service_id = $1
+      order by completed_at desc
+      limit 1
+    `, [serviceId]);
+    return result.rows[0]?.payload as MarketplaceServiceTestRun | undefined;
+  }
 }
 
 export interface MarketplaceSupplyReader {
@@ -215,12 +250,14 @@ export interface MarketplaceSupplyReader {
   getReadiness(serviceId: string): Promise<ReadinessSnapshot>;
   getEvidence(serviceId: string): Promise<EvidenceEnvelope[]>;
   getTests(serviceId: string): Promise<MarketplaceServiceTestCoverage>;
+  runTests(serviceId: string): Promise<{ tests: MarketplaceServiceTestCoverage; readiness: ReadinessSnapshot }>;
 }
 
 export interface CreateMarketplaceSupplyOptions {
   registry: AgentRegistryReader;
   defaultChainId?: AgentRegistryChainId;
   store?: MarketplaceSupplyStore;
+  testLab?: MarketplaceTestLab;
 }
 
 function slugPart(value: string): string {
@@ -331,9 +368,32 @@ function offerFor(serviceId: string): ServiceOffer {
   };
 }
 
-function readinessFor(agent: DiscoveredAgent, serviceId: string, runtimeEndpoints: ServiceRuntimeEndpoint[], permissionProfile: PermissionProfile): ReadinessSnapshot {
+function readinessFor(
+  agent: DiscoveredAgent,
+  serviceId: string,
+  runtimeEndpoints: ServiceRuntimeEndpoint[],
+  permissionProfile: PermissionProfile,
+  testCoverage: MarketplaceServiceTestCoverage = emptyMarketplaceTestCoverage(serviceId),
+): ReadinessSnapshot {
   const verification = agent.canonicalVerification?.state ?? "NOT_CHECKED";
   const machineEndpoint = runtimeEndpoints.some((endpoint) => endpoint.machineCallable);
+  const reachabilityTests = testCoverage.tests.filter((test) => test.code === "ENDPOINT_REACHABILITY");
+  const runtimeReachable = reachabilityTests.some((test) => test.state === "PASS");
+  const runtimeFailed = reachabilityTests.length > 0 && reachabilityTests.every((test) => test.state === "FAIL");
+  const testState: ReadinessCheck["state"] = testCoverage.coverage === "PASS"
+    ? "PASS"
+    : testCoverage.coverage === "FAIL"
+      ? "FAIL"
+      : testCoverage.coverage === "PARTIAL"
+        ? "WARN"
+        : "UNKNOWN";
+  const runtimeState: ReadinessCheck["state"] = runtimeReachable
+    ? "PASS"
+    : runtimeFailed
+      ? "FAIL"
+      : testCoverage.coverage === "PARTIAL"
+        ? "WARN"
+        : "UNKNOWN";
   const checks: ReadinessCheck[] = [
     {
       code: "BSC_NETWORK",
@@ -358,10 +418,24 @@ function readinessFor(agent: DiscoveredAgent, serviceId: string, runtimeEndpoint
     },
     {
       code: "MACHINE_ENDPOINT",
-      label: "Machine-callable runtime endpoint",
+      label: "Machine-callable endpoint declaration",
       state: machineEndpoint ? "PASS" : "FAIL",
       requiredForActivation: true,
       detail: machineEndpoint ? "At least one A2A or MCP endpoint is declared in registration metadata." : "No A2A or MCP runtime endpoint is currently normalized for this candidate.",
+    },
+    {
+      code: "RUNTIME_REACHABILITY",
+      label: "Runtime reachability",
+      state: runtimeState,
+      requiredForActivation: true,
+      detail: runtimeReachable
+        ? "Spotriq Marketplace Test Lab observed at least one declared machine runtime responding through its protocol discovery surface."
+        : runtimeFailed
+          ? "Spotriq could not reach any tested machine runtime through the bounded marketplace probe."
+          : testCoverage.coverage === "PARTIAL"
+            ? "Runtime evidence is incomplete; no endpoint has a complete reachability observation yet."
+            : "Runtime reachability has not been observed by Spotriq yet.",
+      evidenceIds: testCoverage.tests.filter((test) => test.code === "ENDPOINT_REACHABILITY").flatMap((test) => test.evidenceIds ?? []),
     },
     {
       code: "PERMISSION_PROFILE",
@@ -373,20 +447,32 @@ function readinessFor(agent: DiscoveredAgent, serviceId: string, runtimeEndpoint
     {
       code: "MARKETPLACE_TESTS",
       label: "Marketplace tests",
-      state: "UNKNOWN",
+      state: testState,
       requiredForActivation: true,
-      detail: "No Spotriq Marketplace Test Lab run exists yet. Registry identity and external reputation cannot substitute for service testing.",
+      detail: testCoverage.coverage === "PASS"
+        ? "At least one machine endpoint passed Spotriq endpoint-policy, reachability, protocol-contract and category-capability checks."
+        : testCoverage.coverage === "FAIL"
+          ? "The latest Marketplace Test Lab run failed required contract-level checks."
+          : testCoverage.coverage === "PARTIAL"
+            ? "The latest Marketplace Test Lab run produced useful runtime evidence but did not satisfy every required contract-level check."
+            : "No Spotriq Marketplace Test Lab run exists yet. Registry identity and external reputation cannot substitute for service testing.",
+      evidenceIds: testCoverage.evidence.map((item) => item.evidenceId),
     },
   ];
 
-  const hardFail = checks.some((check) => check.requiredForActivation && check.state === "FAIL");
+  const required = checks.filter((check) => check.requiredForActivation);
+  const allRequiredPass = required.every((check) => check.state === "PASS");
   const state: ReadinessSnapshot["state"] = agent.canonicalVerification?.state === "MISMATCH" || agent.active === false
     ? "SUSPENDED"
     : agent.identity.chainId === 97
       ? "TESTNET_ONLY"
-      : hardFail || checks.some((check) => check.state === "UNKNOWN")
-        ? "LIMITED"
-        : "LIMITED";
+      : allRequiredPass
+        ? "READY"
+        : runtimeFailed
+          ? "OFFLINE"
+          : testCoverage.coverage === "FAIL"
+            ? "DEGRADED"
+            : "LIMITED";
   const reasons = checks.filter((check) => check.state !== "PASS").map((check) => check.detail);
   return {
     readinessSnapshotId: `ready:${serviceId}`,
@@ -395,9 +481,10 @@ function readinessFor(agent: DiscoveredAgent, serviceId: string, runtimeEndpoint
     checkedAt: new Date().toISOString(),
     reasons,
     checks,
-    activationEligible: false,
+    activationEligible: state === "READY",
     limitations: [
-      "Spotriq does not mark registry-derived services Ready until required marketplace tests and explicit permission/authority declarations exist.",
+      "Marketplace Test Lab verifies bounded runtime contracts and advertised machine capability; it does not execute financial actions or establish profitability.",
+      "A service cannot become Ready unless identity, active state, endpoint declaration/reachability, explicit permission profile and marketplace tests all pass independently.",
       "Readiness is operational eligibility, not a prediction of financial performance or profitability.",
     ],
     methodVersion: MARKETPLACE_SERVICE_READINESS_METHOD,
@@ -476,7 +563,7 @@ export function normalizeMarketplaceService(agent: DiscoveredAgent, category: Se
     operator: agent.ownerAddress ?? "ERC-8004 owner",
     erc8004Verified: agent.canonicalVerification?.state === "VERIFIED",
     origin: "ERC8004",
-    marketplaceActivationEligible: false,
+    marketplaceActivationEligible: Boolean(readiness.activationEligible),
     runtimeEndpoints,
     readinessSnapshotId: readiness.readinessSnapshotId,
   };
@@ -495,6 +582,46 @@ export function normalizeMarketplaceService(agent: DiscoveredAgent, category: Se
       "Category/protocol capability is normalized from operator-supplied registry metadata and is not yet marketplace-tested.",
       "Pricing and permission intensity remain undeclared until a structured offer and permission profile are supplied.",
       "Activation is blocked by design in this milestone.",
+    ],
+  };
+}
+
+function applyTestCoverageToRecord(record: MarketplaceServiceRecord, coverage: MarketplaceServiceTestCoverage): MarketplaceServiceRecord {
+  const readiness = readinessFor(record.identity, record.service.serviceId, record.service.runtimeEndpoints ?? [], record.permissionProfile, coverage);
+  const listingStatus: AgentListing["status"] = readiness.state === "SUSPENDED"
+    ? "SUSPENDED"
+    : readiness.state === "READY"
+      ? "READY"
+      : readiness.state === "OFFLINE" || readiness.state === "DEGRADED"
+        ? "DEGRADED"
+        : record.listing.status;
+  const testsPassed = coverage.tests.filter((test) => test.state === "PASS").length;
+  return {
+    ...record,
+    listing: { ...record.listing, status: listingStatus },
+    service: {
+      ...record.service,
+      readiness: readiness.state,
+      readinessNote: readiness.reasons[0],
+      marketplaceActivationEligible: Boolean(readiness.activationEligible),
+      readinessSnapshotId: readiness.readinessSnapshotId,
+      evidenceSummary: {
+        ...record.service.evidenceSummary,
+        marketplaceObserved: coverage.coverage === "NOT_RUN"
+          ? "No marketplace test observations yet"
+          : `${testsPassed} contract-level marketplace test check(s) passed; latest coverage ${coverage.coverage}`,
+        testsPassed,
+      },
+    },
+    readiness,
+    evidence: [...normalizationEvidence(record.identity, record.service.serviceId, record.service.category, readiness), ...coverage.evidence],
+    normalizedAt: readiness.checkedAt,
+    limitations: [
+      ...record.limitations.filter((item) => !/Activation is blocked by design in this milestone|not yet marketplace-tested/i.test(item)),
+      coverage.coverage === "NOT_RUN"
+        ? "Category/protocol capability is normalized from operator metadata and has not yet been observed by Marketplace Test Lab."
+        : "Marketplace Test Lab evidence is contract-level only and does not establish profitability, execution quality, or authority safety.",
+      "Activation remains independently gated by explicit permission/authority requirements and the marketplace activation engine.",
     ],
   };
 }
@@ -574,6 +701,16 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
   const registry = options.registry;
   const defaultChainId = options.defaultChainId ?? 56;
   const store = options.store ?? new MemoryMarketplaceSupplyStore();
+  const testLab = options.testLab ?? createMarketplaceTestLab();
+
+  async function hydrateTestCoverage(record: MarketplaceServiceRecord): Promise<MarketplaceServiceRecord> {
+    try {
+      const latest = await store.getLatestTestRun(record.service.serviceId);
+      return applyTestCoverageToRecord(record, latest ? coverageFromRun(latest) : emptyMarketplaceTestCoverage(record.service.serviceId));
+    } catch {
+      return applyTestCoverageToRecord(record, emptyMarketplaceTestCoverage(record.service.serviceId));
+    }
+  }
 
   async function listListings(input: { chainId?: AgentRegistryChainId; page?: number; limit?: number; search?: string } = {}): Promise<MarketplaceListingPage> {
     const page = await registry.listAgents({ chainId: input.chainId ?? defaultChainId, page: input.page, limit: input.limit, search: input.search });
@@ -727,19 +864,20 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
 
     const allNormalized = [...servicesByCategory.values()].flat();
     const uniqueNormalized = [...new Map(allNormalized.map((record) => [record.service.serviceId, record])).values()];
+    const hydratedNormalized = await Promise.all(uniqueNormalized.map(hydrateTestCoverage));
     const balancedGroups = new Map<ServiceCategory, MarketplaceServiceRecord[]>(FINANCIAL_CATEGORIES.map((category) => [
       category,
-      uniqueNormalized.filter((record) => record.service.category === category),
+      hydratedNormalized.filter((record) => record.service.category === category),
     ]));
     const services = roundRobinServices(balancedGroups, limit);
     const listings = [...discoveredAgents.values()].map(normalizeMarketplaceListing);
     try {
       await store.saveListings(listings);
-      await store.saveServices(uniqueNormalized);
+      await store.saveServices(hydratedNormalized);
     } catch { /* persistence is best effort in discovery */ }
 
     const categoriesRequested = input.category ? [input.category] : FINANCIAL_CATEGORIES;
-    const categoriesWithNormalizedSupply = FINANCIAL_CATEGORIES.filter((category) => uniqueNormalized.some((record) => record.service.category === category));
+    const categoriesWithNormalizedSupply = FINANCIAL_CATEGORIES.filter((category) => hydratedNormalized.some((record) => record.service.category === category));
     const discovery: MarketplaceFinancialDiscovery = {
       methodVersion: FINANCIAL_SUPPLY_DISCOVERY_METHOD,
       mode: userQuery ? "USER_QUERY" : "TARGETED",
@@ -763,7 +901,7 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
       chainId,
       page: 1,
       limit,
-      total: uniqueNormalized.length,
+      total: hydratedNormalized.length,
       source: sawLiveSource ? "8004scan" : searchRuns.some((run) => run.source === "cache" && run.state !== "UNAVAILABLE") ? "cache" : "8004scan",
       fetchedAt: generatedAt,
       normalizationMethodVersion: MARKETPLACE_SERVICE_NORMALIZATION_METHOD,
@@ -779,8 +917,9 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
   async function getService(serviceId: string): Promise<MarketplaceServiceRecord> {
     const parsed = parseServiceId(serviceId);
     const agent = await registry.getAgent(parsed.chainId, parsed.agentId);
-    const record = normalizeMarketplaceService(agent, parsed.category);
-    if (!record) throw new MarketplaceSupplyError("The requested ERC-8004 identity does not currently carry this supported financial-category hint.", "SERVICE_NOT_FOUND");
+    const normalized = normalizeMarketplaceService(agent, parsed.category);
+    if (!normalized) throw new MarketplaceSupplyError("The requested ERC-8004 identity does not currently carry this supported financial-category hint.", "SERVICE_NOT_FOUND");
+    const record = await hydrateTestCoverage(normalized);
     try {
       await store.saveListings([normalizeMarketplaceListing(agent)]);
       await store.saveServices([record]);
@@ -796,12 +935,25 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
   }
   async function getTests(serviceId: string): Promise<MarketplaceServiceTestCoverage> {
     await getService(serviceId);
-    return {
-      serviceId,
-      coverage: "NOT_RUN",
-      tests: [],
-      note: "Marketplace Test Lab is not implemented yet. Spotriq will not claim a service is tested merely because ERC-8004 identity or external reputation exists.",
-    };
+    try {
+      const latest = await store.getLatestTestRun(serviceId);
+      return latest ? coverageFromRun(latest) : emptyMarketplaceTestCoverage(serviceId);
+    } catch {
+      return emptyMarketplaceTestCoverage(serviceId);
+    }
+  }
+  async function runTests(serviceId: string): Promise<{ tests: MarketplaceServiceTestCoverage; readiness: ReadinessSnapshot }> {
+    const record = await getService(serviceId);
+    const run = await testLab.run(record);
+    const tests = coverageFromRun(run);
+    const updated = applyTestCoverageToRecord(record, tests);
+    try {
+      await store.saveTestRun(run);
+      await store.saveServices([updated]);
+    } catch (error) {
+      throw new MarketplaceSupplyError("Marketplace Test Lab completed, but its result could not be persisted.", "NORMALIZATION_FAILED", true, error instanceof Error ? error.message : String(error));
+    }
+    return { tests, readiness: updated.readiness };
   }
   async function getStatus(): Promise<MarketplaceSupplyStatus> {
     return {
@@ -820,17 +972,18 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
         offerNormalization: true,
         deterministicReadiness: true,
         targetedFinancialDiscovery: true,
-        marketplaceTesting: false,
+        marketplaceTesting: true,
         activation: false,
       },
       limitations: [
         "ERC-8004 identity proves portable identity/discovery, not functional or safe financial capability.",
         "Spotriq performs bounded targeted registry discovery across all four supported financial categories; search relevance is never treated as capability proof.",
         "Only supported-category candidates are normalized into services; search-relevant identities without matching operator metadata remain discovery leads.",
-        "No registry-derived service is activation-eligible until marketplace tests and explicit authority requirements are implemented.",
+        "Marketplace Test Lab now performs bounded A2A/MCP runtime contract checks; it never executes financial actions or converts test success into a performance claim.",
+        "Registry-derived services remain non-activatable until explicit permission/authority requirements and every independent readiness gate pass.",
       ],
     };
   }
 
-  return { getStatus, listListings, listServices, getService, getReadiness, getEvidence, getTests };
+  return { getStatus, listListings, listServices, getService, getReadiness, getEvidence, getTests, runTests };
 }

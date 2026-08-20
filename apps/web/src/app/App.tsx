@@ -7,7 +7,7 @@ import {
   RefreshCw, Search, Shield, ShieldCheck, Sliders, Star,
   TrendingDown, TrendingUp, Wallet, X, Zap, BookOpen,
   CircleDot, Timer, Target, GitCompare, RotateCcw,
-  Radio, Layers, BarChart2, PieChart, FileText
+  Radio, Layers, BarChart2, PieChart, FileText, FlaskConical
 } from "lucide-react";
 
 
@@ -67,6 +67,7 @@ const READINESS_CONFIG: Record<ReadinessState, { label: string; color: string; d
   DEGRADED: { label: "Degraded", color: "text-[#f87171]", dot: "bg-[#f87171]" },
   OFFLINE: { label: "Offline", color: "text-[#6b7d99]", dot: "bg-[#6b7d99]" },
   TESTNET_ONLY: { label: "Testnet Only", color: "text-[#a78bfa]", dot: "bg-[#a78bfa]" },
+  SUSPENDED: { label: "Suspended", color: "text-[#f87171]", dot: "bg-[#f87171]" },
 };
 
 const PERMISSION_CONFIG: Record<PermissionIntensity, { label: string; color: string; bars: number }> = {
@@ -684,10 +685,13 @@ function HomePage({ navigate, hasActivations }: { navigate: (r: Route, p?: Parti
 
 
 
-function LiveServiceCandidateCard({ record, onInspect, inspecting }: { record: MarketplaceServiceRecord; onInspect: () => void; inspecting: boolean }) {
+function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, testing }: { record: MarketplaceServiceRecord; onInspect: () => void; inspecting: boolean; onRunTests: () => void; testing: boolean }) {
   const service = record.service;
   const failedOrUnknown = (record.readiness.checks ?? []).filter((check) => check.state !== "PASS");
   const machineEndpoints = (service.runtimeEndpoints ?? []).filter((endpoint) => endpoint.machineCallable);
+  const marketplaceTestCheck = (record.readiness.checks ?? []).find((check) => check.code === "MARKETPLACE_TESTS");
+  const testLabel = marketplaceTestCheck?.state === "PASS" ? "Contract tests passed" : marketplaceTestCheck?.state === "FAIL" ? "Tests failed" : marketplaceTestCheck?.state === "WARN" ? "Partial coverage" : "Not run";
+  const testClass = marketplaceTestCheck?.state === "PASS" ? "text-[#4ade80]" : marketplaceTestCheck?.state === "FAIL" ? "text-[#f87171]" : "text-[#f59e0b]";
   return (
     <Card className="p-4 space-y-3 border-[#2dd4bf]/15 bg-[#2dd4bf]/[0.025]">
       <div className="flex items-start justify-between gap-3">
@@ -722,8 +726,8 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting }: { record: M
         </div>
         <div>
           <div className="text-[#6b7d99] mb-0.5">Marketplace tests</div>
-          <div className="text-[#f59e0b]">Not run</div>
-          <div className="text-[10px] text-[#6b7d99]">0 tests passed</div>
+          <div className={testClass}>{testLabel}</div>
+          <div className="text-[10px] text-[#6b7d99]">{service.evidenceSummary.testsPassed} check{service.evidenceSummary.testsPassed === 1 ? "" : "s"} passed · no financial execution</div>
         </div>
       </div>
 
@@ -747,9 +751,12 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting }: { record: M
 
       <div className="flex items-center justify-between pt-1 gap-3">
         <div className="text-[11px] text-[#6b7d99]">Identity ≠ service readiness · deterministic gates</div>
-        <div className="flex items-center gap-2">
-          <Btn variant="ghost" size="sm" onClick={onInspect} disabled={inspecting} className="text-[#2dd4bf]">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <Btn variant="ghost" size="sm" onClick={onInspect} disabled={inspecting || testing} className="text-[#2dd4bf]">
             {inspecting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Checking</> : <><ShieldCheck className="w-3.5 h-3.5" /> Check readiness</>}
+          </Btn>
+          <Btn variant="teal-outline" size="sm" onClick={onRunTests} disabled={testing || inspecting || machineEndpoints.length === 0}>
+            {testing ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Testing</> : <><FlaskConical className="w-3.5 h-3.5" /> Run Test Lab</>}
           </Btn>
           <Badge variant="muted">Activation blocked</Badge>
         </div>
@@ -847,6 +854,7 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
   const [supplyLoading, setSupplyLoading] = useState(true);
   const [supplyError, setSupplyError] = useState<string>();
   const [inspectingServiceId, setInspectingServiceId] = useState<string>();
+  const [testingServiceId, setTestingServiceId] = useState<string>();
   const registryChainId: AgentRegistryChainId = 56;
 
   const normalizedSearch = searchText.trim().toLowerCase();
@@ -918,6 +926,21 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
       setSupplyError(cause instanceof Error ? cause.message : "Spotriq could not complete marketplace readiness inspection.");
     } finally {
       setInspectingServiceId(undefined);
+    }
+  };
+
+  const runServiceTests = async (serviceId: string) => {
+    setTestingServiceId(serviceId);
+    setSupplyError(undefined);
+    try {
+      await marketplaceSupplyRepository.runTests(serviceId);
+      const detail = await marketplaceSupplyRepository.getService(serviceId);
+      setServiceCandidates((current) => current.map((record) => record.service.serviceId === serviceId ? detail : record));
+      setRegistryAgents((current) => current.map((agent) => agent.discoveryId === detail.identity.discoveryId ? detail.identity : agent));
+    } catch (cause) {
+      setSupplyError(cause instanceof Error ? cause.message : "Spotriq Marketplace Test Lab could not complete the runtime verification.");
+    } finally {
+      setTestingServiceId(undefined);
     }
   };
 
@@ -1131,8 +1154,8 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
                 <div className="flex items-center gap-2 text-[11px] text-[#6b7d99] mb-3">
                   <ShieldCheck className="w-3.5 h-3.5 text-[#2dd4bf]" />
                   <span>{serviceCandidates.length} normalized service candidate{serviceCandidates.length === 1 ? "" : "s"}</span>
-                  <span>·</span><span>0 activation-eligible</span>
-                  <span>·</span><span>Marketplace tests not implemented yet</span>
+                  <span>·</span><span>{serviceCandidates.filter((record) => record.service.marketplaceActivationEligible).length} activation-eligible</span>
+                  <span>·</span><span>{serviceCandidates.filter((record) => record.readiness.checks?.find((check) => check.code === "MARKETPLACE_TESTS")?.state === "PASS").length} contract-tested</span>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   {visibleServiceCandidates.map((record) => (
@@ -1141,6 +1164,8 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
                       record={record}
                       onInspect={() => void inspectServiceCandidate(record.service.serviceId)}
                       inspecting={inspectingServiceId === record.service.serviceId}
+                      onRunTests={() => void runServiceTests(record.service.serviceId)}
+                      testing={testingServiceId === record.service.serviceId}
                     />
                   ))}
                 </div>

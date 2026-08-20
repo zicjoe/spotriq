@@ -2,11 +2,14 @@ import type {
   ApiEnvelope,
   MarketplaceServiceDetailResponse,
   MarketplaceServicesResponse,
+  MarketplaceServiceTestsResponse,
+  RunMarketplaceServiceTestsResponse,
   MarketplaceSupplyStatusResponse,
 } from "@spotriq/api-contracts";
 import type {
   AgentRegistryChainId,
   MarketplaceServiceRecord,
+  MarketplaceServiceTestCoverage,
   MarketplaceSupplyPage,
   MarketplaceSupplyStatus,
   ServiceCategory,
@@ -19,6 +22,8 @@ export interface MarketplaceSupplyRepository {
   getStatus(): Promise<MarketplaceSupplyStatus>;
   listServices(input?: { chainId?: AgentRegistryChainId; page?: number; limit?: number; search?: string; category?: ServiceCategory }): Promise<MarketplaceSupplyPage>;
   getService(serviceId: string): Promise<MarketplaceServiceRecord>;
+  getTests(serviceId: string): Promise<MarketplaceServiceTestCoverage>;
+  runTests(serviceId: string): Promise<RunMarketplaceServiceTestsResponse>;
 }
 
 export class ApiMarketplaceSupplyRepository implements MarketplaceSupplyRepository {
@@ -37,6 +42,12 @@ export class ApiMarketplaceSupplyRepository implements MarketplaceSupplyReposito
   }
   async getService(serviceId: string) {
     return unwrap(await apiRequest<ApiEnvelope<MarketplaceServiceDetailResponse>>(`/v1/services/${encodeURIComponent(serviceId)}`)).record;
+  }
+  async getTests(serviceId: string) {
+    return unwrap(await apiRequest<ApiEnvelope<MarketplaceServiceTestsResponse>>(`/v1/services/${encodeURIComponent(serviceId)}/tests`)).tests;
+  }
+  async runTests(serviceId: string) {
+    return unwrap(await apiRequest<ApiEnvelope<RunMarketplaceServiceTestsResponse>>(`/v1/services/${encodeURIComponent(serviceId)}/tests`, { method: "POST" }));
   }
 }
 

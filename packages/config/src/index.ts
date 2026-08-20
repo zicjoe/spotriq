@@ -36,6 +36,9 @@ export interface ServerConfig {
   scan8004BaseUrl: string;
   scan8004ApiKey?: string;
   scan8004TimeoutMs: number;
+  marketplaceTestTimeoutMs: number;
+  marketplaceTestMaxResponseBytes: number;
+  marketplaceTestMaxRedirects: number;
   agentRegistryMainnetRpc?: string;
   agentRegistryTestnetRpc?: string;
 }
@@ -103,6 +106,9 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     scan8004BaseUrl: env.SCAN8004_BASE_URL?.trim() || "https://8004scan.io/api/v1/public",
     scan8004ApiKey: optional(env.SCAN8004_API_KEY),
     scan8004TimeoutMs: parsePositiveInt(env.SCAN8004_TIMEOUT_MS, 7500, "SCAN8004_TIMEOUT_MS"),
+    marketplaceTestTimeoutMs: parsePositiveInt(env.MARKETPLACE_TEST_TIMEOUT_MS, 5000, "MARKETPLACE_TEST_TIMEOUT_MS"),
+    marketplaceTestMaxResponseBytes: parsePositiveInt(env.MARKETPLACE_TEST_MAX_RESPONSE_BYTES, 256000, "MARKETPLACE_TEST_MAX_RESPONSE_BYTES"),
+    marketplaceTestMaxRedirects: parsePositiveInt(env.MARKETPLACE_TEST_MAX_REDIRECTS, 2, "MARKETPLACE_TEST_MAX_REDIRECTS"),
     agentRegistryMainnetRpc: optional(env.AGENT_REGISTRY_MAINNET_RPC),
     agentRegistryTestnetRpc: optional(env.AGENT_REGISTRY_TESTNET_RPC),
   };

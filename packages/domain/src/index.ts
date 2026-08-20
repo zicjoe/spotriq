@@ -1055,11 +1055,48 @@ export interface MarketplaceListingPage {
   limitations: string[];
 }
 
+export type MarketplaceServiceTestState = "PASS" | "WARN" | "FAIL" | "SKIPPED" | "INCONCLUSIVE";
+export type MarketplaceServiceTestCoverageState = "NOT_RUN" | "PASS" | "PARTIAL" | "FAIL";
+export type MarketplaceServiceTestRunState = "COMPLETED" | "PARTIAL" | "FAILED";
+
+export interface MarketplaceServiceTestResult {
+  testId: string;
+  code: "ENDPOINT_POLICY" | "ENDPOINT_REACHABILITY" | "PROTOCOL_DISCOVERY" | "PROTOCOL_CONTRACT" | "CATEGORY_CAPABILITY";
+  label: string;
+  state: MarketplaceServiceTestState;
+  requiredForReadiness: boolean;
+  detail: string;
+  endpoint?: string;
+  interactionKind?: ServiceRuntimeEndpoint["interactionKind"];
+  protocolVersion?: string;
+  observedAt: string;
+  durationMs?: number;
+  evidenceIds?: string[];
+}
+
+export interface MarketplaceServiceTestRun {
+  runId: string;
+  serviceId: string;
+  state: MarketplaceServiceTestRunState;
+  coverage: MarketplaceServiceTestCoverageState;
+  startedAt: string;
+  completedAt: string;
+  methodVersion: string;
+  tests: MarketplaceServiceTestResult[];
+  evidence: EvidenceEnvelope[];
+  limitations: string[];
+}
+
 export interface MarketplaceServiceTestCoverage {
   serviceId: string;
-  coverage: "NOT_RUN";
-  tests: [];
+  coverage: MarketplaceServiceTestCoverageState;
+  latestRunId?: string;
+  tests: MarketplaceServiceTestResult[];
+  evidence: EvidenceEnvelope[];
+  observedAt?: string;
+  methodVersion: string;
   note: string;
+  limitations: string[];
 }
 
 export interface MarketplaceSupplyStatus {
@@ -1078,7 +1115,7 @@ export interface MarketplaceSupplyStatus {
     offerNormalization: true;
     deterministicReadiness: true;
     targetedFinancialDiscovery: true;
-    marketplaceTesting: false;
+    marketplaceTesting: boolean;
     activation: false;
   };
   limitations: string[];

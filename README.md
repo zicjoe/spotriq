@@ -116,7 +116,7 @@ Current live check coverage now has real data foundations across all four requir
 
 ## Live ERC-8004 / 8004scan agent discovery
 
-Spotriq now separates **agent identity discovery** from **marketplace service activation**. 8004scan is used as an external indexed discovery source, while a selected identity can be rechecked directly against the configured ERC-8004 Identity Registry. A discovered identity is **not** automatically a Spotriq financial service. v0.11.0 now actively searches the registry across all four required financial categories and normalizes only metadata-backed candidates into separate listing/service resources with explicit Offer, PermissionProfile and deterministic ReadinessSnapshot resources; every registry-derived candidate remains non-activatable until required readiness gates pass.
+Spotriq now separates **agent identity discovery** from **marketplace service activation**. 8004scan is used as an external indexed discovery source, while a selected identity can be rechecked directly against the configured ERC-8004 Identity Registry. A discovered identity is **not** automatically a Spotriq financial service. v0.12.0 preserves targeted registry search across all four required financial categories and adds Marketplace Test Lab: normalized A2A/MCP candidates can now receive bounded, non-financial runtime/protocol verification and Marketplace Observed evidence. Test Lab success is folded into deterministic readiness, but it does not bypass the independent permission/authority gate.
 
 ```text
 http://localhost:3001/v1/registry/status
@@ -157,7 +157,7 @@ pnpm db:health
 pnpm db:migrate
 ```
 
-Migration `0002_chain_evidence_spine.sql` introduces Spotriq's data-source, evidence-method, raw-observation, freshness, and conflict schema. Migration `0003_smart_money_rebalancing.sql` adds check-event persistence and the additional Smart Money finding fields. Migration `0004_venus_health_positions.sql` adds normalized Venus pool/market lending snapshots. Migration `0005_yield_opportunities.sql` persists Yield opportunity snapshots. Migration `0006_grid_market_context.sql` persists Grid market-context snapshots plus Grid evidence methods. Migration `0007_agent_registry_discovery.sql` extends canonical agent identity fields, discovery cache, external feedback records, and registry sync history.
+Migration `0002_chain_evidence_spine.sql` introduces Spotriq's data-source, evidence-method, raw-observation, freshness, and conflict schema. Migration `0003_smart_money_rebalancing.sql` adds check-event persistence and the additional Smart Money finding fields. Migration `0004_venus_health_positions.sql` adds normalized Venus pool/market lending snapshots. Migration `0005_yield_opportunities.sql` persists Yield opportunity snapshots. Migration `0006_grid_market_context.sql` persists Grid market-context snapshots plus Grid evidence methods. Migration `0007_agent_registry_discovery.sql` extends canonical agent identity fields, discovery cache, external feedback records, and registry sync history. Migration `0008_marketplace_service_readiness.sql` persists service offers, permission profiles, readiness snapshots, capability claims and normalized service cache. Migration `0009_marketplace_test_lab.sql` persists immutable Marketplace Test Lab runs and coverage payloads.
 
 ## Run one process only
 
@@ -170,7 +170,7 @@ pnpm dev:worker
 ## Current product-data state
 
 - Reference financial-service cards remain clearly labelled sample data; Explore now also displays a separate live ERC-8004 registry discovery surface.
-- Live discovered ERC-8004 identities are explicitly `DISCOVERED` / `NOT_CREATED` and are not activatable Spotriq services yet.
+- Live discovered ERC-8004 identities remain distinct from normalized AgentServices; search relevance alone never creates a service claim. Eligible normalized A2A/MCP candidates can now be contract-tested, but activation remains independently gated by permission authority.
 - BSC chain status, block, transaction, native balance, and requested ERC-20 balance APIs are now real provider-backed reads.
 - Those chain reads return normalized evidence/provenance/freshness structures.
 - PancakeSwap V3 and Infinity CL current-state normalization is live at the API layer.
@@ -200,6 +200,8 @@ pnpm dev:worker
 - `docs/IMPLEMENTATION_REPORT_AGENT_REGISTRY_DISCOVERY.md`
 - `docs/IMPLEMENTATION_REPORT_MARKETPLACE_SUPPLY_v0.10.0.md`
 - `docs/IMPLEMENTATION_REPORT_FINANCIAL_SUPPLY_DISCOVERY_v0.11.0.md`
+- `docs/MARKETPLACE_TEST_LAB.md`
+- `docs/IMPLEMENTATION_REPORT_MARKETPLACE_TEST_LAB_v0.12.0.md`
 - `docs/ENGINEERING_STATUS.md`
 
 ## v0.11.0 targeted financial supply discovery
@@ -210,9 +212,25 @@ The response includes a `discovery` object containing per-category search covera
 
 The Explore UI now displays targeted-search coverage and search-only leads separately from normalized financial service candidates.
 
+## v0.12.0 Marketplace Test Lab + Service Readiness Verification
+
+Spotriq can now run bounded verification against normalized live service candidates with declared A2A/MCP runtimes. The Test Lab validates public HTTPS endpoint policy, observed reachability, protocol discovery/contract behaviour, and category-relevant machine capability without submitting a financial task or invoking an advertised MCP tool.
+
+A2A verification uses Agent Card discovery. Modern MCP verification uses protocol revision `2026-07-28` with `server/discover` and read-only `tools/list`; a bounded legacy fallback is available for declared older MCP runtimes. Test results become explicitly provenance-labelled **Marketplace Observed** evidence and are persisted through migration `0009_marketplace_test_lab.sql`.
+
+New endpoint:
+
+```text
+POST /v1/services/:serviceId/tests
+```
+
+`GET /v1/services/:serviceId/tests` returns the latest coverage. Test coverage feeds back into readiness, including a distinct runtime-reachability gate. A PASS means Spotriq observed the bounded protocol/category contract; it does **not** prove profitability, fund safety, strategy performance or permission authority. Registry-derived services therefore remain activation-blocked while their `PermissionProfile` is undeclared.
+
+The Explore UI exposes **Run Test Lab** for eligible live A2A/MCP candidates and refreshes the readiness card after a run.
+
 ## Next milestone
 
-Implement the **Marketplace Test Lab + Service Readiness Verification**. It should safely verify declared A2A/MCP runtime endpoints and service contract behaviour, create Marketplace Observed evidence, and move readiness gates from UNKNOWN to explicit PASS/FAIL without uncontrolled fund movement. After that, Smart Money Check can deterministically map Findings to eligible AgentServices and rank compatible candidates.
+Build **deterministic Smart Money Finding → AgentService compatibility/ranking**. Map real findings to service candidates using explicit category/protocol/context compatibility plus readiness/evidence quality, while keeping non-ready services non-activatable. Then take the strongest category through the first complete end-to-end financial vertical and add explicit permission/authority integration before real BSC Testnet activation.
 
 
 ## v0.9.2 registry visibility
