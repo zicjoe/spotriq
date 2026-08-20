@@ -166,6 +166,20 @@ export const EVIDENCE_METHODS = {
     description: "Normalizes ERC-8004 agent discovery and external feedback indexed by 8004scan. Indexed metadata remains External evidence and operator claims remain claims.",
     inputMetrics: ["8004scan.agent", "8004scan.feedback"],
   },
+  AGENT_SERVICE_NORMALIZATION: {
+    methodId: "marketplace.agent-service-normalization",
+    version: "1.0.0",
+    name: "Agent service normalization",
+    description: "Deterministically converts ERC-8004 identity self-description and service endpoints into Spotriq listing/service candidates while preserving operator-claimed provenance.",
+    inputMetrics: ["erc8004.identity", "agent.category_hint", "agent.registration_services", "agent.supported_protocols"],
+  },
+  SERVICE_READINESS: {
+    methodId: "marketplace.service-readiness",
+    version: "1.0.0",
+    name: "Marketplace service readiness",
+    description: "Evaluates deterministic readiness gates for identity verification, BSC network, active metadata, machine-callable endpoint presence, declared authority requirements, and marketplace test coverage. It never infers financial performance.",
+    inputMetrics: ["service.identity_state", "service.network", "service.active", "service.runtime_endpoint", "service.permission_profile", "service.test_coverage"],
+  },
 } satisfies Record<string, EvidenceMethodDefinition>;
 
 const DEFAULT_FRESHNESS_POLICY: FreshnessPolicy = {
@@ -193,6 +207,8 @@ const FRESHNESS_POLICIES: Record<string, FreshnessPolicy> = {
   "agent.external_feedback_count": { metric: "agent.external_feedback_count", targetAgeSeconds: 1800, warnAgeSeconds: 3600, hardExpirySeconds: 21600 },
   "agent.owner": { metric: "agent.owner", targetAgeSeconds: 3600, warnAgeSeconds: 21600, hardExpirySeconds: 86400 },
   "agent.uri": { metric: "agent.uri", targetAgeSeconds: 3600, warnAgeSeconds: 21600, hardExpirySeconds: 86400 },
+  "service.normalization": { metric: "service.normalization", targetAgeSeconds: 900, warnAgeSeconds: 3600, hardExpirySeconds: 21600 },
+  "service.readiness": { metric: "service.readiness", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
 };
 
 export function listDataSources(): DataSourceDefinition[] {

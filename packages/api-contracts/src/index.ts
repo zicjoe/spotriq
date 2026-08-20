@@ -52,6 +52,9 @@ export interface CapabilityResponse {
   agentRegistryEnabled: boolean;
   externalAgentDiscoveryEnabled: boolean;
   canonicalAgentIdentityVerificationEnabled: boolean;
+  marketplaceServiceNormalizationEnabled: boolean;
+  marketplaceReadinessEngineEnabled: boolean;
+  marketplaceActivationEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -177,3 +180,32 @@ export interface AgentFeedbackResponse {
   page: import("@spotriq/domain").ExternalAgentFeedbackPage;
 }
 
+
+
+export interface MarketplaceSupplyStatusResponse {
+  status: import("@spotriq/domain").MarketplaceSupplyStatus;
+}
+
+export interface MarketplaceListingResponse {
+  page: import("@spotriq/domain").MarketplaceListingPage;
+}
+
+export interface MarketplaceServicesResponse {
+  page: import("@spotriq/domain").MarketplaceSupplyPage;
+}
+
+export interface MarketplaceServiceDetailResponse {
+  record: import("@spotriq/domain").MarketplaceServiceRecord;
+}
+
+export interface MarketplaceServiceReadinessResponse {
+  readiness: import("@spotriq/domain").ReadinessSnapshot;
+}
+
+export interface MarketplaceServiceEvidenceResponse {
+  evidence: import("@spotriq/domain").EvidenceEnvelope[];
+}
+
+export interface MarketplaceServiceTestsResponse {
+  tests: import("@spotriq/domain").MarketplaceServiceTestCoverage;
+}

@@ -41,6 +41,11 @@ const required = [
   "packages/db/migrations/0007_agent_registry_discovery.sql",
   "apps/api/src/routes/agents.ts",
   "apps/web/src/repositories/agentRegistryRepository.ts",
+  "packages/marketplace-supply/package.json",
+  "packages/marketplace-supply/src/index.ts",
+  "packages/db/migrations/0008_marketplace_service_readiness.sql",
+  "apps/api/src/routes/marketplace.ts",
+  "apps/web/src/repositories/marketplaceSupplyRepository.ts",
   ".env.example",
   ".gitignore",
 ];
@@ -146,7 +151,7 @@ for (const route of ["/v1/registry/status", "/v1/agents", "/v1/agents/search", "
   if (!agentRoutes.includes(route)) throw new Error(`Missing agent discovery route ${route}.`);
 }
 const agentRegistryUi = await readFile(path.join(root, "apps/web/src/repositories/agentRegistryRepository.ts"), "utf8");
-if (!agentRegistryUi.includes("ApiAgentRegistryRepository") || !appUi.includes("Live ERC-8004 registry discoveries") || !appUi.includes("Not activatable in Spotriq yet")) {
+if (!agentRegistryUi.includes("ApiAgentRegistryRepository") || !appUi.includes("Live ERC-8004 registry discoveries") || !appUi.includes("activation blocked")) {
   throw new Error("Explore must preserve a distinct live ERC-8004 discovery surface without presenting discovered identities as activatable services.");
 }
 if (!appUi.includes('category === "all"\n    ? registryAgents') || !appUi.includes("with recognized financial metadata hints")) {
@@ -156,4 +161,24 @@ if (!evidence.includes("ERC8004_IDENTITY") || !evidence.includes("SCAN8004_DISCO
   throw new Error("Evidence Engine must include ERC-8004 canonical identity and 8004scan indexed discovery methods.");
 }
 
-console.log("Spotriq foundation + four-category financial data + ERC-8004/8004scan discovery verification passed.");
+const marketplaceSupply = await readFile(path.join(root, "packages/marketplace-supply/src/index.ts"), "utf8");
+for (const marker of ["createMarketplaceSupply", "normalizeMarketplaceListing", "normalizeMarketplaceService", "MARKETPLACE_SERVICE_NORMALIZATION_METHOD", "MARKETPLACE_SERVICE_READINESS_METHOD", "activationEligible: false", "MARKETPLACE_TESTS"]) {
+  if (!marketplaceSupply.includes(marker)) throw new Error(`Marketplace supply engine is missing ${marker}.`);
+}
+const marketplaceRoutes = await readFile(path.join(root, "apps/api/src/routes/marketplace.ts"), "utf8");
+for (const route of ["/v1/marketplace/status", "/v1/listings", "/v1/services", "/v1/services/:serviceId", "/v1/services/:serviceId/readiness", "/v1/services/:serviceId/evidence", "/v1/services/:serviceId/tests"]) {
+  if (!marketplaceRoutes.includes(route)) throw new Error(`Missing marketplace supply route ${route}.`);
+}
+const marketplaceUiRepo = await readFile(path.join(root, "apps/web/src/repositories/marketplaceSupplyRepository.ts"), "utf8");
+if (!marketplaceUiRepo.includes("ApiMarketplaceSupplyRepository") || !appUi.includes("Normalized financial service candidates") || !appUi.includes("Activation blocked")) {
+  throw new Error("Explore must render normalized live service candidates separately from sample services and keep activation gated.");
+}
+if (!evidence.includes("AGENT_SERVICE_NORMALIZATION") || !evidence.includes("SERVICE_READINESS")) {
+  throw new Error("Evidence Engine must include service normalization and readiness methodologies.");
+}
+const migration0008 = await readFile(path.join(root, "packages/db/migrations/0008_marketplace_service_readiness.sql"), "utf8");
+for (const table of ["service_offers", "permission_profiles", "service_readiness_snapshots", "agent_capability_claims"]) {
+  if (!migration0008.includes(table)) throw new Error(`Marketplace supply migration is missing ${table}.`);
+}
+
+console.log("Spotriq foundation + four-category financial data + ERC-8004 discovery + marketplace service/readiness verification passed.");

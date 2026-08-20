@@ -10,7 +10,7 @@ export type AgentProfileTab = "overview" | "strategy" | "performance" | "evidenc
 export type CheckoutStep = "job" | "authority" | "limits" | "cost" | "risk" | "review" | "success";
 export type ServiceCategory = "rebalancing" | "grid" | "yield" | "health";
 export type ReadinessState = "READY" | "LIMITED" | "DEGRADED" | "OFFLINE" | "TESTNET_ONLY" | "SUSPENDED";
-export type PermissionIntensity = "read-only" | "low" | "medium" | "high";
+export type PermissionIntensity = "read-only" | "low" | "medium" | "high" | "unknown";
 export type FindingState = "needs-attention" | "opportunity" | "healthy" | "informational" | "could-not-assess";
 export type FindingSeverity = "info" | "opportunity" | "attention" | "urgent";
 export type ActivationState = "ACTIVE" | "PAUSED" | "FAILED" | "PENDING" | "TERMINATED" | "ACTION_REQUIRED";
@@ -97,9 +97,14 @@ export interface AgentService {
     testsPassed: number;
     readinessScore?: string;
   };
-  categoryMetrics: RebalancingMetrics | GridMetrics | YieldMetrics | HealthMetrics;
+  categoryMetrics?: RebalancingMetrics | GridMetrics | YieldMetrics | HealthMetrics;
   operator: string;
   erc8004Verified: boolean;
+  origin?: "REFERENCE" | "ERC8004";
+  listingId?: string;
+  marketplaceActivationEligible?: boolean;
+  runtimeEndpoints?: ServiceRuntimeEndpoint[];
+  readinessSnapshotId?: string;
 }
 
 export interface PricingModel {
@@ -116,7 +121,50 @@ export interface PermissionProfile {
   serviceId: string;
   protocols: string[];
   assets: string[];
-  executionMode: "READ_ONLY" | "RECOMMEND" | "AUTOMATIC_WITH_LIMITS";
+  executionMode: "UNDECLARED" | "READ_ONLY" | "RECOMMEND" | "AUTOMATIC_WITH_LIMITS";
+  declarationState?: "UNDECLARED" | "DECLARED";
+  intensity?: PermissionIntensity;
+  provenance?: EvidenceProvenance;
+}
+
+export type ReadinessCheckState = "PASS" | "WARN" | "FAIL" | "UNKNOWN";
+
+export interface ServiceRuntimeEndpoint {
+  name: string;
+  endpoint: string;
+  version?: string;
+  interactionKind: "A2A" | "MCP" | "WEB" | "OTHER";
+  machineCallable: boolean;
+  provenance: "operator-claimed";
+}
+
+export interface AgentCapabilityClaim {
+  capabilityClaimId: string;
+  serviceId: string;
+  category: ServiceCategory;
+  claim: string;
+  confidence: "high" | "medium" | "low";
+  provenance: "operator-claimed";
+  basis: string[];
+  note: string;
+}
+
+export interface ServiceOffer {
+  offerId: string;
+  serviceId: string;
+  state: "UNDECLARED" | "AVAILABLE" | "UNAVAILABLE";
+  pricing?: PricingModel;
+  source: "operator-claimed" | "marketplace-observed";
+  note: string;
+}
+
+export interface ReadinessCheck {
+  code: string;
+  label: string;
+  state: ReadinessCheckState;
+  requiredForActivation: boolean;
+  detail: string;
+  evidenceIds?: string[];
 }
 
 export interface ReadinessSnapshot {
@@ -125,6 +173,10 @@ export interface ReadinessSnapshot {
   state: ReadinessState;
   checkedAt: string;
   reasons: string[];
+  checks?: ReadinessCheck[];
+  activationEligible?: boolean;
+  limitations?: string[];
+  methodVersion?: string;
 }
 
 export interface EvidenceRecord {
@@ -915,6 +967,78 @@ export interface DiscoveredAgent {
   evidence: EvidenceEnvelope[];
   listingState: "DISCOVERED";
   marketplaceServiceState: "NOT_CREATED";
+  limitations: string[];
+}
+
+export interface MarketplaceListingRecord {
+  identity: DiscoveredAgent;
+  listing: AgentListing;
+  serviceCount: number;
+  normalizedAt: string;
+  limitations: string[];
+}
+
+export interface MarketplaceServiceRecord {
+  identity: DiscoveredAgent;
+  listing: AgentListing;
+  service: AgentService;
+  permissionProfile: PermissionProfile;
+  offer: ServiceOffer;
+  readiness: ReadinessSnapshot;
+  capabilityClaims: AgentCapabilityClaim[];
+  evidence: EvidenceEnvelope[];
+  normalizedAt: string;
+  limitations: string[];
+}
+
+export interface MarketplaceSupplyPage {
+  services: MarketplaceServiceRecord[];
+  chainId: AgentRegistryChainId;
+  page: number;
+  limit: number;
+  total?: number;
+  source: "8004scan" | "cache";
+  fetchedAt: string;
+  normalizationMethodVersion: string;
+  limitations: string[];
+}
+
+export interface MarketplaceListingPage {
+  listings: MarketplaceListingRecord[];
+  chainId: AgentRegistryChainId;
+  page: number;
+  limit: number;
+  total?: number;
+  source: "8004scan" | "cache";
+  fetchedAt: string;
+  limitations: string[];
+}
+
+export interface MarketplaceServiceTestCoverage {
+  serviceId: string;
+  coverage: "NOT_RUN";
+  tests: [];
+  note: string;
+}
+
+export interface MarketplaceSupplyStatus {
+  engine: "Spotriq Marketplace Supply";
+  normalizationMethodVersion: string;
+  readinessMethodVersion: string;
+  activationGate: "ENFORCED";
+  referenceServicesRemainSample: true;
+  checkedAt: string;
+  capabilities: {
+    erc8004IdentityInput: true;
+    listingNormalization: true;
+    serviceNormalization: true;
+    runtimeEndpointNormalization: true;
+    permissionProfileNormalization: true;
+    offerNormalization: true;
+    deterministicReadiness: true;
+    marketplaceTesting: false;
+    activation: false;
+  };
   limitations: string[];
 }
 

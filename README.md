@@ -116,7 +116,7 @@ Current live check coverage now has real data foundations across all four requir
 
 ## Live ERC-8004 / 8004scan agent discovery
 
-Spotriq now separates **agent identity discovery** from **marketplace service activation**. 8004scan is used as an external indexed discovery source, while a selected identity can be rechecked directly against the configured ERC-8004 Identity Registry. A discovered identity is **not** automatically a Spotriq financial service and is not activatable until a later service/readiness layer qualifies it.
+Spotriq now separates **agent identity discovery** from **marketplace service activation**. 8004scan is used as an external indexed discovery source, while a selected identity can be rechecked directly against the configured ERC-8004 Identity Registry. A discovered identity is **not** automatically a Spotriq financial service. v0.10.0 now normalizes supported-category identities into separate listing/service candidates with explicit Offer, PermissionProfile and deterministic ReadinessSnapshot resources; every registry-derived candidate remains non-activatable until required readiness gates pass.
 
 ```text
 http://localhost:3001/v1/registry/status
@@ -202,8 +202,13 @@ pnpm dev:worker
 
 ## Next milestone
 
-Implement the **Agent Service + Marketplace Listing/Readiness Engine**. That layer will turn selected/claimed identities into normalized financial services only after category, protocol, asset/pair, pricing, permission profile, runtime endpoint, and readiness requirements are known. After that, Smart Money Check agent compatibility and deterministic matching can become real rather than sample data.
+Implement the **Marketplace Test Lab + Service Readiness Verification**. It should safely verify declared A2A/MCP runtime endpoints and service contract behaviour, create Marketplace Observed evidence, and move readiness gates from UNKNOWN to explicit PASS/FAIL without uncontrolled fund movement. After that, Smart Money Check can deterministically map Findings to eligible AgentServices and rank compatible candidates.
 
 
 ## v0.9.2 registry visibility
 Explore now renders all live ERC-8004 identities in the All view. Recognized financial-category hints are displayed and used only for explicit category filtering; they no longer hide valid registry identities from the general live-discovery surface.
+
+
+## v0.10.0 marketplace supply/readiness
+
+Spotriq now preserves the full supply sequence `AgentIdentity → AgentListing → AgentService → Offer/PermissionProfile → ReadinessSnapshot`. Supported-category ERC-8004 identities can appear as normalized service candidates in Explore, but capability remains operator-claimed until Marketplace Test Lab evidence exists. Pricing and authority remain undeclared unless explicitly supplied, canonical mismatches suspend candidates, testnet candidates remain testnet-only, and all registry-derived candidates have activation blocked in this release.

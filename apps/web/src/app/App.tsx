@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -30,6 +30,7 @@ import {
 } from "../repositories/smartMoneyRepository";
 import { subscribeToSmartMoneyCheck } from "../services/smartMoneyRealtime";
 import { agentRegistryRepository } from "../repositories/agentRegistryRepository";
+import { marketplaceSupplyRepository } from "../repositories/marketplaceSupplyRepository";
 
 const {
   services: SERVICES,
@@ -73,6 +74,7 @@ const PERMISSION_CONFIG: Record<PermissionIntensity, { label: string; color: str
   low: { label: "Low authority", color: "text-[#4ade80]", bars: 1 },
   medium: { label: "Medium authority", color: "text-[#f59e0b]", bars: 2 },
   high: { label: "High authority", color: "text-[#f87171]", bars: 3 },
+  unknown: { label: "Authority undeclared", color: "text-[#6b7d99]", bars: 0 },
 };
 
 const FINDING_CONFIG: Record<FindingState, { label: string; color: string; bg: string; icon: typeof AlertTriangle }> = {
@@ -286,7 +288,7 @@ function AgentCard({ service, onView, onCompare, compareSelected, contextNote }:
 }) {
   const rd = READINESS_CONFIG[service.readiness];
   const pm = PERMISSION_CONFIG[service.permissionIntensity];
-  const m = service.categoryMetrics;
+  const m = service.categoryMetrics!;
 
   return (
     <Card className="p-5 flex flex-col gap-4">
@@ -681,6 +683,81 @@ function HomePage({ navigate, hasActivations }: { navigate: (r: Route, p?: Parti
 
 
 
+
+function LiveServiceCandidateCard({ record, onInspect, inspecting }: { record: MarketplaceServiceRecord; onInspect: () => void; inspecting: boolean }) {
+  const service = record.service;
+  const failedOrUnknown = (record.readiness.checks ?? []).filter((check) => check.state !== "PASS");
+  const machineEndpoints = (service.runtimeEndpoints ?? []).filter((endpoint) => endpoint.machineCallable);
+  return (
+    <Card className="p-4 space-y-3 border-[#2dd4bf]/15 bg-[#2dd4bf]/[0.025]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium text-[#dde3ef] truncate">{service.name}</span>
+            <CategoryPill category={service.category} />
+            <Badge variant="teal">Normalized service</Badge>
+          </div>
+          <div className="text-[11px] text-[#6b7d99] font-mono mt-1">ERC-8004 #{record.identity.identity.agentId} · {record.listing.status}</div>
+        </div>
+        <ReadinessPill state={service.readiness} />
+      </div>
+
+      <p className="text-xs text-[#6b7d99] line-clamp-2">{service.description}</p>
+
+      <div className="grid grid-cols-2 gap-3 text-xs pt-2 border-t border-white/6">
+        <div>
+          <div className="text-[#6b7d99] mb-0.5">Runtime</div>
+          <div className={machineEndpoints.length ? "text-[#dde3ef]" : "text-[#f59e0b]"}>{machineEndpoints.length ? `${machineEndpoints.length} machine endpoint${machineEndpoints.length > 1 ? "s" : ""}` : "No A2A/MCP endpoint"}</div>
+          <div className="text-[10px] text-[#6b7d99]">Operator-supplied registration metadata</div>
+        </div>
+        <div>
+          <div className="text-[#6b7d99] mb-0.5">Authority</div>
+          <div className="text-[#f59e0b]">Undeclared</div>
+          <div className="text-[10px] text-[#6b7d99]">Permission profile required</div>
+        </div>
+        <div>
+          <div className="text-[#6b7d99] mb-0.5">Commercial terms</div>
+          <div className="text-[#9aacc4]">{record.offer.state === "AVAILABLE" ? "Offer available" : "Not declared"}</div>
+          <div className="text-[10px] text-[#6b7d99]">No inferred pricing</div>
+        </div>
+        <div>
+          <div className="text-[#6b7d99] mb-0.5">Marketplace tests</div>
+          <div className="text-[#f59e0b]">Not run</div>
+          <div className="text-[10px] text-[#6b7d99]">0 tests passed</div>
+        </div>
+      </div>
+
+      {service.supportedProtocols.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {service.supportedProtocols.map((protocol) => <Badge key={protocol} variant="muted">{protocol} · claimed</Badge>)}
+        </div>
+      )}
+
+      <div className="rounded-md border border-white/6 bg-white/[0.02] px-3 py-2">
+        <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-1">Activation gates</div>
+        <div className="space-y-1">
+          {failedOrUnknown.slice(0, 3).map((check) => (
+            <div key={check.code} className="flex items-start gap-2 text-[11px] text-[#8090a8]">
+              <span className={cn("mt-1 w-1.5 h-1.5 rounded-full shrink-0", check.state === "FAIL" ? "bg-[#f87171]" : "bg-[#f59e0b]")} />
+              <span>{check.label}: {check.detail}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between pt-1 gap-3">
+        <div className="text-[11px] text-[#6b7d99]">Identity ≠ service readiness · deterministic gates</div>
+        <div className="flex items-center gap-2">
+          <Btn variant="ghost" size="sm" onClick={onInspect} disabled={inspecting} className="text-[#2dd4bf]">
+            {inspecting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Checking</> : <><ShieldCheck className="w-3.5 h-3.5" /> Check readiness</>}
+          </Btn>
+          <Badge variant="muted">Activation blocked</Badge>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function DiscoveredAgentCard({ agent, onVerify, verifying }: { agent: DiscoveredAgent; onVerify: () => void; verifying: boolean }) {
   const verification = agent.canonicalVerification;
   const verified = verification?.state === "VERIFIED";
@@ -730,8 +807,8 @@ function DiscoveredAgentCard({ agent, onVerify, verifying }: { agent: Discovered
         </div>
         <div>
           <div className="text-[#6b7d99] mb-0.5">Marketplace service</div>
-          <div className="text-[#9aacc4]">Not created yet</div>
-          <div className="text-[10px] text-[#6b7d99]">Not activatable in Spotriq yet</div>
+          <div className="text-[#9aacc4]">{agent.categoryHints.length > 0 ? "Candidate normalizable" : "No candidate category"}</div>
+          <div className="text-[10px] text-[#6b7d99]">{agent.categoryHints.length > 0 ? "Readiness-gated · activation blocked" : "Identity remains discovery-only"}</div>
         </div>
       </div>
 
@@ -765,6 +842,10 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
   const [registryError, setRegistryError] = useState<string>();
   const [registrySource, setRegistrySource] = useState<"8004scan" | "cache">("8004scan");
   const [verifyingDiscoveryId, setVerifyingDiscoveryId] = useState<string>();
+  const [serviceCandidates, setServiceCandidates] = useState<MarketplaceServiceRecord[]>([]);
+  const [supplyLoading, setSupplyLoading] = useState(true);
+  const [supplyError, setSupplyError] = useState<string>();
+  const [inspectingServiceId, setInspectingServiceId] = useState<string>();
   const registryChainId: AgentRegistryChainId = 56;
 
   const normalizedSearch = searchText.trim().toLowerCase();
@@ -779,6 +860,10 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
   const visibleRegistryAgents = category === "all"
     ? registryAgents
     : registryAgents.filter((agent) => agent.categoryHints.some((hint) => hint.category === category));
+
+  const visibleServiceCandidates = category === "all"
+    ? serviceCandidates
+    : serviceCandidates.filter((record) => record.service.category === category);
 
   const loadRegistry = useCallback(async (semanticQuery?: string) => {
     setRegistryLoading(true);
@@ -797,7 +882,41 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
     }
   }, []);
 
-  useEffect(() => { void loadRegistry(); }, [loadRegistry]);
+  const loadSupply = useCallback(async (searchQuery?: string) => {
+    setSupplyLoading(true);
+    setSupplyError(undefined);
+    try {
+      const page = await marketplaceSupplyRepository.listServices({
+        chainId: registryChainId,
+        limit: 8,
+        search: searchQuery?.trim() || undefined,
+      });
+      setServiceCandidates(page.services);
+    } catch (cause) {
+      setSupplyError(cause instanceof Error ? cause.message : "Spotriq could not normalize live marketplace service candidates.");
+    } finally {
+      setSupplyLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadRegistry();
+    void loadSupply();
+  }, [loadRegistry, loadSupply]);
+
+  const inspectServiceCandidate = async (serviceId: string) => {
+    setInspectingServiceId(serviceId);
+    setSupplyError(undefined);
+    try {
+      const detail = await marketplaceSupplyRepository.getService(serviceId);
+      setServiceCandidates((current) => current.map((record) => record.service.serviceId === serviceId ? detail : record));
+      setRegistryAgents((current) => current.map((agent) => agent.discoveryId === detail.identity.discoveryId ? detail.identity : agent));
+    } catch (cause) {
+      setSupplyError(cause instanceof Error ? cause.message : "Spotriq could not complete marketplace readiness inspection.");
+    } finally {
+      setInspectingServiceId(undefined);
+    }
+  };
 
   const verifyDiscoveredAgent = async (agent: DiscoveredAgent) => {
     setVerifyingDiscoveryId(agent.discoveryId);
@@ -829,15 +948,15 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
       </div>
 
       {/* Search bar: local reference-service filtering + live 8004scan semantic discovery on submit; initial load uses standard registry listing */}
-      <form className="relative mb-6 flex gap-2" onSubmit={(event) => { event.preventDefault(); void loadRegistry(searchText); }}>
+      <form className="relative mb-6 flex gap-2" onSubmit={(event) => { event.preventDefault(); void loadRegistry(searchText); void loadSupply(searchText); }}>
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7d99]" />
           <input value={searchText} onChange={(event) => setSearchText(event.target.value)}
             className="w-full bg-[#1c2433] border border-white/8 rounded-lg pl-11 pr-4 py-3 text-sm text-[#dde3ef] placeholder:text-[#6b7d99] focus:outline-none focus:border-[#2dd4bf]/40 transition-colors"
             placeholder="e.g. USDT yield with low permissions and anytime liquidity" />
         </div>
-        <Btn type="submit" variant="teal-outline" disabled={registryLoading}>
-          {registryLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Search registry
+        <Btn type="submit" variant="teal-outline" disabled={registryLoading || supplyLoading}>
+          {registryLoading || supplyLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Search registry
         </Btn>
       </form>
 
@@ -937,6 +1056,60 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
             )}
           </div>
 
+
+          <section className="mt-10 pt-8 border-t border-white/8">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="text-lg font-semibold text-[#dde3ef]">Normalized financial service candidates</h2>
+                  <Badge variant="teal">Spotriq derived</Badge>
+                </div>
+                <p className="text-xs text-[#6b7d99] max-w-2xl">ERC-8004 identities with a recognized financial-category hint are normalized into distinct AgentListing and AgentService candidates. Readiness is deterministic and activation stays blocked until required authority declarations and marketplace tests exist.</p>
+              </div>
+              <button onClick={() => void loadSupply(searchText)} disabled={supplyLoading} className="text-xs text-[#2dd4bf] flex items-center gap-1.5 shrink-0 disabled:opacity-50">
+                <RefreshCw className={cn("w-3.5 h-3.5", supplyLoading && "animate-spin")} /> Refresh
+              </button>
+            </div>
+
+            {supplyError && (
+              <div className="mb-4 p-3 rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 text-xs text-[#d6a04a]">
+                Marketplace service normalization unavailable: {supplyError} Live registry identities below remain independently discoverable.
+              </div>
+            )}
+
+            {supplyLoading && serviceCandidates.length === 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {[0,1].map((item) => <div key={item} className="h-48 rounded-lg border border-white/6 bg-white/[0.02] animate-pulse" />)}
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 text-[11px] text-[#6b7d99] mb-3">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#2dd4bf]" />
+                  <span>{serviceCandidates.length} normalized service candidate{serviceCandidates.length === 1 ? "" : "s"}</span>
+                  <span>·</span><span>0 activation-eligible</span>
+                  <span>·</span><span>Marketplace tests not implemented yet</span>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {visibleServiceCandidates.map((record) => (
+                    <LiveServiceCandidateCard
+                      key={record.service.serviceId}
+                      record={record}
+                      onInspect={() => void inspectServiceCandidate(record.service.serviceId)}
+                      inspecting={inspectingServiceId === record.service.serviceId}
+                    />
+                  ))}
+                </div>
+                {visibleServiceCandidates.length === 0 && !supplyError && (
+                  <div className="p-5 rounded-lg border border-white/6 bg-card text-xs text-[#6b7d99]">
+                    {category === "all"
+                      ? "No supported financial service candidate could be normalized from the current live registry result set. Live identities remain visible below; incomplete self-description must not be mistaken for absence of agents."
+                      : `No normalized ${CATEGORY_LABELS[category]} service candidate is present in the current result set. This reflects registry metadata coverage, not a claim that no such agent exists.`}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+
           <section className="mt-10 pt-8 border-t border-white/8">
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
@@ -944,7 +1117,7 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
                   <h2 className="text-lg font-semibold text-[#dde3ef]">Live ERC-8004 registry discoveries</h2>
                   <Badge variant="purple">External</Badge>
                 </div>
-                <p className="text-xs text-[#6b7d99] max-w-2xl">Real BSC Mainnet identities discovered through 8004scan. Registry identity and external feedback are evidence, not proof of financial capability. These identities are not activatable Spotriq services until service normalization, readiness checks and marketplace tests are added.</p>
+                <p className="text-xs text-[#6b7d99] max-w-2xl">Real BSC Mainnet identities discovered through 8004scan. Registry identity and external feedback are evidence, not proof of financial capability. Identities with supported financial hints can now be normalized into readiness-gated service candidates above; identities without those hints remain discovery-only. No registry-derived service is activatable until required gates pass.</p>
               </div>
               <button onClick={() => void loadRegistry(searchText)} disabled={registryLoading} className="text-xs text-[#a78bfa] flex items-center gap-1.5 shrink-0 disabled:opacity-50">
                 <RefreshCw className={cn("w-3.5 h-3.5", registryLoading && "animate-spin")} /> Refresh
@@ -1384,7 +1557,7 @@ function AgentProfilePage({ serviceId, navigate, initialTab }: {
 }) {
   const [tab, setTab] = useState<AgentProfileTab>(initialTab || "overview");
   const service = SERVICES.find(s => s.serviceId === serviceId) || SERVICES[0];
-  const m = service.categoryMetrics;
+  const m = service.categoryMetrics!;
 
   const tabs: { key: AgentProfileTab; label: string }[] = [
     { key: "overview", label: "Overview" }, { key: "strategy", label: "Strategy" },
@@ -1577,10 +1750,10 @@ function AgentProfilePage({ serviceId, navigate, initialTab }: {
                     {[
                       `Use: ${service.supportedAssets?.join(", ") || service.supportedPairs?.join(", ") || "configured assets"}`,
                       `Interact with: ${service.supportedProtocols.join(", ")}`,
-                      service.categoryMetrics.type === "rebalancing" ? "Manage LP position (add/remove liquidity, swap)" : "",
-                      service.categoryMetrics.type === "grid" ? "Place and cancel orders on supported pairs" : "",
-                      service.categoryMetrics.type === "yield" ? "Deposit and withdraw from supported yield protocols" : "",
-                      service.categoryMetrics.type === "health" ? "Read position state from Venus Protocol" : "",
+                      service.categoryMetrics?.type === "rebalancing" ? "Manage LP position (add/remove liquidity, swap)" : "",
+                      service.categoryMetrics?.type === "grid" ? "Place and cancel orders on supported pairs" : "",
+                      service.categoryMetrics?.type === "yield" ? "Deposit and withdraw from supported yield protocols" : "",
+                      service.categoryMetrics?.type === "health" ? "Read position state from Venus Protocol" : "",
                     ].filter(Boolean).map(item => (
                       <div key={item} className="flex items-center gap-2 text-sm text-[#9aacc4]">
                         <Check className="w-3.5 h-3.5 text-[#4ade80]" /> {item}

@@ -6,23 +6,38 @@ import type {
   PermissionGrant,
   SmartMoneyPlanTemplate,
 } from "../domain/types";
+import type {
+  ApiEnvelope,
+  MarketplaceServiceDetailResponse,
+  MarketplaceServicesResponse,
+} from "@spotriq/api-contracts";
 import { apiRequest } from "../api/client";
 import type { MarketplaceRepository } from "./marketplaceRepository";
 
+function unwrap<T>(value: ApiEnvelope<T>): T { return value.data; }
+
 /**
- * Real API implementation. It is deliberately present before the backend is
- * connected so the Figma UI and mock repository share the same seam.
+ * Real API implementation for the original Figma marketplace seam.
+ *
+ * The live `/v1/services` API now returns marketplace service records so that
+ * identity, listing, service, offer, permission and readiness remain distinct.
+ * This compatibility repository intentionally projects only `record.service`
+ * for legacy UI consumers that still expect AgentService objects.
  */
 export class ApiMarketplaceRepository implements MarketplaceRepository {
-  listServices() {
-    return apiRequest<AgentService[]>("/v1/services");
+  async listServices() {
+    const response = unwrap(await apiRequest<ApiEnvelope<MarketplaceServicesResponse>>("/v1/services"));
+    return response.page.services.map((record) => record.service);
   }
 
-  getService(serviceId: string) {
-    return apiRequest<AgentService>(`/v1/services/${serviceId}`).catch((error: unknown) => {
+  async getService(serviceId: string) {
+    try {
+      const response = unwrap(await apiRequest<ApiEnvelope<MarketplaceServiceDetailResponse>>(`/v1/services/${encodeURIComponent(serviceId)}`));
+      return response.record.service;
+    } catch (error: unknown) {
       if (error instanceof Error && "status" in error && (error as { status?: number }).status === 404) return undefined;
       throw error;
-    });
+    }
   }
 
   listFindings() {

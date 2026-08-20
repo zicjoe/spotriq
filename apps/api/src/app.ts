@@ -18,6 +18,7 @@ import {
 } from "@spotriq/protocol-pancakeswap";
 import { createGridMarketContextEngine, GridMarketContextError, type GridMarketContextReader } from "@spotriq/market-context";
 import { createSmartMoneyEngine, MemorySmartMoneyStore, PostgresSmartMoneyStore, type SmartMoneyEngine } from "@spotriq/smart-money";
+import { createMarketplaceSupply, MemoryMarketplaceSupplyStore, MarketplaceSupplyError, PostgresMarketplaceSupplyStore, type MarketplaceSupplyReader } from "@spotriq/marketplace-supply";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
@@ -27,6 +28,7 @@ import { registerVenusRoutes } from "./routes/venus.js";
 import { registerCheckRoutes } from "./routes/checks.js";
 import { registerMarketContextRoutes } from "./routes/market-context.js";
 import { registerAgentRoutes } from "./routes/agents.js";
+import { registerMarketplaceRoutes } from "./routes/marketplace.js";
 
 export interface BuildServerOptions {
   config?: ServerConfig;
@@ -37,6 +39,7 @@ export interface BuildServerOptions {
   marketContext?: GridMarketContextReader;
   smartMoney?: SmartMoneyEngine;
   agentRegistry?: AgentRegistryReader;
+  marketplaceSupply?: MarketplaceSupplyReader;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -68,6 +71,14 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     chainReaders: { 56: registryMainnetChain, 97: registryTestnetChain },
     store: agentRegistryStore,
   });
+  const marketplaceSupplyStore = database
+    ? new PostgresMarketplaceSupplyStore({ query: (text, values) => database.query(text, values) })
+    : new MemoryMarketplaceSupplyStore();
+  const marketplaceSupply = options.marketplaceSupply ?? createMarketplaceSupply({
+    registry: agentRegistry,
+    defaultChainId: config.agentDiscoveryChainId,
+    store: marketplaceSupplyStore,
+  });
   const smartMoneyStore = database
     ? new PostgresSmartMoneyStore({ query: (text, values) => database.query(text, values) })
     : new MemorySmartMoneyStore();
@@ -92,7 +103,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.9.2",
+      version: "0.10.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -130,6 +141,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       agentRegistryEnabled: true,
       externalAgentDiscoveryEnabled: true,
       canonicalAgentIdentityVerificationEnabled: true,
+      marketplaceServiceNormalizationEnabled: true,
+      marketplaceReadinessEngineEnabled: true,
+      marketplaceActivationEnabled: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
@@ -142,8 +156,10 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "Yield current rates are base Venus supply APY derived from onchain supplyRatePerBlock; incentives, estimated net yield, and realised performance remain separate and are not fabricated.",
         "Venus protocol shortfall is canonical for current liquidation eligibility; Spotriq health factor is a derived explanation and incomplete inputs never become Healthy.",
         "Grid market context now uses supported PancakeSwap V3 onchain 1h/6h/24h oracle averages. TWAP dispersion is not realised volatility and the regime is not a profit forecast.",
-        "ERC-8004 identities can now be discovered through 8004scan and individual identities are canonically verified onchain. Registry discovery does not yet equal an activatable Spotriq AgentService.",
-        "Agent matching remains explicitly unsupported until discovered identities are normalized into marketplace services with capability/readiness checks.",
+        "ERC-8004 identities can be discovered through 8004scan and individual identities can be canonically verified onchain. Identity remains distinct from listing and service.",
+        "Financial-category identity hints are now normalized into Spotriq AgentListing and AgentService candidates with explicit Offer, PermissionProfile, runtime-endpoint, and deterministic Readiness resources.",
+        "Registry-derived services remain non-activatable until canonical identity, machine endpoint, explicit authority requirements, and marketplace tests satisfy the activation gates.",
+        "Agent matching remains explicitly unsupported until the recommendation engine can apply hard compatibility constraints against these normalized services.",
       ],
     };
     const body: ApiEnvelope<CapabilityResponse> = { data, meta: { generatedAt: new Date().toISOString() } };
@@ -157,6 +173,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerMarketContextRoutes(app, marketContext);
   await registerCheckRoutes(app, smartMoney);
   await registerAgentRoutes(app, agentRegistry, config.agentDiscoveryChainId);
+  await registerMarketplaceRoutes(app, marketplaceSupply, config.agentDiscoveryChainId);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {
@@ -192,6 +209,12 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         : error.code === "AGENT_NOT_FOUND"
           ? 404
           : 502;
+      const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
+      return reply.code(statusCode).send(body);
+    }
+
+    if (error instanceof MarketplaceSupplyError) {
+      const statusCode = error.code === "INVALID_INPUT" ? 400 : error.code === "SERVICE_NOT_FOUND" ? 404 : 422;
       const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
       return reply.code(statusCode).send(body);
     }
