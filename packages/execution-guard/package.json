@@ -1,14 +1,12 @@
 {
-  "name": "@spotriq/authority",
+  "name": "@spotriq/execution-guard",
   "private": true,
   "version": "0.16.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./altana": "./src/altana.ts"
+    ".": "./src/index.ts"
   },
   "dependencies": {
-    "@spotriq/chain": "workspace:*",
     "@spotriq/domain": "workspace:*",
     "viem": "2.55.11"
   },

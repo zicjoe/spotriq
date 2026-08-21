@@ -66,6 +66,13 @@ const required = [
   "apps/web/src/repositories/authorityRepository.ts",
   "docs/BOUNDED_PERMISSION_AUTHORITY.md",
   "docs/IMPLEMENTATION_REPORT_BOUNDED_PERMISSION_AUTHORITY_v0.15.0.md",
+  "packages/marketplace-supply/src/authority-binding.ts",
+  "packages/execution-guard/package.json",
+  "packages/execution-guard/src/index.ts",
+  "packages/db/migrations/0010_trusted_agent_binding_and_altana_probe.sql",
+  "apps/web/src/services/altanaHandlers.ts",
+  "docs/TRUSTED_BINDING_AND_EXECUTION_GUARD.md",
+  "docs/IMPLEMENTATION_REPORT_TRUSTED_BINDING_EXECUTION_GUARD_v0.16.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -233,7 +240,7 @@ if (!jobIntentRoutes.includes("marketplaceSupply.matchFinding") || !jobIntentRou
 for (const marker of ["RebalancingJobIntent", "RebalancingJobConstraints", "JobIntentAuthorityRequirement", "jobIntentId?: string"]) {
   if (!domain.includes(marker)) throw new Error(`Job Intent domain model is missing ${marker}.`);
 }
-if (!appUi.includes("Prepare job") || !appUi.includes("Review the job before authority") || !appUi.includes("Confirm job intent") || !appUi.includes("Nothing is executed in v0.15")) {
+if (!appUi.includes("Prepare job") || !appUi.includes("Review the job before authority") || !appUi.includes("Confirm job intent") || !appUi.includes("Nothing is financially executed in v0.16")) {
   throw new Error("The live Rebalancing handoff UI must expose reviewable Job Intent preparation without pretending authority or execution exists.");
 }
 if (!appUi.includes("jobIntentRepository.prepare") || !appUi.includes("jobIntentId={nav.jobIntentId}")) {
@@ -274,4 +281,39 @@ if (!jobIntents.includes("linkPermissionRequest") || !jobIntents.includes("linkP
   throw new Error("Job Intent authority linkage must preserve the NO_EXECUTION boundary.");
 }
 
-console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + explicit bounded Altana authority verification passed.");
+
+const authorityBinding = await readFile(path.join(root, "packages/marketplace-supply/src/authority-binding.ts"), "utf8");
+for (const marker of ["AGENT_AUTHORITY_BINDING_METHOD", "urn:spotriq:authority-binding:v1", "EIP191_SECP256K1", "isPublicRuntimeAddress", "recoverMessageAddress"]) {
+  if (!authorityBinding.includes(marker)) throw new Error(`Trusted AgentService authority-binding verifier is missing ${marker}.`);
+}
+if (!marketplaceSupply.includes("verifyAuthorityBinding") || !marketplaceSupply.includes("getAuthorityBinding")) {
+  throw new Error("Marketplace Supply must persist and expose trusted AgentService authority-binding evidence.");
+}
+
+const executionGuard = await readFile(path.join(root, "packages/execution-guard/src/index.ts"), "utf8");
+for (const marker of ["REBALANCING_EXECUTION_GUARD_METHOD", "collect", "increaseLiquidity", "decreaseLiquidity", "mint", "TARGET_RANGE_REVIEW", "executionEligible: false"]) {
+  if (!executionGuard.includes(marker)) throw new Error(`Rebalancing calldata guard is missing ${marker}.`);
+}
+if (!authority.includes("NON_BYPASSABLE_FINANCIAL_EXECUTION_BOUNDARY") || !domain.includes("NON_BYPASSABLE_FINANCIAL_EXECUTION_BOUNDARY")) {
+  throw new Error("Authority must expose the non-bypassable financial execution boundary as a structured blocking prerequisite.");
+}
+for (const route of ["/v1/permissions/:permissionRequestId/trusted-agent-binding", "/v1/permissions/:permissionRequestId/execution-guard", "/v1/job-intents/:jobIntentId/altana-testnet-probes", "/v1/job-intents/:jobIntentId/altana-testnet-probe", "/v1/altana-testnet-probes/:probeId", "/v1/altana-testnet-probes/:probeId/reverify"]) {
+  if (!authorityRoutes.includes(route)) throw new Error(`Missing v0.16 trusted-binding/execution-guard/Altana-probe route ${route}.`);
+}
+const migration0010 = await readFile(path.join(root, "packages/db/migrations/0010_trusted_agent_binding_and_altana_probe.sql"), "utf8");
+for (const table of ["agent_authority_bindings", "altana_testnet_probe_grants"]) {
+  if (!migration0010.includes(table)) throw new Error(`v0.16 migration is missing ${table}.`);
+}
+const altanaHandlers = await readFile(path.join(root, "apps/web/src/services/altanaHandlers.ts"), "utf8");
+for (const marker of ["grantReadOnlyProbe", "revokeReadOnlyProbe", "positions(uint256)", "chainId: 97"]) {
+  if (!altanaHandlers.includes(marker)) throw new Error(`Altana BSC Testnet probe handler is missing ${marker}.`);
+}
+for (const marker of ["Verify service-owned key", "Run calldata guard", "Grant read-only testnet probe", "non-bypassable"]) {
+  if (!appUi.includes(marker)) throw new Error(`v0.16 Job Intent authority UI is missing ${marker}.`);
+}
+if (!apiApp.includes("trustedAgentSessionKeyBindingEnabled: true") || !apiApp.includes("argumentLevelExecutionGuardEnabled: true") || !apiApp.includes("altanaTestnetProbeGrantEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
+  throw new Error("API capabilities must expose v0.16 binding/guard/testnet probe support while keeping marketplace activation disabled.");
+}
+
+console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + bounded Altana authority + trusted service-key binding + calldata guard + Altana BSC Testnet probe verification passed.");
+

@@ -1,14 +1,18 @@
 import type {
+  AgentAuthorityBinding,
   AltanaGrantProof,
+  AltanaTestnetProbeObservation,
+  AltanaTestnetProbeProof,
   AuthoritySafetyPrerequisite,
   BoundedPermissionGrant,
   BoundedPermissionRequest,
   PermissionCallScope,
   PermissionSpendScope,
+  RebalancingExecutionGuardReport,
   RebalancingJobIntent,
 } from "@spotriq/domain";
 
-export const BOUNDED_AUTHORITY_METHOD = "marketplace.bounded-authority@1.0.0";
+export const BOUNDED_AUTHORITY_METHOD = "marketplace.bounded-authority@1.1.0";
 
 export class AuthorityError extends Error {
   constructor(
@@ -50,15 +54,25 @@ export interface AuthorityStore {
   getRequest(permissionRequestId: string): Promise<BoundedPermissionRequest | undefined>;
   saveGrant(grant: BoundedPermissionGrant): Promise<void>;
   getGrant(permissionGrantId: string): Promise<BoundedPermissionGrant | undefined>;
+  saveProbe(probe: AltanaTestnetProbeObservation): Promise<void>;
+  getProbe(probeId: string): Promise<AltanaTestnetProbeObservation | undefined>;
+  getProbeForJob(jobIntentId: string): Promise<AltanaTestnetProbeObservation | undefined>;
 }
 
 export class MemoryAuthorityStore implements AuthorityStore {
   private readonly requests = new Map<string, BoundedPermissionRequest>();
   private readonly grants = new Map<string, BoundedPermissionGrant>();
+  private readonly probes = new Map<string, AltanaTestnetProbeObservation>();
   async saveRequest(request: BoundedPermissionRequest): Promise<void> { this.requests.set(request.permissionRequestId, structuredClone(request)); }
   async getRequest(id: string): Promise<BoundedPermissionRequest | undefined> { const value = this.requests.get(id); return value ? structuredClone(value) : undefined; }
   async saveGrant(grant: BoundedPermissionGrant): Promise<void> { this.grants.set(grant.permissionGrantId, structuredClone(grant)); }
   async getGrant(id: string): Promise<BoundedPermissionGrant | undefined> { const value = this.grants.get(id); return value ? structuredClone(value) : undefined; }
+  async saveProbe(probe: AltanaTestnetProbeObservation): Promise<void> { this.probes.set(probe.probeId, structuredClone(probe)); }
+  async getProbe(id: string): Promise<AltanaTestnetProbeObservation | undefined> { const value = this.probes.get(id); return value ? structuredClone(value) : undefined; }
+  async getProbeForJob(jobIntentId: string): Promise<AltanaTestnetProbeObservation | undefined> {
+    const values = [...this.probes.values()].filter((value) => value.jobIntentId === jobIntentId).sort((a, b) => b.verifiedAt.localeCompare(a.verifiedAt));
+    return values[0] ? structuredClone(values[0]) : undefined;
+  }
 }
 
 export interface SqlQueryResult<Row = Record<string, unknown>> { rows: Row[]; rowCount?: number | null; }
@@ -123,6 +137,27 @@ export class PostgresAuthorityStore implements AuthorityStore {
     );
     return result.rows[0]?.scope;
   }
+
+  async saveProbe(probe: AltanaTestnetProbeObservation): Promise<void> {
+    await this.database.query(`
+      insert into altana_testnet_probe_grants (probe_id, job_intent_id, wallet_address, session_public_key, state, transaction_hash, revocation_transaction_hash, payload, verified_at, updated_at)
+      values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,now())
+      on conflict (probe_id) do update set state=excluded.state, transaction_hash=excluded.transaction_hash, revocation_transaction_hash=excluded.revocation_transaction_hash, payload=excluded.payload, verified_at=excluded.verified_at, updated_at=now()
+    `, [probe.probeId, probe.jobIntentId, probe.walletAddress, probe.sessionPublicKey, probe.state, probe.transactionHash ?? null, probe.revocationTransactionHash ?? null, JSON.stringify(probe), probe.verifiedAt]);
+  }
+
+  async getProbe(probeId: string): Promise<AltanaTestnetProbeObservation | undefined> {
+    const result = await this.database.query<{ payload: AltanaTestnetProbeObservation }>("select payload from altana_testnet_probe_grants where probe_id = $1", [probeId]);
+    return result.rows[0]?.payload;
+  }
+
+  async getProbeForJob(jobIntentId: string): Promise<AltanaTestnetProbeObservation | undefined> {
+    const result = await this.database.query<{ payload: AltanaTestnetProbeObservation }>(
+      "select payload from altana_testnet_probe_grants where job_intent_id = $1 order by updated_at desc limit 1",
+      [jobIntentId],
+    );
+    return result.rows[0]?.payload;
+  }
 }
 
 export interface AuthorityEngine {
@@ -132,6 +167,12 @@ export interface AuthorityEngine {
   reconcile(permissionRequestId: string, proof: AltanaGrantProof, now?: Date): Promise<BoundedPermissionGrant>;
   getGrant(permissionGrantId: string): Promise<BoundedPermissionGrant>;
   reverify(permissionGrantId: string, now?: Date): Promise<BoundedPermissionGrant>;
+  applyTrustedAgentBinding(permissionRequestId: string, binding: AgentAuthorityBinding, now?: Date): Promise<BoundedPermissionRequest>;
+  applyExecutionGuard(permissionRequestId: string, report: RebalancingExecutionGuardReport, now?: Date): Promise<BoundedPermissionRequest>;
+  observeTestnetProbe(jobIntent: RebalancingJobIntent, proof: AltanaTestnetProbeProof, now?: Date): Promise<AltanaTestnetProbeObservation>;
+  getTestnetProbe(probeId: string): Promise<AltanaTestnetProbeObservation>;
+  getTestnetProbeForJob(jobIntentId: string): Promise<AltanaTestnetProbeObservation | undefined>;
+  reverifyTestnetProbe(probeId: string, input?: { revocationTransactionHash?: string }, now?: Date): Promise<AltanaTestnetProbeObservation>;
 }
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -158,6 +199,7 @@ function parseDisplayUnits(value: string, decimals: number, label: string): stri
 
 function requestId(jobIntentId: string): string { return `permission:altana:${encodeURIComponent(jobIntentId)}`; }
 function grantId(permissionRequestId: string, keyId: string): string { return `grant:altana:${encodeURIComponent(permissionRequestId)}:${keyId.slice(2, 18)}`; }
+function probeId(jobIntentId: string, keyId: string): string { return `probe:altana:testnet:${encodeURIComponent(jobIntentId)}:${keyId.slice(2, 18)}`; }
 
 function callAllowlist(positionManager: string): PermissionCallScope[] {
   const to = assertAddress(positionManager, "PancakeSwap V3 position manager");
@@ -187,7 +229,7 @@ function validateJob(job: RebalancingJobIntent): void {
     throw new AuthorityError("Only a confirmed Rebalancing Job Intent in AWAITING_AUTHORITY can produce a permission request.", "INVALID_STATE");
   }
   if (job.subject.version !== "V3") {
-    throw new AuthorityError("v0.15 only derives exact selector-scoped authority for PancakeSwap V3. Infinity CL authority is blocked until its safe call surface is modeled explicitly.", "UNSUPPORTED_JOB");
+    throw new AuthorityError("Spotriq currently derives exact selector-scoped authority only for PancakeSwap V3. Infinity CL authority is blocked until its safe call surface is modeled explicitly.", "UNSUPPORTED_JOB");
   }
   assertAddress(job.walletAddress, "Job wallet");
   assertAddress(job.subject.positionManager, "PancakeSwap V3 position manager");
@@ -259,6 +301,14 @@ function buildRequest(job: RebalancingJobIntent, input: PrepareBoundedAuthorityI
       detail: "Altana call permissions constrain contract + function signature, not PancakeSwap V3 tokenId/recipient/amount/slippage/deadline arguments. Spotriq must validate exact calldata against the reviewed Job Intent before any live grant can be used for execution.",
       provenance: "marketplace-derived",
     },
+    {
+      code: "NON_BYPASSABLE_FINANCIAL_EXECUTION_BOUNDARY",
+      state: "REQUIRED",
+      blocking: true,
+      label: "Non-bypassable financial execution boundary",
+      detail: "The external service would hold the session key. A Spotriq off-chain calldata checker cannot prevent that key from calling an allowed selector directly, so financial selector grants remain blocked until enforcement sits on a path the session key cannot bypass.",
+      provenance: "marketplace-derived",
+    },
   ];
   const blockers = safetyPrerequisites.filter((item) => item.blocking && item.state !== "SATISFIED").map((item) => item.detail);
   if (job.walletControl !== "VERIFIED_CONTROL") blockers.unshift("Spotriq's current Smart Money Check has not marked wallet control as verified. A real Altana admin signature/onchain grant remains authoritative proof of control.");
@@ -295,7 +345,7 @@ function buildRequest(job: RebalancingJobIntent, input: PrepareBoundedAuthorityI
         ? "The Job Intent allows swap preparation only. No swap/router execution permission is included in this authority request."
         : "The Job Intent does not request swap preparation, and no swap/router permission is included.",
       "A PermissionRequest is not a PermissionGrant. Spotriq must reconcile the provider-returned scope and verify the session key on the Altana Keystore before calling a grant active.",
-      "Even a reconciled grant remains non-executable in Spotriq v0.15; real BSC Testnet activation is a separate milestone.",
+      "Even a reconciled grant remains non-executable in Spotriq v0.16; a non-bypassable financial execution boundary is still required before financial selector authority can become usable.",
     ],
   };
 }
@@ -334,6 +384,10 @@ export function createAuthorityEngine(options: { store?: AuthorityStore; verifie
       }
       validateGrantProof(proof);
       const scope = compareScope(request, proof);
+      if (request.trustedAgentBinding?.state === "VERIFIED" && request.trustedAgentBinding.sessionPublicKey && request.trustedAgentBinding.sessionPublicKey.toLowerCase() !== proof.sessionPublicKey.toLowerCase()) {
+        scope.exact = false;
+        scope.reasons.push("The provider-returned session key does not match the service-owned key Spotriq verified from the selected AgentService runtime.");
+      }
       let verification: AltanaKeyVerification;
       try {
         verification = await verifier.verify({ walletAddress: request.walletAddress, sessionPublicKey: proof.sessionPublicKey, network: request.network });
@@ -378,7 +432,7 @@ export function createAuthorityEngine(options: { store?: AuthorityStore; verifie
         reconciliationReasons: reasons,
         limitations: [
           "Altana Keystore validity proves that the session key is currently authorized for the wallet; Spotriq separately compares the provider-returned policy to the reviewed PermissionRequest.",
-          "Spotriq v0.15 does not persist or transmit the session private key and does not execute financial actions with this grant.",
+          "Spotriq does not persist or transmit the service session private key and does not execute financial actions with this grant in v0.16.",
           "Grant validity can change through expiry or revocation. Re-verify isValidKey immediately before any future execution.",
         ],
       };
@@ -422,6 +476,104 @@ export function createAuthorityEngine(options: { store?: AuthorityStore; verifie
         reconciliationReasons: reasons,
       };
       await store.saveGrant(next);
+      return next;
+    },
+    async applyTrustedAgentBinding(permissionRequestId, binding, now = new Date()) {
+      const request = await store.getRequest(permissionRequestId);
+      if (!request) throw new AuthorityError(`Permission request ${permissionRequestId} was not found.`, "PERMISSION_REQUEST_NOT_FOUND");
+      if (binding.serviceId !== request.serviceId || binding.state !== "VERIFIED" || !binding.sessionPublicKey) {
+        throw new AuthorityError("Only a VERIFIED authority binding for the exact selected AgentService can satisfy the trusted-session-key prerequisite.", "INVALID_INPUT");
+      }
+      const safetyPrerequisites = request.safetyPrerequisites.map((item) => item.code === "TRUSTED_AGENT_SESSION_KEY"
+        ? { ...item, state: "SATISFIED" as const, blocking: false, detail: `Spotriq observed the selected AgentService prove control of session key ${binding.sessionKeyAddress ?? binding.sessionPublicKey}.` }
+        : item);
+      const submissionBlockers = safetyPrerequisites.filter((item) => item.blocking && item.state !== "SATISFIED").map((item) => item.detail);
+      const next: BoundedPermissionRequest = { ...request, trustedAgentBinding: binding, safetyPrerequisites, submissionBlockers, providerSubmissionState: submissionBlockers.length ? "SAFETY_PREREQUISITES_REQUIRED" : "READY_FOR_WALLET", updatedAt: now.toISOString() };
+      await store.saveRequest(next);
+      return next;
+    },
+    async applyExecutionGuard(permissionRequestId, report, now = new Date()) {
+      const request = await store.getRequest(permissionRequestId);
+      if (!request) throw new AuthorityError(`Permission request ${permissionRequestId} was not found.`, "PERMISSION_REQUEST_NOT_FOUND");
+      if (report.permissionRequestId !== request.permissionRequestId || report.jobIntentId !== request.jobIntentId || report.serviceId !== request.serviceId) {
+        throw new AuthorityError("Execution-guard report does not belong to this reviewed permission request.", "INVALID_INPUT");
+      }
+      const satisfied = report.state === "PASS" && report.argumentGuardSatisfied;
+      const safetyPrerequisites = request.safetyPrerequisites.map((item) => item.code === "ARGUMENT_LEVEL_EXECUTION_GUARD"
+        ? { ...item, state: satisfied ? "SATISFIED" as const : "REQUIRED" as const, blocking: !satisfied, detail: satisfied ? `Spotriq decoded and validated proposal ${report.proposalId} against the reviewed Job Intent. This is proposal-level evidence only.` : `The latest proposal guard is ${report.state}; every proposed calldata payload must pass before it can be considered.` }
+        : item);
+      const submissionBlockers = safetyPrerequisites.filter((item) => item.blocking && item.state !== "SATISFIED").map((item) => item.detail);
+      const next: BoundedPermissionRequest = { ...request, latestExecutionGuard: report, safetyPrerequisites, submissionBlockers, providerSubmissionState: submissionBlockers.length ? "SAFETY_PREREQUISITES_REQUIRED" : "READY_FOR_WALLET", updatedAt: now.toISOString() };
+      await store.saveRequest(next);
+      return next;
+    },
+    async observeTestnetProbe(jobIntent, proof, now = new Date()) {
+      if (jobIntent.subject.network !== "testnet" || jobIntent.subject.version !== "V3" || jobIntent.executionState !== "NO_EXECUTION") {
+        throw new AuthorityError("The live Altana probe is only available for a BSC Testnet V3 Job Intent with NO_EXECUTION.", "INVALID_STATE");
+      }
+      if (proof.walletAddress.toLowerCase() !== jobIntent.walletAddress.toLowerCase()) {
+        throw new AuthorityError("Altana probe wallet must exactly match the Job Intent wallet. Create/recover the Altana smart wallet first, then run Spotriq against that address.", "INVALID_INPUT");
+      }
+      if (proof.target.toLowerCase() !== jobIntent.subject.positionManager?.toLowerCase() || proof.signature !== "positions(uint256)") {
+        throw new AuthorityError("Altana probe must be scoped only to positions(uint256) on the exact BSC Testnet V3 Position Manager from the Job Intent.", "INVALID_INPUT");
+      }
+      if (!/^0x[0-9a-fA-F]+$/.test(proof.sessionPublicKey) || proof.sessionPublicKey.length < 68 || proof.sessionPublicKey.length % 2 !== 0) {
+        throw new AuthorityError("Altana probe sessionPublicKey must be a SEC1-encoded hex public key.", "INVALID_INPUT");
+      }
+      if (proof.transactionHash && !/^0x[0-9a-fA-F]{64}$/.test(proof.transactionHash)) throw new AuthorityError("Altana probe transactionHash must be a 32-byte transaction hash.", "INVALID_INPUT");
+      let verification: AltanaKeyVerification;
+      try {
+        verification = await verifier.verify({ walletAddress: proof.walletAddress, sessionPublicKey: proof.sessionPublicKey, network: "testnet" });
+      } catch (cause) {
+        throw new AuthorityError("Spotriq could not verify the Altana BSC Testnet probe key onchain.", "ONCHAIN_VERIFICATION_FAILED", true, cause instanceof Error ? cause.message : cause);
+      }
+      const expired = proof.expiryUnix <= Math.floor(now.getTime() / 1000);
+      const probe: AltanaTestnetProbeObservation = {
+        probeId: probeId(jobIntent.jobIntentId, verification.keyId),
+        jobIntentId: jobIntent.jobIntentId,
+        walletAddress: proof.walletAddress,
+        target: proof.target,
+        signature: "positions(uint256)",
+        sessionPublicKey: proof.sessionPublicKey,
+        transactionHash: proof.transactionHash,
+        expiryUnix: proof.expiryUnix,
+        state: expired ? "EXPIRED" : verification.valid ? "ACTIVE" : "INVALID",
+        keyId: verification.keyId,
+        keystoreAddress: verification.keystoreAddress,
+        onchainValid: verification.valid,
+        verifiedAt: now.toISOString(),
+        verifiedBlockNumber: verification.blockNumber,
+        methodVersion: "marketplace.altana-testnet-probe@1.0.0",
+        limitations: [
+          "This is a real BSC Testnet Altana grant/revocation integration probe scoped to the read-only positions(uint256) selector. It is not the selected AgentService's financial authority.",
+          "The probe exists to prove Spotriq can create/recover an Altana smart wallet, register a scoped session, capture transaction evidence, independently verify Keystore state, and later observe revocation without moving assets.",
+          "Financial selector grants remain blocked by the non-bypassable execution-boundary prerequisite.",
+        ],
+      };
+      await store.saveProbe(probe);
+      return probe;
+    },
+    async getTestnetProbe(probeIdValue) {
+      const probe = await store.getProbe(probeIdValue);
+      if (!probe) throw new AuthorityError(`Altana testnet probe ${probeIdValue} was not found.`, "PERMISSION_GRANT_NOT_FOUND");
+      return probe;
+    },
+    async getTestnetProbeForJob(jobIntentId) {
+      return store.getProbeForJob(jobIntentId);
+    },
+    async reverifyTestnetProbe(probeIdValue, input = {}, now = new Date()) {
+      const existing = await store.getProbe(probeIdValue);
+      if (!existing) throw new AuthorityError(`Altana testnet probe ${probeIdValue} was not found.`, "PERMISSION_GRANT_NOT_FOUND");
+      let verification: AltanaKeyVerification;
+      try {
+        verification = await verifier.verify({ walletAddress: existing.walletAddress, sessionPublicKey: existing.sessionPublicKey, network: "testnet" });
+      } catch (cause) {
+        throw new AuthorityError("Spotriq could not re-verify the Altana BSC Testnet probe key onchain.", "ONCHAIN_VERIFICATION_FAILED", true, cause instanceof Error ? cause.message : cause);
+      }
+      const expired = existing.expiryUnix <= Math.floor(now.getTime() / 1000);
+      const state: AltanaTestnetProbeObservation["state"] = expired ? "EXPIRED" : verification.valid ? "ACTIVE" : existing.state === "ACTIVE" ? "REVOKED" : "INVALID";
+      const next: AltanaTestnetProbeObservation = { ...existing, keyId: verification.keyId, keystoreAddress: verification.keystoreAddress, onchainValid: verification.valid, state, verifiedAt: now.toISOString(), verifiedBlockNumber: verification.blockNumber, revocationTransactionHash: input.revocationTransactionHash ?? existing.revocationTransactionHash };
+      await store.saveProbe(next);
       return next;
     },
   };

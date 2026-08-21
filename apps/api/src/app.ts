@@ -126,7 +126,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.15.0",
+      version: "0.16.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -170,6 +170,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       findingServiceCompatibilityEnabled: true,
       rebalancingJobIntentEnabled: true,
       boundedPermissionAuthorityEnabled: true,
+      trustedAgentSessionKeyBindingEnabled: true,
+      argumentLevelExecutionGuardEnabled: true,
+      altanaTestnetProbeGrantEnabled: true,
       altanaKeystoreVerificationEnabled: true,
       marketplaceActivationEnabled: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
@@ -189,7 +192,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "Marketplace Test Lab performs bounded A2A/MCP endpoint-policy, reachability, protocol-contract, and category-capability checks without invoking financial actions.",
         "Smart Money Findings now support deterministic AgentService compatibility ranking using explicit category/protocol/context rules plus evidence quality and operational readiness; no opaque trust or profitability score is produced.",
         "A selected compatible Rebalancing service can become an idempotent, reviewable PREPARE_ONLY Job Intent carrying exact LP contract/token context and user bounds.",
-        "v0.15 derives an explicit Altana-oriented bounded PermissionRequest from a confirmed PancakeSwap V3 Job Intent, persists it, and can independently reconcile a provider-returned grant against the public Altana Keystore without storing an agent session private key.",
+        "v0.16 can verify service-owned Altana-compatible session-key control through a Spotriq A2A extension and fresh runtime challenge; browser-entered keys never satisfy the binding.",
+        "A deterministic V3 calldata guard now decodes individual proposed calls and checks target, LP token ID, recipients, token caps, slippage/deadline bounds, fee tier, and tick alignment where the Job Intent has enough evidence.",
+        "A real BSC Testnet Altana passkey/grant/revoke probe is supported for the read-only positions(uint256) selector; it proves the provider/onchain integration without granting financial selector authority or pretending to activate the selected service.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
       ],
@@ -207,7 +212,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerAgentRoutes(app, agentRegistry, config.agentDiscoveryChainId);
   await registerMarketplaceRoutes(app, marketplaceSupply, config.agentDiscoveryChainId);
   await registerJobIntentRoutes(app, smartMoney, marketplaceSupply, jobIntents);
-  await registerAuthorityRoutes(app, authority, jobIntents);
+  await registerAuthorityRoutes(app, authority, jobIntents, marketplaceSupply);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {

@@ -1,5 +1,6 @@
 import type { AgentRegistryReader } from "@spotriq/agent-registry";
 import type {
+  AgentAuthorityBinding,
   AgentCapabilityClaim,
   AgentCategoryHint,
   AgentListing,
@@ -32,8 +33,10 @@ import type {
 } from "@spotriq/domain";
 import { createEvidenceEnvelope, DATA_SOURCES, EVIDENCE_METHODS } from "@spotriq/evidence";
 import { coverageFromRun, createMarketplaceTestLab, emptyMarketplaceTestCoverage, type MarketplaceTestLab } from "./test-lab.js";
+import { createAgentAuthorityBindingVerifier, type AgentAuthorityBindingVerifier } from "./authority-binding.js";
 
 export * from "./test-lab.js";
+export * from "./authority-binding.js";
 
 export const MARKETPLACE_SERVICE_NORMALIZATION_METHOD = "marketplace.agent-service-normalization@1.0.0";
 export const MARKETPLACE_SERVICE_READINESS_METHOD = "marketplace.service-readiness@1.0.0";
@@ -67,12 +70,15 @@ export interface MarketplaceSupplyStore {
   getService(serviceId: string): Promise<MarketplaceServiceRecord | undefined>;
   saveTestRun(run: MarketplaceServiceTestRun): Promise<void>;
   getLatestTestRun(serviceId: string): Promise<MarketplaceServiceTestRun | undefined>;
+  saveAuthorityBinding(binding: AgentAuthorityBinding): Promise<void>;
+  getAuthorityBinding(serviceId: string): Promise<AgentAuthorityBinding | undefined>;
 }
 
 export class MemoryMarketplaceSupplyStore implements MarketplaceSupplyStore {
   private readonly listings = new Map<string, MarketplaceListingRecord>();
   private readonly services = new Map<string, MarketplaceServiceRecord>();
   private readonly testRuns = new Map<string, MarketplaceServiceTestRun[]>();
+  private readonly authorityBindings = new Map<string, AgentAuthorityBinding>();
 
   async saveListings(records: MarketplaceListingRecord[]): Promise<void> {
     for (const record of records) this.listings.set(record.listing.listingId, structuredClone(record));
@@ -94,6 +100,8 @@ export class MemoryMarketplaceSupplyStore implements MarketplaceSupplyStore {
     const run = this.testRuns.get(serviceId)?.[0];
     return run ? structuredClone(run) : undefined;
   }
+  async saveAuthorityBinding(binding: AgentAuthorityBinding): Promise<void> { this.authorityBindings.set(binding.serviceId, structuredClone(binding)); }
+  async getAuthorityBinding(serviceId: string): Promise<AgentAuthorityBinding | undefined> { const value = this.authorityBindings.get(serviceId); return value ? structuredClone(value) : undefined; }
 }
 
 export interface QueryableDatabase {
@@ -246,6 +254,19 @@ export class PostgresMarketplaceSupplyStore implements MarketplaceSupplyStore {
     `, [serviceId]);
     return result.rows[0]?.payload as MarketplaceServiceTestRun | undefined;
   }
+
+  async saveAuthorityBinding(binding: AgentAuthorityBinding): Promise<void> {
+    await this.database.query(`
+      insert into agent_authority_bindings (binding_id, service_id, state, session_public_key, payload, observed_at, updated_at)
+      values ($1,$2,$3,$4,$5::jsonb,$6,now())
+      on conflict (service_id) do update set binding_id=excluded.binding_id, state=excluded.state, session_public_key=excluded.session_public_key, payload=excluded.payload, observed_at=excluded.observed_at, updated_at=now()
+    `, [binding.bindingId, binding.serviceId, binding.state, binding.sessionPublicKey ?? null, JSON.stringify(binding), binding.observedAt]);
+  }
+
+  async getAuthorityBinding(serviceId: string): Promise<AgentAuthorityBinding | undefined> {
+    const result = await this.database.query("select payload from agent_authority_bindings where service_id = $1", [serviceId]);
+    return result.rows[0]?.payload as AgentAuthorityBinding | undefined;
+  }
 }
 
 export interface MarketplaceSupplyReader {
@@ -258,6 +279,8 @@ export interface MarketplaceSupplyReader {
   getTests(serviceId: string): Promise<MarketplaceServiceTestCoverage>;
   runTests(serviceId: string): Promise<{ tests: MarketplaceServiceTestCoverage; readiness: ReadinessSnapshot }>;
   matchFinding(finding: Finding, input?: { chainId?: AgentRegistryChainId; limit?: number }): Promise<FindingServiceMatchPage>;
+  getAuthorityBinding(serviceId: string): Promise<AgentAuthorityBinding | undefined>;
+  verifyAuthorityBinding(serviceId: string): Promise<AgentAuthorityBinding>;
 }
 
 export interface CreateMarketplaceSupplyOptions {
@@ -265,6 +288,7 @@ export interface CreateMarketplaceSupplyOptions {
   defaultChainId?: AgentRegistryChainId;
   store?: MarketplaceSupplyStore;
   testLab?: MarketplaceTestLab;
+  authorityBindingVerifier?: AgentAuthorityBindingVerifier;
 }
 
 function slugPart(value: string): string {
@@ -914,6 +938,7 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
   const defaultChainId = options.defaultChainId ?? 56;
   const store = options.store ?? new MemoryMarketplaceSupplyStore();
   const testLab = options.testLab ?? createMarketplaceTestLab();
+  const authorityBindingVerifier = options.authorityBindingVerifier ?? createAgentAuthorityBindingVerifier();
 
   async function hydrateTestCoverage(record: MarketplaceServiceRecord): Promise<MarketplaceServiceRecord> {
     try {
@@ -1208,5 +1233,20 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
     };
   }
 
-  return { getStatus, listListings, listServices, getService, getReadiness, getEvidence, getTests, runTests, matchFinding };
+  async function getAuthorityBinding(serviceId: string): Promise<AgentAuthorityBinding | undefined> {
+    return store.getAuthorityBinding(serviceId);
+  }
+
+  async function verifyAuthorityBinding(serviceId: string): Promise<AgentAuthorityBinding> {
+    const record = await getService(serviceId);
+    const result = await authorityBindingVerifier.verify(record);
+    await store.saveAuthorityBinding(result.binding);
+    if (result.evidence.length > 0) {
+      const next: MarketplaceServiceRecord = { ...record, evidence: [...record.evidence, ...result.evidence] };
+      await store.saveServices([next]);
+    }
+    return result.binding;
+  }
+
+  return { getStatus, listListings, listServices, getService, getReadiness, getEvidence, getTests, runTests, matchFinding, getAuthorityBinding, verifyAuthorityBinding };
 }

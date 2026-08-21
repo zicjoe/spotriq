@@ -162,14 +162,14 @@ function authorityBlockers(session: CheckSession, match: FindingServiceMatch): s
   if (session.walletControl !== "VERIFIED_CONTROL") blockers.add("Wallet control has not been verified for this Smart Money Check.");
   if (match.service.permissionProfile.declarationState !== "DECLARED") blockers.add("The selected service does not yet publish an explicit permission profile.");
   if (!match.activationEligible) blockers.add(`The selected service is ${match.service.readiness.state} and is not activation-eligible.`);
-  blockers.add("Spotriq v0.14 creates a reviewable PREPARE_ONLY job intent and performs no financial execution.");
+  blockers.add("This reviewable PREPARE_ONLY Job Intent does not authorize or perform financial execution.");
   return [...blockers];
 }
 
 function buildIntent(input: PrepareRebalancingJobIntentInput, existing?: RebalancingJobIntent): RebalancingJobIntent {
   const { session, finding, match } = input;
   if (finding.category !== "rebalancing") {
-    throw new JobIntentError("Only Rebalancing findings can become a v0.14 job intent.", "UNSUPPORTED_FINDING");
+    throw new JobIntentError("Only Rebalancing findings can enter the current live Job Intent vertical.", "UNSUPPORTED_FINDING");
   }
   if (match.findingId !== finding.findingId || match.service.service.category !== "rebalancing") {
     throw new JobIntentError("The selected service match does not belong to this Rebalancing finding.", "MATCH_REQUIRED");
@@ -216,7 +216,7 @@ function buildIntent(input: PrepareRebalancingJobIntentInput, existing?: Rebalan
     requestedAction: {
       code: "PREPARE_RANGE_REBALANCE",
       label: "Prepare a PancakeSwap range rebalance",
-      description: "Ask the selected service to prepare a bounded range-management plan for this exact LP position. No transaction or asset movement is authorized in v0.14.",
+      description: "Ask the selected service to prepare a bounded range-management plan for this exact LP position. No transaction or asset movement is authorized by the Job Intent itself.",
     },
     subject: {
       protocol: "PancakeSwap",
@@ -232,6 +232,8 @@ function buildIntent(input: PrepareRebalancingJobIntentInput, existing?: Rebalan
       tickLower,
       tickUpper,
       currentTick,
+      feePips: asNumber(subject, "feePips"),
+      tickSpacing: asNumber(subject, "tickSpacing"),
       rangeState: rangeState as RebalancingJobIntent["subject"]["rangeState"],
       blockNumber,
       findingGeneratedAt: finding.generatedAt,
@@ -344,7 +346,7 @@ export function createJobIntentEngine(store: JobIntentStore = new MemoryJobInten
           state: "REQUEST_PREPARED",
           permissionRequestId: request.permissionRequestId,
           provider: request.provider,
-          blockers: [...new Set([...request.submissionBlockers, "Spotriq v0.15 performs no financial execution even after a grant is reconciled."])],
+          blockers: [...new Set([...request.submissionBlockers, "Spotriq keeps financial execution disabled even after a provider grant is reconciled until every execution-safety prerequisite is independently satisfied."])],
         },
       };
       await store.save(next);
@@ -370,7 +372,7 @@ export function createJobIntentEngine(store: JobIntentStore = new MemoryJobInten
           blockers: verified
             ? [
                 ...grant.executionSafetyPrerequisites.filter((item) => item.blocking && item.state !== "SATISFIED").map((item) => item.detail),
-                "A bounded Altana grant is verified, but Spotriq v0.15 deliberately keeps execution disabled. Provider authority does not replace the trusted service-key binding or argument-level execution guard required before live financial activation.",
+                "A bounded Altana grant is verified, but Spotriq deliberately keeps execution disabled. Provider authority does not replace trusted service-key binding, proposal-level calldata validation, or the required non-bypassable financial execution boundary.",
               ]
             : [...grant.reconciliationReasons, ...grant.executionSafetyPrerequisites.filter((item) => item.blocking && item.state !== "SATISFIED").map((item) => item.detail), "The observed grant is not sufficient for activation."],
         },

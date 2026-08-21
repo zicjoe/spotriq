@@ -58,6 +58,9 @@ export interface CapabilityResponse {
   findingServiceCompatibilityEnabled: boolean;
   rebalancingJobIntentEnabled: boolean;
   boundedPermissionAuthorityEnabled: boolean;
+  trustedAgentSessionKeyBindingEnabled: boolean;
+  argumentLevelExecutionGuardEnabled: boolean;
+  altanaTestnetProbeGrantEnabled: boolean;
   altanaKeystoreVerificationEnabled: boolean;
   marketplaceActivationEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
@@ -256,3 +259,31 @@ export interface BoundedPermissionGrantResponse {
   grant: import("@spotriq/domain").BoundedPermissionGrant;
   intent?: import("@spotriq/domain").RebalancingJobIntent;
 }
+export interface VerifyTrustedAgentBindingResponse {
+  binding: import("@spotriq/domain").AgentAuthorityBinding;
+  request: import("@spotriq/domain").BoundedPermissionRequest;
+  intent?: import("@spotriq/domain").RebalancingJobIntent;
+}
+
+export interface GuardRebalancingCallRequest {
+  proposalId?: string;
+  call: { to: string; data: string; valueRaw?: string };
+}
+
+export interface GuardRebalancingCallResponse {
+  report: import("@spotriq/domain").RebalancingExecutionGuardReport;
+  request: import("@spotriq/domain").BoundedPermissionRequest;
+}
+
+export interface ObserveAltanaTestnetProbeRequest {
+  proof: import("@spotriq/domain").AltanaTestnetProbeProof;
+}
+
+export interface AltanaTestnetProbeResponse {
+  probe: import("@spotriq/domain").AltanaTestnetProbeObservation;
+}
+
+export interface ReverifyAltanaTestnetProbeRequest {
+  revocationTransactionHash?: string;
+}
+

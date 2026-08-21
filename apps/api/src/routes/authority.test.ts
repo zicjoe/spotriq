@@ -45,7 +45,7 @@ test("Authority API derives contract/token scope from the persisted Job Intent i
     linkPermissionGrant: async () => structuredClone(job),
   };
   const authority = createAuthorityEngine({ verifier: { async verify() { return { keyId: `0x${"aa".repeat(32)}`, keystoreAddress: "0x6b8361C29d05D498b1a12B54A37310f94171E94A", valid: true }; } } });
-  await registerAuthorityRoutes(app as any, authority, jobIntents as any);
+  await registerAuthorityRoutes(app as any, authority, jobIntents as any, {} as any);
   const handler = app.handlers.get("POST /v1/job-intents/:jobIntentId/permissions");
   assert.ok(handler);
   const reply = replyRecorder();
@@ -60,4 +60,32 @@ test("Authority API derives contract/token scope from the persisted Job Intent i
   assert.equal(reply.payload.data.request.spendCaps[1].token, job.subject.token1?.address);
   assert.equal(linkedRequestId, reply.payload.data.request.permissionRequestId);
   assert.equal(reply.payload.data.intent.executionState, "NO_EXECUTION");
+});
+
+test("Authority API binds only the key observed from the selected AgentService runtime, never a browser-supplied key", async () => {
+  const app = new FakeApp();
+  const jobIntents = {
+    get: async () => structuredClone(job),
+    linkPermissionRequest: async (_id: string, request: any) => ({ ...structuredClone(job), authority: { ...job.authority, state: "REQUEST_PREPARED", permissionRequestId: request.permissionRequestId } }),
+    linkPermissionGrant: async () => structuredClone(job),
+  };
+  const authority = createAuthorityEngine({ verifier: { async verify() { return { keyId: `0x${"aa".repeat(32)}`, keystoreAddress: "0x6b8361C29d05D498b1a12B54A37310f94171E94A", valid: true }; } } });
+  const permission = await authority.prepare(job, { token0Limit: "1", token1Limit: "1", validForMinutes: 30 }, new Date("2026-08-21T16:00:00Z"));
+  const runtimeKey = `0x04${"33".repeat(64)}`;
+  const marketplaceSupply = {
+    verifyAuthorityBinding: async (serviceId: string) => {
+      assert.equal(serviceId, job.selectedService.serviceId);
+      return {
+        bindingId: "binding-api", serviceId, agentId: job.selectedService.agentId, state: "VERIFIED", interactionKind: "A2A", runtimeEndpoint: "https://agent.example/a2a", agentCardUrl: "https://agent.example/.well-known/agent-card.json", extensionUri: "urn:spotriq:authority-binding:v1", signatureScheme: "EIP191_SECP256K1", sessionPublicKey: runtimeKey, sessionKeyAddress: "0x8888888888888888888888888888888888888888", observedAt: "2026-08-21T16:01:00Z", evidenceIds: ["ev-binding"], methodVersion: "test", detail: "verified", limitations: [],
+      };
+    },
+  };
+  await registerAuthorityRoutes(app as any, authority, jobIntents as any, marketplaceSupply as any);
+  const handler = app.handlers.get("POST /v1/permissions/:permissionRequestId/trusted-agent-binding");
+  assert.ok(handler);
+  const reply = replyRecorder();
+  await handler!({ id: "req-binding", params: { permissionRequestId: permission.permissionRequestId }, body: { sessionPublicKey: `0x04${"99".repeat(64)}` } }, reply);
+  assert.equal(reply.payload.data.binding.sessionPublicKey, runtimeKey);
+  assert.equal(reply.payload.data.request.trustedAgentBinding.sessionPublicKey, runtimeKey);
+  assert.equal(reply.payload.data.request.safetyPrerequisites.find((item: any) => item.code === "TRUSTED_AGENT_SESSION_KEY").state, "SATISFIED");
 });

@@ -19,13 +19,16 @@ export function subscribeToMockCheck(
 
   const timers = [1, 2, 3, 4, 5, 6].map((progress, index) =>
     window.setTimeout(() => {
-      onEvent({
-        type: progress === 6 ? "check.completed" : "check.source.completed",
-        progress: progress as 1 | 2 | 3 | 4 | 5 | 6,
-      });
       if (progress === 6) {
+        onEvent({ type: "check.completed", progress: 6 });
         window.setTimeout(onComplete, 350);
+        return;
       }
+
+      onEvent({
+        type: "check.source.completed",
+        progress: progress as 1 | 2 | 3 | 4 | 5,
+      });
     }, 650 * (index + 1)),
   );
 

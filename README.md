@@ -265,7 +265,7 @@ A live Rebalancing match now exposes **Prepare job**. The server reloads the Sma
 
 The intent records the position NFT/pool/pair/ticks/range state/block, selected service match/readiness, evidence references, wallet-control state, proposed slippage/validity/swap-preparation bounds, and unresolved authority blockers. Its execution policy is fixed to `PREPARE_ONLY` / `NO_EXECUTION`. Confirmation advances only `REVIEWABLE → AWAITING_AUTHORITY`; it does not create a PermissionRequest, PermissionGrant, activation or transaction.
 
-PostgreSQL persistence uses the existing `checkouts.job_context` foundation from migration 0001, so migration 0009 remains the latest migration. The live Job Intent review UI is intentionally separate from the existing reference/sample mock-activation checkout.
+PostgreSQL persistence uses the existing `checkouts.job_context` foundation from migration 0001; v0.14 itself added no database migration. The live Job Intent review UI is intentionally separate from the existing reference/sample mock-activation checkout.
 
 ## v0.15.0 Explicit Bounded Permission / Authority
 
@@ -277,9 +277,22 @@ Consumer grant submission remains deliberately blocked as `SAFETY_PREREQUISITES_
 
 No new database migration is required: the original `permission_requests` and `permission_grants` tables are now used for durable authority state.
 
+
+## v0.16.0 Trusted Agent Session-Key Binding + V3 Calldata Guard + Altana BSC Testnet Integration Proof
+
+Spotriq can now verify that a selected A2A service controls the exact secp256k1 session public key it declares through `urn:spotriq:authority-binding:v1`. Verification uses a fresh Spotriq challenge, same-origin challenge endpoint enforcement, the existing SSRF-safe runtime fetcher and EIP-191 signature recovery. Missing declarations remain unavailable; failed proof stays failed. The browser cannot supply an arbitrary key to satisfy this gate.
+
+The new `@spotriq/execution-guard` package decodes one proposed PancakeSwap V3 Position Manager call and compares it with the persisted Job Intent and bounded permission request. The guard checks target/selector, exact NFT token ID, recipient, token caps, slippage/deadline and other operation-specific facts where Spotriq has enough evidence. Exact `collect` and bounded `increaseLiquidity` proposals can pass; operations that still need an independently reviewed quote or target range remain `INCONCLUSIVE` instead of being guessed safe.
+
+This off-chain guard is **not** a non-bypassable financial execution boundary. Because an external service can hold the session key directly, authority now exposes three independent prerequisites: `TRUSTED_AGENT_SESSION_KEY`, `ARGUMENT_LEVEL_EXECUTION_GUARD`, and `NON_BYPASSABLE_FINANCIAL_EXECUTION_BOUNDARY`. The last remains blocking in v0.16, so selected-agent financial grant/execution is still disabled.
+
+Spotriq additionally proves the real Altana integration on BSC Testnet with a deliberately non-financial read-only `positions(uint256)` probe on the exact V3 Position Manager. The web app can create/recover the user's Altana passkey wallet, grant the probe, record transaction/session evidence, verify it independently through the Keystore, re-check it later and revoke it. The probe never moves assets and is never represented as the selected AgentService's financial authority.
+
+Migration `0010_trusted_agent_binding_and_altana_probe.sql` persists trusted binding and Altana Testnet probe evidence. The web integration pins `@altananetwork/sdk` at `0.7.1`.
+
 ## Next milestone
 
-Build **v0.16.0 — Trusted Agent Session-Key Binding + Argument-Level Execution Guard + Live Altana BSC Testnet Grant**. Bind a trustworthy service-owned delegate/session public key to the selected AgentService, implement deterministic PancakeSwap V3 calldata validation against the reviewed Job Intent, require both safety prerequisites before provider submission, prove the user/admin-controlled Altana wallet owns the relevant BSC Testnet context, submit the exact reviewed grant, capture its transaction hash and byte-exact policy/session evidence, reconcile it through v0.15, verify it independently onchain, and expose real revocation. Keep financial transaction execution separately gated until current LP state, exact calldata and grant validity are revalidated immediately before execution.
+Build **v0.17.0 — Reviewed Rebalancing Execution Plan + Non-Bypassable Financial Execution Boundary**. Add a user-reviewed replacement range and independent expected-output/quote evidence, build a deterministic multi-step Rebalancing plan, immediately revalidate LP ownership/current state and grant validity, and enforce exact target/selector/calldata through a path the external AgentService session key cannot bypass. Only after that enforcement boundary exists should Spotriq expose selected-agent financial Altana authority or BSC Testnet financial execution.
 
 
 ## v0.9.2 registry visibility

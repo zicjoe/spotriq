@@ -222,8 +222,9 @@ test("linking a bounded request and verified grant never enables execution", asy
     safetyPrerequisites: [
       { code: "TRUSTED_AGENT_SESSION_KEY", state: "REQUIRED", blocking: true, label: "Trusted agent session key", detail: "Trusted agent session key is required.", provenance: "marketplace-derived" },
       { code: "ARGUMENT_LEVEL_EXECUTION_GUARD", state: "REQUIRED", blocking: true, label: "Argument-level execution guard", detail: "Exact calldata must be checked against the Job Intent.", provenance: "marketplace-derived" },
+      { code: "NON_BYPASSABLE_FINANCIAL_EXECUTION_BOUNDARY", state: "REQUIRED", blocking: true, label: "Non-bypassable financial execution boundary", detail: "Financial authority requires an enforcement path the agent key cannot bypass.", provenance: "marketplace-derived" },
     ],
-    submissionBlockers: ["Trusted agent session key is required.", "Exact calldata must be checked against the Job Intent."],
+    submissionBlockers: ["Trusted agent session key is required.", "Exact calldata must be checked against the Job Intent.", "Financial authority requires an enforcement path the agent key cannot bypass."],
     walletControl: "VERIFIED_CONTROL",
     scopeProvenance: "marketplace-derived",
     activationEligible: false,

@@ -195,6 +195,8 @@ export function createRebalancingFinding(
       tickLower: position.tickLower,
       tickUpper: position.tickUpper,
       currentTick: position.pool.currentTick,
+      feePips: position.pool.feePips,
+      tickSpacing: position.pool.tickSpacing,
       rangeState: position.rangeState,
       blockNumber: position.blockNumber,
       network: position.network,

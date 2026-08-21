@@ -31,7 +31,7 @@ export interface MarketplaceTestLabOptions {
   now?: () => Date;
 }
 
-interface SafeHttpResult {
+export interface SafeHttpResult {
   status: number;
   finalUrl: string;
   contentType: string;
@@ -137,7 +137,7 @@ async function assertPublicResolution(url: URL, resolver: (hostname: string) => 
   return addresses;
 }
 
-async function boundedFetch(
+export async function boundedFetch(
   rawUrl: string,
   init: RequestInit,
   options: Required<Pick<MarketplaceTestLabOptions, "timeoutMs" | "maxResponseBytes" | "maxRedirects" | "allowInsecureHttp">> & {
@@ -154,7 +154,7 @@ async function boundedFetch(
       redirect: "manual",
       signal: AbortSignal.timeout(options.timeoutMs),
       headers: {
-        "User-Agent": "Spotriq-Marketplace-Test-Lab/0.15.0",
+        "User-Agent": "Spotriq-Marketplace-Test-Lab/0.16.0",
         Accept: "application/json, application/a2a+json;q=0.9",
         ...(init.headers ?? {}),
       },
@@ -243,7 +243,7 @@ function observedEvidence(input: {
   });
 }
 
-function a2aCardUrl(endpoint: string, allowInsecureHttp: boolean): string {
+export function a2aCardUrl(endpoint: string, allowInsecureHttp: boolean): string {
   const parsed = validateRuntimeUrlShape(endpoint, allowInsecureHttp);
   if (parsed.pathname.endsWith("/.well-known/agent-card.json") || parsed.pathname.endsWith("/agent-card.json")) return parsed.toString();
   return new URL("/.well-known/agent-card.json", parsed.origin).toString();
@@ -384,7 +384,7 @@ async function mcpRequest(
 }
 
 async function probeModernMcp(endpoint: string, options: Parameters<typeof boundedFetch>[2]): Promise<{ discover: SafeHttpResult; discoverResult: Record<string, unknown>; tools?: SafeHttpResult; toolsResult?: Record<string, unknown> }> {
-  const meta = { "io.modelcontextprotocol/clientInfo": { name: "Spotriq Marketplace Test Lab", version: "0.15.0" } };
+  const meta = { "io.modelcontextprotocol/clientInfo": { name: "Spotriq Marketplace Test Lab", version: "0.16.0" } };
   const discover = await mcpRequest(endpoint, "server/discover", { _meta: meta }, MCP_MODERN_PROTOCOL_VERSION, options);
   if (discover.status < 200 || discover.status >= 300) throw new Error(`Modern MCP server/discover returned HTTP ${discover.status}.`);
   const discoverResult = jsonRpcResult(discover.bodyText);
@@ -403,7 +403,7 @@ async function legacyInitialize(endpoint: string, version: string, options: Para
   const initialize = await boundedFetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json", "MCP-Protocol-Version": version },
-    body: JSON.stringify({ jsonrpc: "2.0", id: `spotriq-${randomUUID()}`, method: "initialize", params: { protocolVersion: version, capabilities: {}, clientInfo: { name: "Spotriq Marketplace Test Lab", version: "0.15.0" } } }),
+    body: JSON.stringify({ jsonrpc: "2.0", id: `spotriq-${randomUUID()}`, method: "initialize", params: { protocolVersion: version, capabilities: {}, clientInfo: { name: "Spotriq Marketplace Test Lab", version: "0.16.0" } } }),
   }, options);
   if (initialize.status < 200 || initialize.status >= 300) throw new Error(`Legacy MCP initialize returned HTTP ${initialize.status}.`);
   const result = jsonRpcResult(initialize.bodyText);

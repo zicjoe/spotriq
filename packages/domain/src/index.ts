@@ -356,7 +356,8 @@ export interface PermissionSpendScope {
 
 export type AuthoritySafetyPrerequisiteCode =
   | "TRUSTED_AGENT_SESSION_KEY"
-  | "ARGUMENT_LEVEL_EXECUTION_GUARD";
+  | "ARGUMENT_LEVEL_EXECUTION_GUARD"
+  | "NON_BYPASSABLE_FINANCIAL_EXECUTION_BOUNDARY";
 
 export interface AuthoritySafetyPrerequisite {
   code: AuthoritySafetyPrerequisiteCode;
@@ -365,6 +366,95 @@ export interface AuthoritySafetyPrerequisite {
   label: string;
   detail: string;
   provenance: "marketplace-derived";
+}
+
+
+export type AgentAuthorityBindingState = "VERIFIED" | "UNAVAILABLE" | "FAILED";
+
+export interface AgentAuthorityBinding {
+  bindingId: string;
+  serviceId: string;
+  agentId: string;
+  state: AgentAuthorityBindingState;
+  interactionKind: "A2A";
+  runtimeEndpoint: string;
+  agentCardUrl: string;
+  extensionUri: string;
+  challengeUrl?: string;
+  signatureScheme: "EIP191_SECP256K1";
+  sessionPublicKey?: string;
+  sessionKeyAddress?: string;
+  observedAt: string;
+  evidenceIds: string[];
+  methodVersion: string;
+  detail: string;
+  limitations: string[];
+}
+
+export type RebalancingGuardCallKind = "DECREASE_LIQUIDITY" | "COLLECT" | "INCREASE_LIQUIDITY" | "MINT";
+export type ExecutionGuardCheckState = "PASS" | "FAIL" | "INCONCLUSIVE";
+
+export interface RebalancingExecutionProposal {
+  proposalId: string;
+  jobIntentId: string;
+  permissionRequestId: string;
+  serviceId: string;
+  call: { to: string; data: string; valueRaw?: string };
+  proposedAt: string;
+}
+
+export interface ExecutionGuardCheck {
+  code: string;
+  label: string;
+  state: ExecutionGuardCheckState;
+  detail: string;
+}
+
+export interface RebalancingExecutionGuardReport {
+  reportId: string;
+  proposalId: string;
+  jobIntentId: string;
+  permissionRequestId: string;
+  serviceId: string;
+  state: "PASS" | "BLOCKED" | "INCONCLUSIVE";
+  callKind?: RebalancingGuardCallKind;
+  decodedFunction?: string;
+  checks: ExecutionGuardCheck[];
+  checkedAt: string;
+  methodVersion: string;
+  argumentGuardSatisfied: boolean;
+  nonBypassableBoundarySatisfied: false;
+  executionEligible: false;
+  limitations: string[];
+}
+
+export interface AltanaTestnetProbeProof {
+  walletAddress: string;
+  target: string;
+  signature: "positions(uint256)";
+  sessionPublicKey: string;
+  transactionHash?: string;
+  expiryUnix: number;
+}
+
+export interface AltanaTestnetProbeObservation {
+  probeId: string;
+  jobIntentId: string;
+  walletAddress: string;
+  target: string;
+  signature: "positions(uint256)";
+  sessionPublicKey: string;
+  transactionHash?: string;
+  expiryUnix: number;
+  state: "ACTIVE" | "REVOKED" | "EXPIRED" | "INVALID";
+  keyId: string;
+  keystoreAddress: string;
+  onchainValid: boolean;
+  verifiedAt: string;
+  verifiedBlockNumber?: string;
+  revocationTransactionHash?: string;
+  methodVersion: string;
+  limitations: string[];
 }
 
 export interface BoundedPermissionRequest {
@@ -385,6 +475,8 @@ export interface BoundedPermissionRequest {
   status: "READY" | "SUBMITTED" | "CONFIRMED" | "REJECTED" | "FAILED" | "EXPIRED";
   providerSubmissionState: "SAFETY_PREREQUISITES_REQUIRED" | "SESSION_KEY_REQUIRED" | "READY_FOR_WALLET" | "SUBMITTED" | "RECONCILED";
   safetyPrerequisites: AuthoritySafetyPrerequisite[];
+  trustedAgentBinding?: AgentAuthorityBinding;
+  latestExecutionGuard?: RebalancingExecutionGuardReport;
   submissionBlockers: string[];
   walletControl: WalletControlState;
   scopeProvenance: "marketplace-derived";
@@ -1359,6 +1451,8 @@ export interface RebalancingJobIntentSubject {
   tickLower: number;
   tickUpper: number;
   currentTick: number;
+  feePips?: number;
+  tickSpacing?: number;
   rangeState: LiquidityRangeState;
   blockNumber: string;
   findingGeneratedAt?: string;

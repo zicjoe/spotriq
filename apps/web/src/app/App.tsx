@@ -7,7 +7,7 @@ import {
   RefreshCw, Search, Shield, ShieldCheck, Sliders, Star,
   TrendingDown, TrendingUp, Wallet, X, Zap, BookOpen,
   CircleDot, Timer, Target, GitCompare, RotateCcw,
-  Radio, Layers, BarChart2, PieChart, FileText, FlaskConical
+  Radio, Layers, BarChart2, PieChart, FileText, FlaskConical, Sparkles
 } from "lucide-react";
 
 
@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, FindingServiceMatch, FindingServiceMatchPage, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -33,6 +33,7 @@ import { agentRegistryRepository } from "../repositories/agentRegistryRepository
 import { marketplaceSupplyRepository } from "../repositories/marketplaceSupplyRepository";
 import { jobIntentRepository } from "../repositories/jobIntentRepository";
 import { authorityRepository } from "../repositories/authorityRepository";
+import { altanaHandlers } from "../services/altanaHandlers";
 
 const {
   services: SERVICES,
@@ -2339,6 +2340,14 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
   const [authorityValidForMinutes, setAuthorityValidForMinutes] = useState("30");
   const [authoritySaving, setAuthoritySaving] = useState(false);
   const [reverifyingGrant, setReverifyingGrant] = useState(false);
+  const [bindingVerifying, setBindingVerifying] = useState(false);
+  const [guarding, setGuarding] = useState(false);
+  const [guardTarget, setGuardTarget] = useState("");
+  const [guardCalldata, setGuardCalldata] = useState("");
+  const [altanaWalletAddress, setAltanaWalletAddress] = useState<string>();
+  const [altanaWalletBusy, setAltanaWalletBusy] = useState(false);
+  const [probe, setProbe] = useState<AltanaTestnetProbeObservation>();
+  const [probeBusy, setProbeBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -2355,6 +2364,7 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
         void authorityRepository.getRequest(value.authority.permissionRequestId).then((request) => {
           if (!active) return;
           setPermissionRequest(request);
+          setGuardTarget(request.positionManager);
           setToken0Limit(request.spendCaps[0]?.limitDisplay ?? "");
           setToken1Limit(request.spendCaps[1]?.limitDisplay ?? "");
           setAuthorityValidForMinutes(String(Math.max(5, Math.ceil((new Date(request.expiresAt).getTime() - Date.now()) / 60_000))));
@@ -2363,6 +2373,7 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
       if (value.authority.permissionGrantId) {
         void authorityRepository.getGrant(value.authority.permissionGrantId).then((grant) => { if (active) setPermissionGrant(grant); }).catch(() => undefined);
       }
+      void authorityRepository.getTestnetProbeForJob(value.jobIntentId).then((savedProbe) => { if (active && savedProbe) setProbe(savedProbe); }).catch(() => undefined);
     }).catch((cause) => {
       if (active) setError(cause instanceof Error ? cause.message : "Spotriq could not load this job intent.");
     }).finally(() => { if (active) setLoading(false); });
@@ -2413,11 +2424,117 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
         ? await authorityRepository.revise(permissionRequest.permissionRequestId, input)
         : await authorityRepository.prepare(intent.jobIntentId, input);
       setPermissionRequest(result.request);
+      setGuardTarget(result.request.positionManager);
       if (result.intent) setIntent(result.intent);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Spotriq could not prepare the bounded authority request.");
     } finally {
       setAuthoritySaving(false);
+    }
+  };
+
+  const verifyTrustedServiceKey = async () => {
+    if (!permissionRequest) return;
+    setBindingVerifying(true);
+    setError(undefined);
+    try {
+      const result = await authorityRepository.verifyTrustedAgentBinding(permissionRequest.permissionRequestId);
+      setPermissionRequest(result.request);
+      if (result.intent) setIntent(result.intent);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Spotriq could not verify a service-owned session key from this agent runtime.");
+    } finally {
+      setBindingVerifying(false);
+    }
+  };
+
+  const runExecutionGuard = async () => {
+    if (!permissionRequest) return;
+    if (!guardCalldata.trim()) { setError("Paste one proposed PancakeSwap V3 calldata payload before running the guard."); return; }
+    setGuarding(true);
+    setError(undefined);
+    try {
+      const result = await authorityRepository.guardCall(permissionRequest.permissionRequestId, {
+        call: { to: guardTarget.trim() || permissionRequest.positionManager, data: guardCalldata.trim(), valueRaw: "0" },
+      });
+      setPermissionRequest(result.request);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Spotriq could not validate this proposed calldata payload.");
+    } finally {
+      setGuarding(false);
+    }
+  };
+
+  const createAltanaTestnetWallet = async () => {
+    setAltanaWalletBusy(true);
+    setError(undefined);
+    try {
+      const result = await altanaHandlers.createTestnetPasskeyWallet();
+      setAltanaWalletAddress(result.address);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Spotriq could not create the Altana BSC Testnet passkey wallet.");
+    } finally {
+      setAltanaWalletBusy(false);
+    }
+  };
+
+  const recoverAltanaTestnetWallet = async () => {
+    setAltanaWalletBusy(true);
+    setError(undefined);
+    try {
+      const result = await altanaHandlers.recoverTestnetPasskeyWallet();
+      setAltanaWalletAddress(result.address);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Spotriq could not recover the Altana BSC Testnet passkey wallet.");
+    } finally {
+      setAltanaWalletBusy(false);
+    }
+  };
+
+  const grantAltanaTestnetProbe = async () => {
+    if (!intent || !subject.positionManager) return;
+    setProbeBusy(true);
+    setError(undefined);
+    try {
+      const minutes = Math.max(5, Math.min(30, Number(authorityValidForMinutes) || 30));
+      const proof = await altanaHandlers.grantReadOnlyProbe({
+        expectedWalletAddress: intent.walletAddress,
+        target: subject.positionManager,
+        expiryUnix: Math.floor(Date.now() / 1000) + minutes * 60,
+      });
+      const observed = await authorityRepository.observeTestnetProbe(intent.jobIntentId, proof);
+      setProbe(observed);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Spotriq could not create and verify the Altana BSC Testnet probe grant.");
+    } finally {
+      setProbeBusy(false);
+    }
+  };
+
+  const reverifyAltanaTestnetProbe = async () => {
+    if (!probe) return;
+    setProbeBusy(true);
+    setError(undefined);
+    try {
+      setProbe(await authorityRepository.reverifyTestnetProbe(probe.probeId));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Spotriq could not re-verify this Altana BSC Testnet probe.");
+    } finally {
+      setProbeBusy(false);
+    }
+  };
+
+  const revokeAltanaTestnetProbe = async () => {
+    if (!probe) return;
+    setProbeBusy(true);
+    setError(undefined);
+    try {
+      const result = await altanaHandlers.revokeReadOnlyProbe({ expectedWalletAddress: probe.walletAddress, sessionPublicKey: probe.sessionPublicKey });
+      setProbe(await authorityRepository.reverifyTestnetProbe(probe.probeId, result.transactionHash));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Spotriq could not revoke and re-verify this Altana BSC Testnet probe.");
+    } finally {
+      setProbeBusy(false);
     }
   };
 
@@ -2536,7 +2653,7 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
           <Lock className="w-5 h-5 text-[#f59e0b] shrink-0 mt-0.5" />
           <div>
             <h2 className="font-semibold text-[#dde3ef]">{intent.authority.state === "GRANT_VERIFIED" ? "Bounded authority observed" : intent.authority.state === "REQUEST_PREPARED" ? "Bounded authority request prepared" : "Authority is still unresolved"}</h2>
-            <p className="text-xs text-[#6b7d99] mt-1">PermissionRequest and PermissionGrant are separate resources. Spotriq still performs no financial execution in v0.15.</p>
+            <p className="text-xs text-[#6b7d99] mt-1">PermissionRequest and PermissionGrant are separate resources. Spotriq still performs no financial execution in v0.16.</p>
           </div>
         </div>
         <div className="space-y-2">
@@ -2560,9 +2677,9 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
           </div>
 
           {subject.version !== "V3" ? (
-            <div className="rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 p-4 text-xs text-[#d6a04a]">Infinity CL authority is intentionally blocked in v0.15 until its exact safe call surface is modeled. Spotriq will not copy V3 permissions onto a different protocol interface.</div>
+            <div className="rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 p-4 text-xs text-[#d6a04a]">Infinity CL authority is intentionally blocked in v0.16 until its exact safe call surface is modeled. Spotriq will not copy V3 permissions onto a different protocol interface.</div>
           ) : !subject.positionManager || !subject.token0 || !subject.token1 || subject.token0.decimals === undefined || subject.token1.decimals === undefined ? (
-            <div className="rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 p-4 text-xs text-[#d6a04a]">This Finding does not contain the exact position-manager/token metadata required to calculate enforceable authority. Run a fresh Smart Money Check with the v0.15 data model rather than guessing addresses or decimals.</div>
+            <div className="rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 p-4 text-xs text-[#d6a04a]">This Finding does not contain the exact position-manager/token metadata required to calculate enforceable authority. Run a fresh Smart Money Check with the current data model rather than guessing addresses or decimals.</div>
           ) : (
             <>
               <div className="grid sm:grid-cols-3 gap-4">
@@ -2609,10 +2726,41 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
                 <div className="text-xs font-medium text-[#d6a04a]">Grant submission is deliberately blocked</div>
                 <div className="grid sm:grid-cols-2 gap-2 mt-3">{permissionRequest.safetyPrerequisites.map((prerequisite) => <div key={prerequisite.code} className="rounded-lg border border-[#f59e0b]/15 bg-black/10 p-3"><div className="flex items-center justify-between gap-2"><div className="text-[11px] font-medium text-[#d6a04a]">{prerequisite.label}</div><Badge variant={prerequisite.state === "SATISFIED" ? "green" : "amber"}>{prerequisite.state}</Badge></div><div className="text-[10px] text-[#9c8663] mt-1.5 leading-relaxed">{prerequisite.detail}</div></div>)}</div>
                 <div className="space-y-1.5 mt-3">{permissionRequest.submissionBlockers.filter((blocker) => !permissionRequest.safetyPrerequisites.some((prerequisite) => prerequisite.detail === blocker)).map((blocker) => <div key={blocker} className="flex gap-2 text-[11px] text-[#b99a67]"><AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />{blocker}</div>)}</div>
-                <p className="text-[10px] text-[#7f725f] mt-3">Both prerequisites are independent. A trusted service-owned session key without exact calldata enforcement is insufficient, and a calldata guard without a trustworthy agent-key binding is also insufficient.</p>
+                <p className="text-[10px] text-[#7f725f] mt-3">These prerequisites are independent. A trusted service-owned session key and a proposal-level calldata guard are both useful evidence, but direct financial authority remains blocked until Spotriq has a non-bypassable execution boundary that the service key cannot route around.</p>
               </div>
               <div className="text-[10px] text-[#52637b] leading-relaxed">No token approve, Permit2 approval, router swap, withdrawal, transfer, arbitrary target, or multicall permission is included. {intent.constraints.allowSwapPreparation ? "Swap preparation remains planning only." : "No swap preparation was requested."}</div>
+
+              <div className="rounded-lg border border-white/7 bg-white/[0.02] p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div><div className="text-xs font-medium text-[#dde3ef]">Trusted service-owned session key</div><p className="text-[10px] text-[#6b7d99] mt-1">Spotriq fetches the selected service's A2A Agent Card, issues a fresh same-origin challenge, and accepts the key only if the runtime proves control with the exact declared secp256k1 key. Browser-entered keys are never accepted.</p></div>
+                  <Badge variant={permissionRequest.trustedAgentBinding?.state === "VERIFIED" ? "green" : "muted"}>{permissionRequest.trustedAgentBinding?.state ?? "NOT CHECKED"}</Badge>
+                </div>
+                {permissionRequest.trustedAgentBinding?.sessionKeyAddress && <div className="text-[10px] font-mono text-[#9aacc4] break-all">{permissionRequest.trustedAgentBinding.sessionKeyAddress}</div>}
+                <Btn variant="secondary" onClick={() => void verifyTrustedServiceKey()} disabled={bindingVerifying}>{bindingVerifying ? <><RefreshCw className="w-4 h-4 animate-spin" /> Verifying service key</> : <><ShieldCheck className="w-4 h-4" /> Verify service-owned key</>}</Btn>
+              </div>
+
+              <div className="rounded-lg border border-white/7 bg-white/[0.02] p-4 space-y-3">
+                <div><div className="text-xs font-medium text-[#dde3ef]">Argument-level calldata guard</div><p className="text-[10px] text-[#6b7d99] mt-1">Developer/review surface: paste one proposed V3 Position Manager call. Spotriq decodes it and compares the target, NFT, recipient, caps, slippage and deadline to this reviewed Job Intent. No transaction is submitted.</p></div>
+                <label className="space-y-1.5 block"><span className="text-[10px] text-[#6b7d99]">Target contract</span><input value={guardTarget} onChange={(event) => setGuardTarget(event.target.value)} className="w-full bg-[#151d2a] border border-white/8 rounded-lg px-3 py-2 text-[11px] font-mono text-[#dde3ef] focus:outline-none focus:border-[#2dd4bf]/40" /></label>
+                <label className="space-y-1.5 block"><span className="text-[10px] text-[#6b7d99]">Hex calldata</span><textarea rows={4} value={guardCalldata} onChange={(event) => setGuardCalldata(event.target.value)} placeholder="0x…" className="w-full bg-[#151d2a] border border-white/8 rounded-lg px-3 py-2 text-[11px] font-mono text-[#dde3ef] focus:outline-none focus:border-[#2dd4bf]/40 resize-y" /></label>
+                <Btn variant="secondary" onClick={() => void runExecutionGuard()} disabled={guarding || !guardCalldata.trim()}>{guarding ? <><RefreshCw className="w-4 h-4 animate-spin" /> Checking calldata</> : <><Shield className="w-4 h-4" /> Run calldata guard</>}</Btn>
+                {permissionRequest.latestExecutionGuard && <div className="rounded-lg border border-white/7 bg-black/10 p-3 space-y-2"><div className="flex items-center justify-between"><span className="text-[11px] text-[#9aacc4]">Latest proposal</span><Badge variant={permissionRequest.latestExecutionGuard.state === "PASS" ? "green" : permissionRequest.latestExecutionGuard.state === "BLOCKED" ? "red" : "amber"}>{permissionRequest.latestExecutionGuard.state}</Badge></div>{permissionRequest.latestExecutionGuard.checks.map((check) => <div key={check.code} className="flex items-start justify-between gap-3 text-[10px]"><span className="text-[#8090a8]">{check.label}<span className="block text-[#52637b] mt-0.5">{check.detail}</span></span><span className={check.state === "PASS" ? "text-[#4ade80]" : check.state === "FAIL" ? "text-[#f87171]" : "text-[#f59e0b]"}>{check.state}</span></div>)}<p className="text-[10px] text-[#7f725f]">Proposal guard evidence is not a non-bypassable financial execution boundary. Execution remains disabled.</p></div>}
+              </div>
             </div>
+          )}
+
+          {subject.network === "testnet" && subject.version === "V3" && subject.positionManager && (
+            <div className="space-y-4 pt-4 border-t border-white/7">
+              <div className="flex items-start justify-between gap-3"><div><div className="text-xs font-medium text-[#dde3ef]">Altana BSC Testnet integration proof</div><p className="text-[10px] text-[#6b7d99] mt-1 max-w-2xl">This creates or recovers an Altana passkey smart wallet and can register a real session restricted to the read-only <span className="font-mono">positions(uint256)</span> selector on this exact Position Manager. It proves grant, Keystore verification and revoke plumbing only — it is not the selected agent's financial authority.</p></div><Badge variant="purple">TESTNET PROBE</Badge></div>
+              <div className="flex flex-wrap gap-2"><Btn variant="secondary" onClick={() => void createAltanaTestnetWallet()} disabled={altanaWalletBusy}>{altanaWalletBusy ? <><RefreshCw className="w-4 h-4 animate-spin" /> Altana wallet</> : <><Wallet className="w-4 h-4" /> Create testnet passkey wallet</>}</Btn><Btn variant="ghost" onClick={() => void recoverAltanaTestnetWallet()} disabled={altanaWalletBusy}>Recover passkey wallet</Btn></div>
+              {altanaWalletAddress && <div className="rounded-lg border border-white/7 bg-white/[0.02] p-3 text-[10px]"><div className="text-[#6b7d99]">Loaded Altana wallet</div><div className="font-mono text-[#9aacc4] break-all mt-1">{altanaWalletAddress}</div><div className={altanaWalletAddress.toLowerCase() === intent.walletAddress.toLowerCase() ? "text-[#4ade80] mt-1" : "text-[#f59e0b] mt-1"}>{altanaWalletAddress.toLowerCase() === intent.walletAddress.toLowerCase() ? "Matches this Job Intent wallet." : "Does not match this Job Intent wallet. Run the Smart Money Check against this Altana wallet before creating a probe."}</div></div>}
+              {!probe && <Btn variant="teal-outline" onClick={() => void grantAltanaTestnetProbe()} disabled={probeBusy || !altanaWalletAddress || altanaWalletAddress.toLowerCase() !== intent.walletAddress.toLowerCase()}>{probeBusy ? <><RefreshCw className="w-4 h-4 animate-spin" /> Creating probe</> : <><FlaskConical className="w-4 h-4" /> Grant read-only testnet probe</>}</Btn>}
+              {probe && <div className="rounded-lg border border-white/7 bg-black/10 p-4 space-y-3"><div className="flex items-center justify-between gap-3"><div><div className="text-[11px] text-[#9aacc4]">Observed Altana probe</div><div className="text-[10px] font-mono text-[#52637b] break-all mt-1">{probe.probeId}</div></div><Badge variant={probe.state === "ACTIVE" ? "green" : probe.state === "REVOKED" ? "amber" : "muted"}>{probe.state}</Badge></div><div className="grid sm:grid-cols-2 gap-3 text-[10px]"><div><span className="text-[#6b7d99]">Onchain key</span><div className={probe.onchainValid ? "text-[#4ade80] mt-0.5" : "text-[#f59e0b] mt-0.5"}>{probe.onchainValid ? "Valid now" : "Not valid"}</div></div><div><span className="text-[#6b7d99]">Verified block</span><div className="font-mono text-[#9aacc4] mt-0.5">{probe.verifiedBlockNumber ?? "Unavailable"}</div></div><div className="sm:col-span-2"><span className="text-[#6b7d99]">Session public key</span><div className="font-mono text-[#9aacc4] break-all mt-0.5">{probe.sessionPublicKey}</div></div>{probe.transactionHash && <div className="sm:col-span-2"><span className="text-[#6b7d99]">Grant transaction</span><div className="font-mono text-[#9aacc4] break-all mt-0.5">{probe.transactionHash}</div></div>}{probe.revocationTransactionHash && <div className="sm:col-span-2"><span className="text-[#6b7d99]">Revocation transaction</span><div className="font-mono text-[#9aacc4] break-all mt-0.5">{probe.revocationTransactionHash}</div></div>}</div><div className="flex flex-wrap gap-2"><Btn variant="secondary" onClick={() => void reverifyAltanaTestnetProbe()} disabled={probeBusy}><RefreshCw className={cn("w-4 h-4", probeBusy && "animate-spin")} /> Re-check probe</Btn>{probe.state === "ACTIVE" && <Btn variant="danger" onClick={() => void revokeAltanaTestnetProbe()} disabled={probeBusy}>Revoke probe</Btn>}</div></div>}
+            </div>
+          )}
+
+          {subject.network !== "testnet" && (
+            <div className="pt-4 border-t border-white/7 text-[10px] text-[#6b7d99]">The live Altana integration probe is intentionally BSC Testnet-only. Spotriq will not create a mainnet grant as part of this milestone.</div>
           )}
 
           {permissionGrant && (
@@ -2636,7 +2784,7 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
       {isConfirmed ? (
         <div className="rounded-xl border border-[#2dd4bf]/20 bg-[#2dd4bf]/[0.03] p-5 flex items-start gap-3">
           <CheckCircle2 className="w-5 h-5 text-[#2dd4bf] shrink-0 mt-0.5" />
-          <div><div className="font-medium text-[#dde3ef]">{intent.authority.state === "GRANT_VERIFIED" ? "Bounded grant verified — execution still disabled" : intent.authority.state === "REQUEST_PREPARED" ? "Job confirmed — bounded authority scope prepared" : "Job confirmed — define bounded authority below"}</div><p className="text-xs text-[#8090a8] mt-1">Spotriq has recorded the job and can now derive an explicit permission scope. Nothing is executed in v0.15; a PermissionRequest is not a grant, and even a reconciled Altana grant remains blocked from financial execution until the dedicated BSC Testnet activation milestone.</p></div>
+          <div><div className="font-medium text-[#dde3ef]">{intent.authority.state === "GRANT_VERIFIED" ? "Bounded grant verified — execution still disabled" : intent.authority.state === "REQUEST_PREPARED" ? "Job confirmed — bounded authority scope prepared" : "Job confirmed — define bounded authority below"}</div><p className="text-xs text-[#8090a8] mt-1">Spotriq has recorded the job and can now derive an explicit permission scope. Nothing is financially executed in v0.16. Spotriq can now verify a service-owned key, inspect individual calldata proposals, and prove the Altana BSC Testnet grant/revoke plumbing with a harmless read-only probe, while direct financial selector authority remains blocked until a non-bypassable execution boundary exists.</p></div>
         </div>
       ) : (
         <div className="flex flex-col sm:flex-row gap-3">
