@@ -14,9 +14,10 @@
 - Agent Service + Marketplace Listing/Readiness Engine
 - Targeted Financial Supply Discovery
 - Marketplace Test Lab + Service Readiness Verification
+- Smart Money Finding → AgentService Compatibility & Ranking
 
 ## Current source of truth
-Use Spotriq **v0.12.0**.
+Use Spotriq **v0.13.0**.
 
 ## Current live-data spine
 BSC JSON-RPC → protocol adapters → Evidence Engine → Smart Money Engine → Findings → Spotriq UI.
@@ -28,7 +29,7 @@ Live financial categories:
 4. Grid Trading — PancakeSwap V3 current price + onchain TWAP market context
 
 ## Current marketplace-supply spine
-Targeted four-category 8004scan search → deduplicated `FinancialSupplyLead` set → operator-metadata capability gate → `DiscoveredAgent` / `AgentIdentity` → `AgentListing` → supported-category `AgentService` candidate → `Offer` + `PermissionProfile` → Marketplace Test Lab → Marketplace Observed evidence → deterministic `ReadinessSnapshot` → Explore.
+Targeted four-category 8004scan search → deduplicated `FinancialSupplyLead` set → operator-metadata capability gate → `DiscoveredAgent` / `AgentIdentity` → `AgentListing` → supported-category `AgentService` candidate → `Offer` + `PermissionProfile` → Marketplace Test Lab → Marketplace Observed evidence → deterministic `ReadinessSnapshot` → Finding compatibility/ranking → Explore.
 
 Targeted discovery no longer relies on a generic newest-agents page to populate financial supply. Rebalancing, Grid, Yield and Health each receive one bounded registry search. Search relevance remains External discovery evidence and never becomes capability proof by itself.
 
@@ -43,7 +44,22 @@ The following boundaries are enforced:
 - Marketplace Test Lab validates protocol/category contract behaviour without executing financial actions or proving profitability.
 - Readiness is operational eligibility, not a trust score or performance prediction.
 
-## Readiness state in v0.12.0
+## Finding compatibility state in v0.13.0
+A real `Finding` now has a first-class marketplace handoff. `GET /v1/checks/:checkSessionId/findings/:findingId/matches` reconstructs the requested Finding from its Smart Money Check, performs bounded category-scoped live supply discovery, then applies `marketplace.finding-service-compatibility@1.0.0`.
+
+Compatibility rules:
+1. Financial category is a hard match.
+2. Finding protocol is compared with structured service protocol declarations. An explicit conflict is excluded; missing service protocol metadata is UNKNOWN.
+3. Finding asset/address and pair context are compared when the service publishes structured coverage. Missing coverage is UNKNOWN; explicit contradiction is excluded.
+4. Canonical identity, runtime reachability and Marketplace Test Lab results are evidence-quality ordering signals.
+5. Operational readiness is a later ordering signal.
+6. Stable service ID is the deterministic tie break.
+
+Result tiers are `EXACT_CONTEXT`, `CONTEXT_COMPATIBLE`, and `CATEGORY_ONLY`. The API exposes checks/strengths/limitations rather than a hidden numeric trust score. A rank is not a safety/performance prediction and never changes `activationEligible`. Suspended identities are excluded from usable matches.
+
+Explore consumes the existing `fromFinding` navigation seam. A live Finding now opens a **Best live matches for this finding** section before generic marketplace supply. A zero live match remains a zero live match; sample/reference services are not used as a hidden fallback.
+
+## Readiness state inherited from v0.12.0
 Deterministic gates now cover:
 1. BSC network
 2. Canonical ERC-8004 identity
@@ -77,6 +93,7 @@ Marketplace supply/readiness:
 - `GET /v1/services/:serviceId/evidence`
 - `GET /v1/services/:serviceId/tests`
 - `POST /v1/services/:serviceId/tests` — run bounded non-financial Test Lab verification
+- `GET /v1/checks/:checkSessionId/findings/:findingId/matches` — deterministic live Finding → AgentService compatibility/ranking
 
 ## Test Lab contract
 A Test Lab PASS means Spotriq observed a safe-to-probe public runtime that satisfied the relevant protocol discovery/contract checks and exposed category-relevant machine capability evidence. It does **not** mean:
@@ -97,7 +114,7 @@ A2A verification uses Agent Card discovery/validation. Modern MCP verification t
 - Railway PostgreSQL can be attached when the API itself is deployed in Railway; local Railway tunnelling is not required.
 
 ## Next
-Build **deterministic Smart Money Finding → AgentService compatibility/ranking**. This should map a real Finding's category/protocol/context to eligible service candidates using explicit, explainable compatibility rules and evidence quality/readiness — not an opaque trust score. It must not make a non-ready service activatable. After matching/ranking, take one category through the first complete end-to-end vertical, then add explicit permission/authority integration and real BSC Testnet activation.
+Build the first complete **Rebalancing vertical handoff**. A real PancakeSwap Rebalancing Finding and a user-selected compatible AgentService should become a structured, reviewable service/job intent containing the exact LP position context, requested action, explicit constraints, Finding/evidence references, selected service identity, and unresolved authority requirements. Do not execute yet. The following milestone should add explicit bounded permission/authority integration before real BSC Testnet activation. After that: Activity & Outcomes, then generalize the complete vertical across Grid, Yield and Health with equal depth.
 
 ## Rule
 Every completed replacement ZIP becomes the new source of truth.

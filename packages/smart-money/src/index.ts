@@ -66,7 +66,7 @@ const CHECK_SOURCE_TEMPLATE: CheckSourceProgress[] = [
   { key: "venus_positions", label: "Venus lending positions", state: "QUEUED" },
   { key: "yield_opportunities", label: "Yield opportunities", state: "QUEUED" },
   { key: "market_context", label: "Grid market context", state: "QUEUED" },
-  { key: "agent_compatibility", label: "Agent compatibility", state: "NOT_SUPPORTED", detail: "Recommendation matching is not enabled in this milestone." },
+  { key: "agent_compatibility", label: "Agent compatibility", state: "QUEUED", detail: "Finding-to-service compatibility is prepared after financial findings are generated." },
 ];
 
 function cloneProgress(progress: CheckSourceProgress[]): CheckSourceProgress[] {
@@ -358,14 +358,14 @@ function defaultCoverage(): SmartMoneyCheckCoverage {
     venusPositions: "PARTIAL",
     yieldOpportunities: "PARTIAL",
     marketContext: "PARTIAL",
-    agentCompatibility: "NOT_SUPPORTED",
+    agentCompatibility: "AVAILABLE",
     notes: [
       "Wallet-wide ERC-20 discovery is not enabled yet; this check reads the native BNB/tBNB balance plus token metadata attached to discovered supported positions.",
       "PancakeSwap V3 wallet discovery is enabled. Infinity CL wallet discovery requires a future indexed event source.",
       "Venus Core Pool and Isolated Pool positions are checked onchain. Missing risk inputs are surfaced as partial/could-not-assess rather than Healthy.",
       "Yield scans compare wallet-held or already-supplied assets with supported Venus base supply-rate markets; user risk and liquidity preferences are not inferred.",
       "Grid market context uses supported PancakeSwap V3 onchain oracle averages. TWAP dispersion is not labelled as realised volatility and no profit forecast is made.",
-      "Agent matching is intentionally not represented as a completed check yet.",
+      "Finding-to-AgentService compatibility is available after the financial scan. Rankings are computed on demand from explicit category/protocol/context rules plus evidence and readiness; they are not profitability recommendations.",
     ],
   };
 }
@@ -776,6 +776,8 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
       await store.saveFinding(finding);
       await publish(checkSessionId, "finding.created", "market_context", { findingId: finding.findingId, category: finding.category, state: finding.state, severity: finding.severity });
     }
+
+    await updateSource(session, "agent_compatibility", "COMPLETED", "Deterministic Finding → AgentService matching is enabled for these findings and is evaluated on demand when you open the matching marketplace handoff.");
 
     session.coverage = coverage;
     session.state = coverage.walletAssets === "FAILED" && coverage.pancakeSwapPositions === "FAILED" && coverage.venusPositions === "FAILED" && coverage.yieldOpportunities === "FAILED" && coverage.marketContext === "FAILED" ? "FAILED" : "PARTIAL";

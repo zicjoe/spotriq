@@ -108,7 +108,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.12.0",
+      version: "0.13.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -149,6 +149,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       marketplaceServiceNormalizationEnabled: true,
       marketplaceReadinessEngineEnabled: true,
       marketplaceTestingEnabled: true,
+      findingServiceCompatibilityEnabled: true,
       marketplaceActivationEnabled: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
@@ -165,8 +166,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "ERC-8004 identities can be discovered through 8004scan and individual identities can be canonically verified onchain. Identity remains distinct from listing and service.",
         "Financial-category identity hints are now normalized into Spotriq AgentListing and AgentService candidates with explicit Offer, PermissionProfile, runtime-endpoint, and deterministic Readiness resources.",
         "Marketplace Test Lab performs bounded A2A/MCP endpoint-policy, reachability, protocol-contract, and category-capability checks without invoking financial actions.",
+        "Smart Money Findings now support deterministic AgentService compatibility ranking using explicit category/protocol/context rules plus evidence quality and operational readiness; no opaque trust or profitability score is produced.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, and marketplace tests satisfy the activation gates.",
-        "Agent matching remains explicitly unsupported until the recommendation engine can apply hard compatibility constraints against these normalized services.",
       ],
     };
     const body: ApiEnvelope<CapabilityResponse> = { data, meta: { generatedAt: new Date().toISOString() } };
@@ -178,7 +179,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerPancakeSwapRoutes(app, pancakeSwap);
   await registerVenusRoutes(app, venus);
   await registerMarketContextRoutes(app, marketContext);
-  await registerCheckRoutes(app, smartMoney);
+  await registerCheckRoutes(app, smartMoney, marketplaceSupply);
   await registerAgentRoutes(app, agentRegistry, config.agentDiscoveryChainId);
   await registerMarketplaceRoutes(app, marketplaceSupply, config.agentDiscoveryChainId);
 

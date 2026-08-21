@@ -7,6 +7,11 @@ import type {
   AgentService,
   DiscoveredAgent,
   EvidenceEnvelope,
+  Finding,
+  FindingCompatibilityContext,
+  FindingServiceCompatibilityCheck,
+  FindingServiceMatch,
+  FindingServiceMatchPage,
   MarketplaceListingPage,
   MarketplaceListingRecord,
   MarketplaceFinancialDiscovery,
@@ -33,6 +38,7 @@ export * from "./test-lab.js";
 export const MARKETPLACE_SERVICE_NORMALIZATION_METHOD = "marketplace.agent-service-normalization@1.0.0";
 export const MARKETPLACE_SERVICE_READINESS_METHOD = "marketplace.service-readiness@1.0.0";
 export const FINANCIAL_SUPPLY_DISCOVERY_METHOD = "marketplace.financial-supply-discovery@1.0.0";
+export const FINDING_SERVICE_COMPATIBILITY_METHOD = "marketplace.finding-service-compatibility@1.0.0";
 
 export const FINANCIAL_DISCOVERY_QUERIES: Record<ServiceCategory, string> = {
   rebalancing: "PancakeSwap concentrated liquidity rebalancing LP range management",
@@ -251,6 +257,7 @@ export interface MarketplaceSupplyReader {
   getEvidence(serviceId: string): Promise<EvidenceEnvelope[]>;
   getTests(serviceId: string): Promise<MarketplaceServiceTestCoverage>;
   runTests(serviceId: string): Promise<{ tests: MarketplaceServiceTestCoverage; readiness: ReadinessSnapshot }>;
+  matchFinding(finding: Finding, input?: { chainId?: AgentRegistryChainId; limit?: number }): Promise<FindingServiceMatchPage>;
 }
 
 export interface CreateMarketplaceSupplyOptions {
@@ -697,6 +704,211 @@ function mergeDiscoveryLead(existing: FinancialSupplyLead | undefined, incoming:
   };
 }
 
+function textValue(subject: Record<string, unknown> | undefined, key: string): string | undefined {
+  const value = subject?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function normalizeComparable(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function valuesCompatible(target: string, candidates: string[]): boolean {
+  const normalizedTarget = normalizeComparable(target);
+  return candidates.some((candidate) => {
+    const normalizedCandidate = normalizeComparable(candidate);
+    return normalizedCandidate === normalizedTarget || normalizedCandidate.includes(normalizedTarget) || normalizedTarget.includes(normalizedCandidate);
+  });
+}
+
+function compatibilityContext(finding: Finding): FindingCompatibilityContext {
+  const subject = finding.subject;
+  return {
+    category: finding.category,
+    protocol: textValue(subject, "protocol"),
+    asset: textValue(subject, "asset"),
+    assetAddress: textValue(subject, "underlyingAddress"),
+    pair: textValue(subject, "pair"),
+    network: textValue(subject, "network"),
+    findingState: finding.state,
+    severity: finding.severity,
+  };
+}
+
+function readinessCheck(record: MarketplaceServiceRecord, code: string): ReadinessCheck | undefined {
+  return record.readiness.checks?.find((check) => check.code === code);
+}
+
+function mappedReadinessState(check: ReadinessCheck | undefined): FindingServiceCompatibilityCheck["state"] {
+  if (!check) return "UNKNOWN";
+  if (check.state === "PASS") return "PASS";
+  if (check.state === "FAIL") return "FAIL";
+  if (check.state === "WARN") return "WARN";
+  return "UNKNOWN";
+}
+
+function contextCheck(
+  code: FindingServiceCompatibilityCheck["code"],
+  label: string,
+  target: string | undefined,
+  candidates: string[],
+): FindingServiceCompatibilityCheck {
+  if (!target) return { code, label, state: "UNKNOWN", requiredForCompatibility: false, detail: `The finding does not define a ${label.toLowerCase()} constraint.` };
+  if (candidates.length === 0) return { code, label, state: "UNKNOWN", requiredForCompatibility: false, detail: `The finding requires ${target}, but this service does not publish structured ${label.toLowerCase()} coverage yet.` };
+  const compatible = valuesCompatible(target, candidates);
+  return {
+    code,
+    label,
+    state: compatible ? "PASS" : "FAIL",
+    requiredForCompatibility: true,
+    detail: compatible
+      ? `Structured service metadata includes ${target}.`
+      : `The finding requires ${target}, while the service declares ${candidates.join(", ")}.`,
+  };
+}
+
+function readinessCompatibilityCheck(record: MarketplaceServiceRecord, code: "CANONICAL_IDENTITY" | "RUNTIME_REACHABILITY" | "MARKETPLACE_TESTS" | "PERMISSION_PROFILE", label: string): FindingServiceCompatibilityCheck {
+  const readiness = readinessCheck(record, code);
+  return {
+    code,
+    label,
+    state: mappedReadinessState(readiness),
+    requiredForCompatibility: false,
+    detail: readiness?.detail ?? `${label} has not been established for this service candidate.`,
+  };
+}
+
+function readinessOrder(record: MarketplaceServiceRecord): number {
+  return ({ READY: 6, LIMITED: 5, TESTNET_ONLY: 4, DEGRADED: 3, OFFLINE: 2, SUSPENDED: 0 } as const)[record.readiness.state];
+}
+
+function evidenceOrder(checks: FindingServiceCompatibilityCheck[]): number {
+  const observedCodes = ["CANONICAL_IDENTITY", "RUNTIME_REACHABILITY", "MARKETPLACE_TESTS"];
+  return checks.filter((check) => observedCodes.includes(check.code) && check.state === "PASS").length;
+}
+
+function tierOrder(tier: FindingServiceMatch["tier"]): number {
+  return tier === "EXACT_CONTEXT" ? 3 : tier === "CONTEXT_COMPATIBLE" ? 2 : 1;
+}
+
+function buildFindingServiceMatch(finding: Finding, record: MarketplaceServiceRecord): FindingServiceMatch | undefined {
+  if (record.service.category !== finding.category || record.readiness.state === "SUSPENDED") return undefined;
+  const context = compatibilityContext(finding);
+  const categoryCheck: FindingServiceCompatibilityCheck = {
+    code: "CATEGORY",
+    label: "Financial category",
+    state: "PASS",
+    requiredForCompatibility: true,
+    detail: `Finding and service both target ${finding.category}.`,
+  };
+  const protocolCheck = contextCheck("PROTOCOL", "Protocol", context.protocol, record.service.supportedProtocols);
+  const assetTargets = [context.asset, context.assetAddress].filter((value): value is string => Boolean(value));
+  const assetCheck = assetTargets.length === 0
+    ? contextCheck("ASSET", "Asset", undefined, record.service.supportedAssets ?? [])
+    : record.service.supportedAssets?.length
+      ? {
+          code: "ASSET" as const,
+          label: "Asset",
+          state: assetTargets.some((target) => valuesCompatible(target, record.service.supportedAssets ?? [])) ? "PASS" as const : "FAIL" as const,
+          requiredForCompatibility: true,
+          detail: assetTargets.some((target) => valuesCompatible(target, record.service.supportedAssets ?? []))
+            ? `Structured service metadata covers the finding asset (${assetTargets.join(" / ")}).`
+            : `The finding asset (${assetTargets.join(" / ")}) is not present in the service's declared asset coverage (${record.service.supportedAssets.join(", ")}).`,
+        }
+      : {
+          code: "ASSET" as const,
+          label: "Asset",
+          state: "UNKNOWN" as const,
+          requiredForCompatibility: false,
+          detail: `The finding concerns ${assetTargets.join(" / ")}, but this service does not publish structured asset coverage yet.`,
+        };
+  const pairCheck = contextCheck("PAIR", "Pair", context.pair, record.service.supportedPairs ?? []);
+  const checks: FindingServiceCompatibilityCheck[] = [
+    categoryCheck,
+    protocolCheck,
+    assetCheck,
+    pairCheck,
+    readinessCompatibilityCheck(record, "CANONICAL_IDENTITY", "Canonical ERC-8004 identity"),
+    readinessCompatibilityCheck(record, "RUNTIME_REACHABILITY", "Observed runtime reachability"),
+    readinessCompatibilityCheck(record, "MARKETPLACE_TESTS", "Marketplace Test Lab"),
+    readinessCompatibilityCheck(record, "PERMISSION_PROFILE", "Permission authority"),
+  ];
+  if (checks.some((check) => check.requiredForCompatibility && check.state === "FAIL")) return undefined;
+
+  const applicableContext = [protocolCheck, assetCheck, pairCheck].filter((check) => check.state !== "UNKNOWN");
+  const contextPasses = applicableContext.filter((check) => check.state === "PASS").length;
+  const hasUnknownContext = [protocolCheck, assetCheck, pairCheck].some((check) => check.state === "UNKNOWN" && (check.code === "PROTOCOL" ? Boolean(context.protocol) : check.code === "ASSET" ? assetTargets.length > 0 : Boolean(context.pair)));
+  const tier: FindingServiceMatch["tier"] = contextPasses > 0 && !hasUnknownContext
+    ? "EXACT_CONTEXT"
+    : contextPasses > 0
+      ? "CONTEXT_COMPATIBLE"
+      : "CATEGORY_ONLY";
+
+  const strengths: string[] = [`Matches the ${finding.category} financial category.`];
+  if (protocolCheck.state === "PASS" && context.protocol) strengths.push(`Declares ${context.protocol} protocol compatibility.`);
+  if (assetCheck.state === "PASS" && assetTargets.length) strengths.push(`Declares coverage for the finding asset.`);
+  if (pairCheck.state === "PASS" && context.pair) strengths.push(`Declares coverage for ${context.pair}.`);
+  if (mappedReadinessState(readinessCheck(record, "CANONICAL_IDENTITY")) === "PASS") strengths.push("Canonical ERC-8004 identity is verified.");
+  if (mappedReadinessState(readinessCheck(record, "RUNTIME_REACHABILITY")) === "PASS") strengths.push("Spotriq observed the declared machine runtime as reachable.");
+  if (mappedReadinessState(readinessCheck(record, "MARKETPLACE_TESTS")) === "PASS") strengths.push("Marketplace Test Lab contract/category checks passed.");
+
+  const limitations = checks.filter((check) => check.state === "UNKNOWN" || check.state === "WARN" || check.state === "FAIL").map((check) => check.detail);
+  if (!record.service.marketplaceActivationEligible) limitations.push(`This service is ${record.readiness.state} and is not currently activation-eligible.`);
+  limitations.push("Compatibility is deterministic context matching, not a prediction of profit, execution quality, or financial suitability.");
+
+  const tierLabel = tier === "EXACT_CONTEXT" ? "matches the available structured finding context" : tier === "CONTEXT_COMPATIBLE" ? "matches part of the available structured finding context" : "matches the required financial category but lacks structured context coverage";
+  return {
+    matchId: `match:${finding.findingId}:${record.service.serviceId}`,
+    findingId: finding.findingId,
+    serviceId: record.service.serviceId,
+    rank: 0,
+    tier,
+    activationEligible: Boolean(record.service.marketplaceActivationEligible),
+    service: record,
+    checks,
+    strengths,
+    limitations: [...new Set(limitations)],
+    explanation: `${record.service.name} ${tierLabel}. Operational readiness (${record.readiness.state}) and evidence quality affect ordering, but do not change the underlying compatibility facts or bypass activation gates.`,
+  };
+}
+
+export function rankServicesForFinding(
+  finding: Finding,
+  records: MarketplaceServiceRecord[],
+  input: { limit?: number; source?: "8004scan" | "cache"; generatedAt?: string } = {},
+): FindingServiceMatchPage {
+  const generatedAt = input.generatedAt ?? new Date().toISOString();
+  const candidates = records.map((record) => buildFindingServiceMatch(finding, record)).filter((match): match is FindingServiceMatch => Boolean(match));
+  candidates.sort((a, b) => {
+    const tierDelta = tierOrder(b.tier) - tierOrder(a.tier);
+    if (tierDelta) return tierDelta;
+    const evidenceDelta = evidenceOrder(b.checks) - evidenceOrder(a.checks);
+    if (evidenceDelta) return evidenceDelta;
+    const readinessDelta = readinessOrder(b.service) - readinessOrder(a.service);
+    if (readinessDelta) return readinessDelta;
+    return a.serviceId.localeCompare(b.serviceId);
+  });
+  const limit = Math.max(1, Math.min(input.limit ?? 8, 20));
+  const matches = candidates.slice(0, limit).map((match, index) => ({ ...match, rank: index + 1 }));
+  return {
+    findingId: finding.findingId,
+    checkSessionId: finding.checkSessionId,
+    context: compatibilityContext(finding),
+    matches,
+    consideredServices: records.length,
+    excludedServices: records.length - candidates.length,
+    source: input.source ?? "8004scan",
+    methodVersion: FINDING_SERVICE_COMPATIBILITY_METHOD,
+    generatedAt,
+    limitations: [
+      "Ranking is deterministic and lexicographic; Spotriq does not calculate an opaque trust or profitability score.",
+      "Missing structured protocol/asset/pair metadata remains UNKNOWN rather than being treated as evidence of incompatibility.",
+      "Operational readiness and Marketplace Test Lab evidence affect ordering but never make a non-ready service activation-eligible.",
+      "A high-ranked match is a context-compatible marketplace candidate, not financial advice or a performance prediction.",
+    ],
+  };
+}
+
 export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions): MarketplaceSupplyReader {
   const registry = options.registry;
   const defaultChainId = options.defaultChainId ?? 56;
@@ -955,6 +1167,15 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
     }
     return { tests, readiness: updated.readiness };
   }
+
+  async function matchFinding(finding: Finding, input: { chainId?: AgentRegistryChainId; limit?: number } = {}): Promise<FindingServiceMatchPage> {
+    const page = await listServices({ chainId: input.chainId ?? defaultChainId, category: finding.category, limit: 20 });
+    return rankServicesForFinding(finding, page.services, {
+      limit: input.limit ?? 8,
+      source: page.source,
+      generatedAt: page.fetchedAt,
+    });
+  }
   async function getStatus(): Promise<MarketplaceSupplyStatus> {
     return {
       engine: "Spotriq Marketplace Supply",
@@ -973,6 +1194,7 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
         deterministicReadiness: true,
         targetedFinancialDiscovery: true,
         marketplaceTesting: true,
+        findingServiceCompatibility: true,
         activation: false,
       },
       limitations: [
@@ -980,10 +1202,11 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
         "Spotriq performs bounded targeted registry discovery across all four supported financial categories; search relevance is never treated as capability proof.",
         "Only supported-category candidates are normalized into services; search-relevant identities without matching operator metadata remain discovery leads.",
         "Marketplace Test Lab now performs bounded A2A/MCP runtime contract checks; it never executes financial actions or converts test success into a performance claim.",
+        "Smart Money Findings can now be deterministically matched to normalized AgentService candidates using category, protocol/context declarations, evidence quality, and readiness without an opaque trust score.",
         "Registry-derived services remain non-activatable until explicit permission/authority requirements and every independent readiness gate pass.",
       ],
     };
   }
 
-  return { getStatus, listListings, listServices, getService, getReadiness, getEvidence, getTests, runTests };
+  return { getStatus, listListings, listServices, getService, getReadiness, getEvidence, getTests, runTests, matchFinding };
 }

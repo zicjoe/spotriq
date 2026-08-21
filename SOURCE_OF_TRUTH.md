@@ -1,8 +1,8 @@
 # Spotriq Source of Truth
 
-Current release: **v0.12.0**
+Current release: **v0.13.0**
 
-This ZIP supersedes Spotriq v0.11.0.
+This ZIP supersedes Spotriq v0.12.0.
 
 Implemented live financial-data categories:
 1. Rebalancing — PancakeSwap V3/Infinity CL current-state foundation and V3 wallet discovery.
@@ -33,9 +33,19 @@ Marketplace Test Lab implemented in v0.12.0:
 - Readiness now distinguishes endpoint declaration from observed runtime reachability.
 - Test Lab PASS cannot bypass the independent permission/authority gate. Registry-derived services remain non-activatable while PermissionProfile is UNDECLARED.
 
+Finding → AgentService compatibility/ranking implemented in v0.13.0:
+- A real Smart Money Finding can be matched against bounded live normalized AgentService supply for the same required financial category.
+- Finding context is derived only from structured Finding fields: category plus available protocol, asset/address, pair, network, state and severity.
+- Category is a hard constraint. Explicitly contradictory structured protocol/asset/pair declarations can exclude a service; missing declarations stay UNKNOWN instead of becoming false incompatibility.
+- Remaining candidates are ranked deterministically and lexicographically: structured context tier first, then canonical/runtime/Test-Lab evidence quality, then operational readiness, then stable service ID.
+- No opaque trust, profitability or suitability score is produced.
+- Every match returns the exact checks, strengths, limitations and the underlying MarketplaceServiceRecord used for ordering.
+- A top-ranked service remains non-activatable whenever its existing readiness/permission gates say so. Compatibility never overrides `activationEligible`.
+- Live Smart Money Finding actions now hand off into Explore through `fromFinding`; Explore renders ranked live matches ahead of generic supply and does not substitute sample cards when live matching yields zero.
+
 Persistence:
 - Local development can continue with memory stores and blank `DATABASE_URL`.
 - Migration `0009_marketplace_test_lab.sql` persists immutable marketplace test runs and is now the latest migration.
 - Railway PostgreSQL remains a deployment-time integration rather than a local-development requirement.
 
-Next engineering milestone: **deterministic Smart Money Finding → AgentService compatibility/ranking**, followed by the first complete financial vertical and explicit permission/authority integration.
+Next engineering milestone: **first complete Rebalancing vertical handoff** — convert a real Rebalancing Finding plus a selected compatible AgentService into an explicit reviewable service/job intent that carries exact LP context, requested action, constraints, evidence references and unresolved authority requirements. Execution remains blocked until the subsequent explicit permission/authority milestone.

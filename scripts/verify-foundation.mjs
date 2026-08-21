@@ -51,6 +51,8 @@ const required = [
   "docs/IMPLEMENTATION_REPORT_FINANCIAL_SUPPLY_DISCOVERY_v0.11.0.md",
   "docs/MARKETPLACE_TEST_LAB.md",
   "docs/IMPLEMENTATION_REPORT_MARKETPLACE_TEST_LAB_v0.12.0.md",
+  "docs/FINDING_SERVICE_COMPATIBILITY.md",
+  "docs/IMPLEMENTATION_REPORT_FINDING_SERVICE_COMPATIBILITY_v0.13.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -137,7 +139,7 @@ if (!evidence.includes("GRID_MARKET_REGIME")) throw new Error("Evidence Engine m
 if (!smartMoney.includes("createGridFinding") || !smartMoney.includes("SMART_MONEY_GRID_METHOD")) throw new Error("Smart Money engine must include deterministic Grid findings.");
 
 const checkRoutes = await readFile(path.join(root, "apps/api/src/routes/checks.ts"), "utf8");
-for (const route of ["/v1/checks", "/v1/checks/:checkSessionId", "/v1/checks/:checkSessionId/findings", "/v1/checks/:checkSessionId/events"]) {
+for (const route of ["/v1/checks", "/v1/checks/:checkSessionId", "/v1/checks/:checkSessionId/findings", "/v1/checks/:checkSessionId/findings/:findingId/matches", "/v1/checks/:checkSessionId/events"]) {
   if (!checkRoutes.includes(route)) throw new Error(`Missing Smart Money Check route ${route}.`);
 }
 const appUi = await readFile(path.join(root, "apps/web/src/app/App.tsx"), "utf8");
@@ -167,7 +169,7 @@ if (!evidence.includes("ERC8004_IDENTITY") || !evidence.includes("SCAN8004_DISCO
 }
 
 const marketplaceSupply = await readFile(path.join(root, "packages/marketplace-supply/src/index.ts"), "utf8");
-for (const marker of ["createMarketplaceSupply", "normalizeMarketplaceListing", "normalizeMarketplaceService", "MARKETPLACE_SERVICE_NORMALIZATION_METHOD", "MARKETPLACE_SERVICE_READINESS_METHOD", "FINANCIAL_SUPPLY_DISCOVERY_METHOD", "FINANCIAL_DISCOVERY_QUERIES", "Promise.allSettled", "RUNTIME_REACHABILITY", "runTests", "createMarketplaceTestLab", "MARKETPLACE_TESTS"]) {
+for (const marker of ["createMarketplaceSupply", "normalizeMarketplaceListing", "normalizeMarketplaceService", "MARKETPLACE_SERVICE_NORMALIZATION_METHOD", "MARKETPLACE_SERVICE_READINESS_METHOD", "FINANCIAL_SUPPLY_DISCOVERY_METHOD", "FINDING_SERVICE_COMPATIBILITY_METHOD", "rankServicesForFinding", "matchFinding", "FINANCIAL_DISCOVERY_QUERIES", "Promise.allSettled", "RUNTIME_REACHABILITY", "runTests", "createMarketplaceTestLab", "MARKETPLACE_TESTS"]) {
   if (!marketplaceSupply.includes(marker)) throw new Error(`Marketplace supply engine is missing ${marker}.`);
 }
 const marketplaceRoutes = await readFile(path.join(root, "apps/api/src/routes/marketplace.ts"), "utf8");
@@ -182,7 +184,7 @@ if (!appUi.includes("Targeted financial supply discovery") || !appUi.includes("D
   throw new Error("Explore must expose targeted financial search coverage and keep search-only leads separate from normalized services.");
 }
 const domain = await readFile(path.join(root, "packages/domain/src/index.ts"), "utf8");
-for (const marker of ["MarketplaceFinancialDiscovery", "FinancialSupplySearchRun", "FinancialSupplyLead", "FinancialSupplyDiscoveryMatch"]) {
+for (const marker of ["MarketplaceFinancialDiscovery", "FinancialSupplySearchRun", "FinancialSupplyLead", "FinancialSupplyDiscoveryMatch", "FindingCompatibilityContext", "FindingServiceCompatibilityCheck", "FindingServiceMatch", "FindingServiceMatchPage"]) {
   if (!domain.includes(marker)) throw new Error(`Financial supply discovery domain model is missing ${marker}.`);
 }
 if (!evidence.includes("AGENT_SERVICE_NORMALIZATION") || !evidence.includes("SERVICE_READINESS") || !evidence.includes("MARKETPLACE_TEST_LAB")) {
@@ -199,5 +201,8 @@ for (const marker of ["MARKETPLACE_TEST_LAB_METHOD", "server/discover", ".well-k
 const migration0009 = await readFile(path.join(root, "packages/db/migrations/0009_marketplace_test_lab.sql"), "utf8");
 if (!migration0009.includes("marketplace_service_test_runs")) throw new Error("Marketplace Test Lab migration is missing marketplace_service_test_runs.");
 if (!marketplaceRoutes.includes("supply.runTests") || !marketplaceRoutes.includes("app.post")) throw new Error("Marketplace Test Lab POST execution route is missing.");
+if (!checkRoutes.includes("marketplaceSupply.matchFinding") || !checkRoutes.includes("FindingServiceMatchesResponse")) throw new Error("Smart Money Finding → AgentService compatibility API route is missing.");
+if (!smartMoney.includes('agentCompatibility: "AVAILABLE"') || !smartMoney.includes('"agent_compatibility", "COMPLETED"')) throw new Error("Smart Money Check must expose the compatibility handoff as available after findings are generated.");
+if (!appUi.includes("Best live matches for this finding") || !appUi.includes("fromFinding={nav.fromFinding}") || !appUi.includes("getFindingMatches")) throw new Error("Explore must consume the live Finding handoff and render deterministic matched services.");
 
-console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 financial supply + Marketplace Test Lab readiness verification passed.");
+console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + deterministic Finding → AgentService compatibility verification passed.");

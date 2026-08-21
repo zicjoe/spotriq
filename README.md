@@ -109,14 +109,15 @@ API:
 POST http://localhost:3001/v1/checks
 GET  http://localhost:3001/v1/checks/:checkSessionId
 GET  http://localhost:3001/v1/checks/:checkSessionId/findings
+GET  http://localhost:3001/v1/checks/:checkSessionId/findings/:findingId/matches
 GET  http://localhost:3001/v1/checks/:checkSessionId/events
 ```
 
-Current live check coverage now has real data foundations across all four required financial categories: Rebalancing from supported PancakeSwap V3 LP range state, Health from Venus Core/Isolated lending risk, Yield from wallet-relevant Venus supply markets, and Grid from wallet-relevant PancakeSwap V3 onchain oracle averages. Agent matching, wallet-wide token discovery, Infinity wallet-wide discovery, and historical realised-performance analytics remain explicitly unsupported/partial instead of being faked.
+Current live check coverage now has real data foundations across all four required financial categories: Rebalancing from supported PancakeSwap V3 LP range state, Health from Venus Core/Isolated lending risk, Yield from wallet-relevant Venus supply markets, and Grid from wallet-relevant PancakeSwap V3 onchain oracle averages. v0.13.0 adds an on-demand deterministic Finding → AgentService compatibility handoff. Wallet-wide token discovery, Infinity wallet-wide discovery, and historical realised-performance analytics remain explicitly unsupported/partial instead of being faked.
 
 ## Live ERC-8004 / 8004scan agent discovery
 
-Spotriq now separates **agent identity discovery** from **marketplace service activation**. 8004scan is used as an external indexed discovery source, while a selected identity can be rechecked directly against the configured ERC-8004 Identity Registry. A discovered identity is **not** automatically a Spotriq financial service. v0.12.0 preserves targeted registry search across all four required financial categories and adds Marketplace Test Lab: normalized A2A/MCP candidates can now receive bounded, non-financial runtime/protocol verification and Marketplace Observed evidence. Test Lab success is folded into deterministic readiness, but it does not bypass the independent permission/authority gate.
+Spotriq separates **agent identity discovery** from **marketplace service activation**. 8004scan is used as an external indexed discovery source, while a selected identity can be rechecked directly against the configured ERC-8004 Identity Registry. A discovered identity is **not** automatically a Spotriq financial service. v0.12.0 added Marketplace Test Lab; v0.13.0 now connects real Smart Money Findings to normalized live AgentService candidates through deterministic, explainable compatibility ranking. Test/evidence quality and readiness can affect ordering, but neither compatibility nor a high rank bypasses the independent permission/authority gate.
 
 ```text
 http://localhost:3001/v1/registry/status
@@ -170,7 +171,7 @@ pnpm dev:worker
 ## Current product-data state
 
 - Reference financial-service cards remain clearly labelled sample data; Explore now also displays a separate live ERC-8004 registry discovery surface.
-- Live discovered ERC-8004 identities remain distinct from normalized AgentServices; search relevance alone never creates a service claim. Eligible normalized A2A/MCP candidates can now be contract-tested, but activation remains independently gated by permission authority.
+- Live discovered ERC-8004 identities remain distinct from normalized AgentServices; search relevance alone never creates a service claim. Eligible normalized A2A/MCP candidates can be contract-tested, and live Smart Money Findings can now be matched/ranked against normalized services using explicit context rules. Activation remains independently gated by permission authority.
 - BSC chain status, block, transaction, native balance, and requested ERC-20 balance APIs are now real provider-backed reads.
 - Those chain reads return normalized evidence/provenance/freshness structures.
 - PancakeSwap V3 and Infinity CL current-state normalization is live at the API layer.
@@ -202,6 +203,8 @@ pnpm dev:worker
 - `docs/IMPLEMENTATION_REPORT_FINANCIAL_SUPPLY_DISCOVERY_v0.11.0.md`
 - `docs/MARKETPLACE_TEST_LAB.md`
 - `docs/IMPLEMENTATION_REPORT_MARKETPLACE_TEST_LAB_v0.12.0.md`
+- `docs/FINDING_SERVICE_COMPATIBILITY.md`
+- `docs/IMPLEMENTATION_REPORT_FINDING_SERVICE_COMPATIBILITY_v0.13.0.md`
 - `docs/ENGINEERING_STATUS.md`
 
 ## v0.11.0 targeted financial supply discovery
@@ -228,9 +231,23 @@ POST /v1/services/:serviceId/tests
 
 The Explore UI exposes **Run Test Lab** for eligible live A2A/MCP candidates and refreshes the readiness card after a run.
 
+## v0.13.0 Finding → AgentService Compatibility & Ranking
+
+A live Smart Money Finding can now be handed to the marketplace through:
+
+```text
+GET /v1/checks/:checkSessionId/findings/:findingId/matches
+```
+
+Spotriq derives structured finding context (financial category plus available protocol, asset/address and pair information), performs a bounded live search for normalized services in that category, excludes only hard contradictions it can actually prove, and ranks the remaining candidates deterministically. Missing structured asset/pair coverage remains `UNKNOWN`; it is not silently treated as incompatibility.
+
+The ranking is lexicographic and explainable rather than an opaque score: structured context fit first, then Marketplace/identity evidence quality, then operational readiness, with a stable service-ID tie break. Returned matches expose the exact compatibility checks, strengths, limitations, readiness record and current `activationEligible` value. A top-ranked `LIMITED` service therefore remains activation-blocked.
+
+Explore now recognizes the `fromFinding` handoff from live Smart Money Check results and places **Best live matches for this finding** ahead of generic supply. Sample/reference cards remain separate and are never used as a hidden fallback for a zero-match live result.
+
 ## Next milestone
 
-Build **deterministic Smart Money Finding → AgentService compatibility/ranking**. Map real findings to service candidates using explicit category/protocol/context compatibility plus readiness/evidence quality, while keeping non-ready services non-activatable. Then take the strongest category through the first complete end-to-end financial vertical and add explicit permission/authority integration before real BSC Testnet activation.
+Build the first complete **Rebalancing vertical handoff**: convert a real PancakeSwap Rebalancing Finding plus a selected compatible AgentService into an explicit, reviewable service/job intent carrying the exact LP position context, requested agent action, constraints, evidence references and unresolved authority requirements. This should stop before execution until the following permission/authority milestone provides bounded user authorization.
 
 
 ## v0.9.2 registry visibility

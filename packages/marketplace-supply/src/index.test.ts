@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentRegistryReader } from "@spotriq/agent-registry";
 import type { AgentDiscoveryPage, AgentRegistryStatus, DiscoveredAgent, ExternalAgentFeedbackPage, MarketplaceServiceRecord, MarketplaceServiceTestRun } from "@spotriq/domain";
-import { createMarketplaceSupply, normalizeMarketplaceListing, normalizeMarketplaceService } from "./index.js";
+import { createMarketplaceSupply, normalizeMarketplaceListing, normalizeMarketplaceService, rankServicesForFinding } from "./index.js";
 
 function agent(overrides: Partial<DiscoveredAgent> = {}): DiscoveredAgent {
   return {
@@ -260,4 +260,136 @@ test("one failed targeted category search does not suppress successful categorie
   assert.equal(page.discovery?.searches.length, 4);
   assert.equal(page.discovery?.searches.some((run) => run.state === "UNAVAILABLE"), true);
   assert.equal(page.services.some((record) => record.service.category === "yield"), true);
+});
+
+test("finding compatibility ranks explicit protocol context above category-only supply and excludes explicit protocol conflicts", () => {
+  const finding = {
+    findingId: "finding_match_1",
+    checkSessionId: "check_match_1",
+    category: "rebalancing",
+    state: "needs-attention",
+    severity: "attention",
+    headline: "LP outside range",
+    summary: "Current PancakeSwap position is outside range.",
+    confidence: "high",
+    freshness: "Updated 1s ago",
+    primaryAction: { label: "Find Rebalancing Agents" },
+    targetRoute: "explore",
+    keyValues: [],
+    whatCouldAgentDo: "Rebalance",
+    subject: { protocol: "PancakeSwap", pair: "WBNB/USDT", network: "mainnet" },
+  } satisfies import("@spotriq/domain").Finding;
+
+  const exact = normalizeMarketplaceService(agent({
+    discoveryId: "erc8004:56:101",
+    identity: { namespace: "eip155", chainId: 56, registryAddress: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432", agentId: "101", identifier: "eip155:56:registry:101" },
+    name: "Pancake Range Agent",
+    description: "PancakeSwap liquidity rebalancing",
+    supportedProtocols: ["PancakeSwap"],
+    categoryHints: [{ category: "rebalancing", confidence: "high", basis: ["rebalanc"], provenance: "operator-claimed", note: "not tested" }],
+  }), "rebalancing");
+  const categoryOnly = normalizeMarketplaceService(agent({
+    discoveryId: "erc8004:56:102",
+    identity: { namespace: "eip155", chainId: 56, registryAddress: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432", agentId: "102", identifier: "eip155:56:registry:102" },
+    name: "Range Agent",
+    description: "Concentrated liquidity range management",
+    supportedProtocols: [],
+    categoryHints: [{ category: "rebalancing", confidence: "high", basis: ["rebalanc"], provenance: "operator-claimed", note: "not tested" }],
+  }), "rebalancing");
+  const conflict = normalizeMarketplaceService(agent({
+    discoveryId: "erc8004:56:103",
+    identity: { namespace: "eip155", chainId: 56, registryAddress: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432", agentId: "103", identifier: "eip155:56:registry:103" },
+    name: "Other Protocol Range Agent",
+    description: "Concentrated liquidity rebalancing",
+    supportedProtocols: ["Venus"],
+    categoryHints: [{ category: "rebalancing", confidence: "high", basis: ["rebalanc"], provenance: "operator-claimed", note: "not tested" }],
+  }), "rebalancing");
+  assert.ok(exact && categoryOnly && conflict);
+
+  const ranked = rankServicesForFinding(finding, [categoryOnly, conflict, exact]);
+  assert.equal(ranked.consideredServices, 3);
+  assert.equal(ranked.excludedServices, 1);
+  assert.equal(ranked.matches.length, 2);
+  assert.equal(ranked.matches[0]?.serviceId, exact.service.serviceId);
+  assert.equal(ranked.matches[0]?.tier, "CONTEXT_COMPATIBLE");
+  assert.equal(ranked.matches[1]?.tier, "CATEGORY_ONLY");
+  assert.equal(ranked.matches[0]?.activationEligible, false);
+  assert.match(ranked.matches[0]?.explanation ?? "", /does not.*bypass activation|do not change.*activation|activation gates/i);
+});
+
+test("marketplace-observed readiness evidence breaks compatibility ties without turning LIMITED supply into activatable supply", () => {
+  const finding = {
+    findingId: "finding_match_2",
+    checkSessionId: "check_match_2",
+    category: "yield",
+    state: "opportunity",
+    severity: "opportunity",
+    headline: "Yield context",
+    summary: "Venus yield opportunity",
+    confidence: "high",
+    freshness: "Updated 1s ago",
+    primaryAction: { label: "Find Yield Agents" },
+    targetRoute: "explore",
+    keyValues: [],
+    whatCouldAgentDo: "Compare yield",
+    subject: { protocol: "Venus", asset: "USDT", underlyingAddress: "0x1111111111111111111111111111111111111111", network: "mainnet" },
+  } satisfies import("@spotriq/domain").Finding;
+
+  const makeYield = (id: string) => normalizeMarketplaceService(agent({
+    discoveryId: `erc8004:56:${id}`,
+    identity: { namespace: "eip155", chainId: 56, registryAddress: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432", agentId: id, identifier: `eip155:56:registry:${id}` },
+    name: `Yield ${id}`,
+    description: "Venus yield optimisation",
+    supportedProtocols: ["Venus"],
+    categoryHints: [{ category: "yield", confidence: "high", basis: ["yield optim", "venus"], provenance: "operator-claimed", note: "not tested" }],
+  }), "yield");
+  const observed = makeYield("201");
+  const claimedOnly = makeYield("202");
+  assert.ok(observed && claimedOnly);
+  observed.readiness.checks = observed.readiness.checks?.map((check) =>
+    check.code === "CANONICAL_IDENTITY" || check.code === "RUNTIME_REACHABILITY" || check.code === "MARKETPLACE_TESTS"
+      ? { ...check, state: "PASS" as const }
+      : check,
+  );
+  observed.readiness.state = "LIMITED";
+  observed.readiness.activationEligible = false;
+  observed.service.readiness = "LIMITED";
+  observed.service.marketplaceActivationEligible = false;
+
+  const ranked = rankServicesForFinding(finding, [claimedOnly, observed]);
+  assert.equal(ranked.matches[0]?.serviceId, observed.service.serviceId);
+  assert.equal(ranked.matches[0]?.activationEligible, false);
+  assert.equal(ranked.matches[0]?.checks.find((check) => check.code === "MARKETPLACE_TESTS")?.state, "PASS");
+  assert.equal(ranked.matches[0]?.checks.find((check) => check.code === "PERMISSION_PROFILE")?.state, "UNKNOWN");
+});
+
+test("marketplace supply exposes end-to-end Finding to live AgentService matching", async () => {
+  const item = agent({
+    supportedProtocols: ["PancakeSwap"],
+    description: "PancakeSwap concentrated-liquidity rebalancing agent",
+  });
+  const supply = createMarketplaceSupply({ registry: registryFor(item) });
+  const finding = {
+    findingId: "finding_supply_match",
+    checkSessionId: "check_supply_match",
+    category: "rebalancing",
+    state: "needs-attention",
+    severity: "attention",
+    headline: "LP range attention",
+    summary: "Position is outside range.",
+    confidence: "high",
+    freshness: "Updated now",
+    primaryAction: { label: "Find Rebalancing Agents" },
+    targetRoute: "explore",
+    keyValues: [],
+    whatCouldAgentDo: "Rebalance",
+    subject: { protocol: "PancakeSwap", pair: "WBNB/USDT", network: "mainnet" },
+  } satisfies import("@spotriq/domain").Finding;
+  const page = await supply.matchFinding(finding, { chainId: 56, limit: 3 });
+  assert.equal(page.findingId, finding.findingId);
+  assert.equal(page.matches.length, 1);
+  assert.equal(page.matches[0]?.service.service.category, "rebalancing");
+  assert.equal(page.matches[0]?.checks.find((check) => check.code === "PROTOCOL")?.state, "PASS");
+  assert.equal(page.matches[0]?.activationEligible, false);
+  assert.equal(page.methodVersion, "marketplace.finding-service-compatibility@1.0.0");
 });

@@ -55,6 +55,7 @@ export interface CapabilityResponse {
   marketplaceServiceNormalizationEnabled: boolean;
   marketplaceReadinessEngineEnabled: boolean;
   marketplaceTestingEnabled: boolean;
+  findingServiceCompatibilityEnabled: boolean;
   marketplaceActivationEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
@@ -214,4 +215,8 @@ export interface MarketplaceServiceTestsResponse {
 export interface RunMarketplaceServiceTestsResponse {
   tests: import("@spotriq/domain").MarketplaceServiceTestCoverage;
   readiness: import("@spotriq/domain").ReadinessSnapshot;
+}
+
+export interface FindingServiceMatchesResponse {
+  page: import("@spotriq/domain").FindingServiceMatchPage;
 }

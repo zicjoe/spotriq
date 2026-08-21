@@ -170,7 +170,7 @@ test("Grid finding becomes Could Not Assess when required oracle history is unav
   assert.equal(finding?.confidence, "low");
 });
 
-test("Smart Money Check runs as PARTIAL while unsupported sources stay explicit", async () => {
+test("Smart Money Check keeps partial financial coverage explicit while enabling the on-demand AgentService compatibility handoff", async () => {
   const chain = {
     network: "testnet" as const,
     definition: { network: "testnet" as const, chainId: 97 as const, nativeSymbol: "tBNB" as const, explorerUrl: "https://testnet.bscscan.com", defaultRpcUrls: ["https://a", "https://b"] as [string, string] },
@@ -224,6 +224,8 @@ test("Smart Money Check runs as PARTIAL while unsupported sources stay explicit"
   assert.equal(result.session.sourceProgress?.find((item) => item.key === "venus_positions")?.state, "COMPLETED");
   assert.equal(result.session.sourceProgress?.find((item) => item.key === "yield_opportunities")?.state, "COMPLETED");
   assert.equal(result.session.sourceProgress?.find((item) => item.key === "market_context")?.state, "COMPLETED");
+  assert.equal(result.session.sourceProgress?.find((item) => item.key === "agent_compatibility")?.state, "COMPLETED");
+  assert.equal(result.session.coverage?.agentCompatibility, "AVAILABLE");
   assert.ok(result.findings.some((finding) => finding.category === "health" && finding.state === "needs-attention"));
   assert.ok(result.findings.some((finding) => finding.category === "grid" && finding.state === "opportunity"));
   const events = await engine.listEvents(session.checkSessionId);

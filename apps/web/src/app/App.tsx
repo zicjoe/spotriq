@@ -15,7 +15,7 @@ import type {
   Route, CheckPhase, ExploreCategory, MyAgentsTab, AgentProfileTab,
   CheckoutStep, ServiceCategory, ReadinessState, PermissionIntensity,
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
-  EvidenceProvenance, NavState, AgentService, RebalancingMetrics,
+  EvidenceProvenance, NavState, AgentService, FindingServiceMatch, FindingServiceMatchPage, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
   PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery,
 } from "../domain/types";
@@ -765,6 +765,40 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
   );
 }
 
+function FindingServiceMatchCard({ match, onInspect, inspecting, onRunTests, testing }: { match: FindingServiceMatch; onInspect: () => void; inspecting: boolean; onRunTests: () => void; testing: boolean }) {
+  const tierLabel = match.tier === "EXACT_CONTEXT" ? "Exact structured context" : match.tier === "CONTEXT_COMPATIBLE" ? "Context compatible" : "Category match";
+  const tierVariant = match.tier === "EXACT_CONTEXT" ? "green" as const : match.tier === "CONTEXT_COMPATIBLE" ? "teal" as const : "muted" as const;
+  const contextChecks = match.checks.filter((check) => ["CATEGORY", "PROTOCOL", "ASSET", "PAIR"].includes(check.code));
+  return (
+    <div className="rounded-xl border border-[#2dd4bf]/20 bg-[#2dd4bf]/[0.02] overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#2dd4bf]/12 bg-[#2dd4bf]/[0.035]">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-[#dde3ef]">#{match.rank} matched service</span>
+              <Badge variant={tierVariant}>{tierLabel}</Badge>
+              <Badge variant={match.activationEligible ? "green" : "amber"}>{match.activationEligible ? "Activation eligible" : "Activation gated"}</Badge>
+            </div>
+            <p className="text-[11px] text-[#8090a8] mt-1 max-w-3xl">{match.explanation}</p>
+          </div>
+          <span className="text-[10px] font-mono text-[#52637b] shrink-0">Deterministic rank</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5 mt-3">
+          {contextChecks.map((check) => (
+            <span key={check.code} className={cn("text-[10px] px-2 py-1 rounded border", check.state === "PASS" ? "text-[#4ade80] border-[#4ade80]/20 bg-[#4ade80]/5" : check.state === "FAIL" ? "text-[#f87171] border-[#f87171]/20 bg-[#f87171]/5" : "text-[#9aacc4] border-white/8 bg-white/[0.025]")}>
+              {check.label}: {check.state}
+            </span>
+          ))}
+        </div>
+        {match.strengths.length > 0 && <p className="text-[11px] text-[#6b7d99] mt-2">Why it ranks here: {match.strengths.slice(0, 3).join(" ")}</p>}
+      </div>
+      <div className="p-3">
+        <LiveServiceCandidateCard record={match.service} onInspect={onInspect} inspecting={inspecting} onRunTests={onRunTests} testing={testing} />
+      </div>
+    </div>
+  );
+}
+
 function DiscoveredAgentCard({ agent, onVerify, verifying }: { agent: DiscoveredAgent; onVerify: () => void; verifying: boolean }) {
   const verification = agent.canonicalVerification;
   const verified = verification?.state === "VERIFIED";
@@ -839,7 +873,7 @@ function DiscoveredAgentCard({ agent, onVerify, verifying }: { agent: Discovered
 
 // ─── PAGE: EXPLORE ────────────────────────────────────────────────────────────
 
-function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: Partial<NavState>) => void; initialCategory?: ExploreCategory }) {
+function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r: Route, p?: Partial<NavState>) => void; initialCategory?: ExploreCategory; fromFinding?: string }) {
   const [category, setCategory] = useState<ExploreCategory>(initialCategory || "all");
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -855,6 +889,9 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
   const [supplyError, setSupplyError] = useState<string>();
   const [inspectingServiceId, setInspectingServiceId] = useState<string>();
   const [testingServiceId, setTestingServiceId] = useState<string>();
+  const [matchPage, setMatchPage] = useState<FindingServiceMatchPage>();
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [matchError, setMatchError] = useState<string>();
   const registryChainId: AgentRegistryChainId = 56;
 
   const normalizedSearch = searchText.trim().toLowerCase();
@@ -910,10 +947,28 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
     }
   }, []);
 
+  const loadMatches = useCallback(async () => {
+    if (!fromFinding || getActiveCheckMode() !== "live") return;
+    const checkSessionId = getActiveCheckSessionId();
+    if (!checkSessionId) return;
+    setMatchLoading(true);
+    setMatchError(undefined);
+    try {
+      const page = await smartMoneyRepository.getFindingMatches(checkSessionId, fromFinding, 8);
+      setMatchPage(page);
+      setCategory(page.context.category);
+    } catch (cause) {
+      setMatchError(cause instanceof Error ? cause.message : "Spotriq could not rank live services for this finding.");
+    } finally {
+      setMatchLoading(false);
+    }
+  }, [fromFinding]);
+
   useEffect(() => {
     void loadRegistry();
     void loadSupply();
-  }, [loadRegistry, loadSupply]);
+    void loadMatches();
+  }, [loadRegistry, loadSupply, loadMatches]);
 
   const inspectServiceCandidate = async (serviceId: string) => {
     setInspectingServiceId(serviceId);
@@ -922,6 +977,7 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
       const detail = await marketplaceSupplyRepository.getService(serviceId);
       setServiceCandidates((current) => current.map((record) => record.service.serviceId === serviceId ? detail : record));
       setRegistryAgents((current) => current.map((agent) => agent.discoveryId === detail.identity.discoveryId ? detail.identity : agent));
+      await loadMatches();
     } catch (cause) {
       setSupplyError(cause instanceof Error ? cause.message : "Spotriq could not complete marketplace readiness inspection.");
     } finally {
@@ -937,6 +993,7 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
       const detail = await marketplaceSupplyRepository.getService(serviceId);
       setServiceCandidates((current) => current.map((record) => record.service.serviceId === serviceId ? detail : record));
       setRegistryAgents((current) => current.map((agent) => agent.discoveryId === detail.identity.discoveryId ? detail.identity : agent));
+      await loadMatches();
     } catch (cause) {
       setSupplyError(cause instanceof Error ? cause.message : "Spotriq Marketplace Test Lab could not complete the runtime verification.");
     } finally {
@@ -1057,6 +1114,58 @@ function ExplorePage({ navigate, initialCategory }: { navigate: (r: Route, p?: P
               </Btn>
               <button onClick={() => setCompareIds([])} className="text-xs text-[#6b7d99] ml-auto">Clear</button>
             </div>
+          )}
+
+          {fromFinding && getActiveCheckMode() === "live" && (
+            <section className="mb-8 rounded-xl border border-[#2dd4bf]/20 bg-[#2dd4bf]/[0.015] p-4">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <Target className="w-4 h-4 text-[#2dd4bf]" />
+                    <h2 className="text-lg font-semibold text-[#dde3ef]">Best live matches for this finding</h2>
+                    <Badge variant="teal">Deterministic compatibility</Badge>
+                  </div>
+                  <p className="text-xs text-[#6b7d99] max-w-3xl">Spotriq matches the finding against normalized live AgentService candidates using explicit category, protocol and structured context facts. Marketplace-observed evidence and readiness can improve ordering, but this is not a profitability score and it never bypasses activation gates.</p>
+                </div>
+                <button onClick={() => void loadMatches()} disabled={matchLoading} className="text-xs text-[#2dd4bf] flex items-center gap-1.5 shrink-0 disabled:opacity-50">
+                  <RefreshCw className={cn("w-3.5 h-3.5", matchLoading && "animate-spin")} /> Re-rank
+                </button>
+              </div>
+              {matchLoading && !matchPage && <div className="h-28 rounded-lg border border-white/6 bg-white/[0.02] animate-pulse" />}
+              {matchError && <div className="p-3 rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 text-xs text-[#d6a04a]">Compatibility ranking unavailable: {matchError}</div>}
+              {matchPage && (
+                <>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#6b7d99] mb-4">
+                    <span>Finding: {CATEGORY_LABELS[matchPage.context.category]}</span>
+                    {matchPage.context.protocol && <span>Protocol: {matchPage.context.protocol}</span>}
+                    {matchPage.context.asset && <span>Asset: {matchPage.context.asset}</span>}
+                    {matchPage.context.pair && <span>Pair: {matchPage.context.pair}</span>}
+                    <span>{matchPage.consideredServices} normalized candidate{matchPage.consideredServices === 1 ? "" : "s"} considered</span>
+                    <span>{matchPage.excludedServices} hard-incompatible excluded</span>
+                  </div>
+                  <div className="space-y-4">
+                    {matchPage.matches.map((match) => (
+                      <FindingServiceMatchCard
+                        key={match.matchId}
+                        match={match}
+                        onInspect={() => void inspectServiceCandidate(match.serviceId)}
+                        inspecting={inspectingServiceId === match.serviceId}
+                        onRunTests={() => void runServiceTests(match.serviceId)}
+                        testing={testingServiceId === match.serviceId}
+                      />
+                    ))}
+                  </div>
+                  {matchPage.matches.length === 0 && !matchError && (
+                    <div className="p-4 rounded-lg border border-white/6 bg-white/[0.02] text-xs text-[#8090a8]">No normalized live service passed the known hard compatibility constraints for this finding in the current bounded registry result. Spotriq will not substitute search relevance or missing metadata for compatibility evidence.</div>
+                  )}
+                  <p className="text-[10px] text-[#52637b] mt-3">Method {matchPage.methodVersion} · Matching is context compatibility, not financial advice, safety certification, or predicted performance.</p>
+                </>
+              )}
+            </section>
+          )}
+
+          {fromFinding && getActiveCheckMode() === "example" && (
+            <div className="mb-6 p-4 rounded-lg border border-white/6 bg-white/[0.02] text-xs text-[#6b7d99]">Live compatibility ranking is intentionally available only for live Smart Money Check findings. The reference services below remain sample data and are not presented as live matched supply.</div>
           )}
 
           <div className="flex items-center justify-between mb-4">
@@ -3174,7 +3283,7 @@ export default function App() {
         return <HomePage navigate={navigate} hasActivations={ACTIVATIONS.length > 0} />;
 
       case "explore":
-        return <ExplorePage navigate={navigate} initialCategory={nav.exploreCategory} />;
+        return <ExplorePage navigate={navigate} initialCategory={nav.exploreCategory} fromFinding={nav.fromFinding} />;
 
       case "check":
         if (nav.checkPhase === "scan") return <CheckScanPage navigate={navigate} />;

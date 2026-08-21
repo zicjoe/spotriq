@@ -1,5 +1,5 @@
-import type { ApiEnvelope, SmartMoneyCheckResponse, StartSmartMoneyCheckRequest } from "@spotriq/api-contracts";
-import type { CheckSession, Finding, SmartMoneyPortfolioSnapshot, WalletControlState } from "../domain/types";
+import type { ApiEnvelope, FindingServiceMatchesResponse, SmartMoneyCheckResponse, StartSmartMoneyCheckRequest } from "@spotriq/api-contracts";
+import type { CheckSession, Finding, FindingServiceMatchPage, SmartMoneyPortfolioSnapshot, WalletControlState } from "../domain/types";
 import { apiRequest } from "../api/client";
 
 function unwrap<T>(value: ApiEnvelope<T>): T { return value.data; }
@@ -13,6 +13,7 @@ export interface SmartMoneyCheckView {
 export interface SmartMoneyRepository {
   startCheck(walletAddress: string, walletControl?: WalletControlState): Promise<SmartMoneyCheckView>;
   getCheck(checkSessionId: string): Promise<SmartMoneyCheckView>;
+  getFindingMatches(checkSessionId: string, findingId: string, limit?: number): Promise<FindingServiceMatchPage>;
 }
 
 export class ApiSmartMoneyRepository implements SmartMoneyRepository {
@@ -26,6 +27,11 @@ export class ApiSmartMoneyRepository implements SmartMoneyRepository {
 
   async getCheck(checkSessionId: string) {
     return unwrap(await apiRequest<ApiEnvelope<SmartMoneyCheckResponse>>(`/v1/checks/${encodeURIComponent(checkSessionId)}`));
+  }
+
+  async getFindingMatches(checkSessionId: string, findingId: string, limit = 8) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    return unwrap(await apiRequest<ApiEnvelope<FindingServiceMatchesResponse>>(`/v1/checks/${encodeURIComponent(checkSessionId)}/findings/${encodeURIComponent(findingId)}/matches?${params.toString()}`)).page;
   }
 }
 

@@ -1055,6 +1055,55 @@ export interface MarketplaceListingPage {
   limitations: string[];
 }
 
+export type FindingServiceCompatibilityState = "PASS" | "WARN" | "FAIL" | "UNKNOWN";
+export type FindingServiceMatchTier = "EXACT_CONTEXT" | "CONTEXT_COMPATIBLE" | "CATEGORY_ONLY";
+
+export interface FindingCompatibilityContext {
+  category: ServiceCategory;
+  protocol?: string;
+  asset?: string;
+  assetAddress?: string;
+  pair?: string;
+  network?: string;
+  findingState: FindingState;
+  severity: FindingSeverity;
+}
+
+export interface FindingServiceCompatibilityCheck {
+  code: "CATEGORY" | "PROTOCOL" | "ASSET" | "PAIR" | "CANONICAL_IDENTITY" | "RUNTIME_REACHABILITY" | "MARKETPLACE_TESTS" | "PERMISSION_PROFILE";
+  label: string;
+  state: FindingServiceCompatibilityState;
+  requiredForCompatibility: boolean;
+  detail: string;
+}
+
+export interface FindingServiceMatch {
+  matchId: string;
+  findingId: string;
+  serviceId: string;
+  rank: number;
+  tier: FindingServiceMatchTier;
+  activationEligible: boolean;
+  service: MarketplaceServiceRecord;
+  checks: FindingServiceCompatibilityCheck[];
+  strengths: string[];
+  limitations: string[];
+  explanation: string;
+}
+
+export interface FindingServiceMatchPage {
+  findingId: string;
+  checkSessionId?: string;
+  context: FindingCompatibilityContext;
+  matches: FindingServiceMatch[];
+  consideredServices: number;
+  excludedServices: number;
+  source: "8004scan" | "cache";
+  methodVersion: string;
+  generatedAt: string;
+  limitations: string[];
+}
+
 export type MarketplaceServiceTestState = "PASS" | "WARN" | "FAIL" | "SKIPPED" | "INCONCLUSIVE";
 export type MarketplaceServiceTestCoverageState = "NOT_RUN" | "PASS" | "PARTIAL" | "FAIL";
 export type MarketplaceServiceTestRunState = "COMPLETED" | "PARTIAL" | "FAILED";
@@ -1116,6 +1165,7 @@ export interface MarketplaceSupplyStatus {
     deterministicReadiness: true;
     targetedFinancialDiscovery: true;
     marketplaceTesting: boolean;
+    findingServiceCompatibility: boolean;
     activation: false;
   };
   limitations: string[];
