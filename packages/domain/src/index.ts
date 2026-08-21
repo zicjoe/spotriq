@@ -41,6 +41,7 @@ export interface NavState {
   exploreCategory?: ExploreCategory;
   activationId?: string;
   fromFinding?: string;
+  jobIntentId?: string;
 }
 
 export interface AgentOperator {
@@ -1222,5 +1223,90 @@ export interface AgentRegistryStatus {
   }>;
   checkedAt: string;
   lastRateLimit?: { limit?: number; remaining?: number; resetAt?: string };
+  limitations: string[];
+}
+
+// ─── Rebalancing vertical handoff / reviewable job intent ────────────────────
+export type JobIntentState = "REVIEWABLE" | "AWAITING_AUTHORITY" | "CANCELLED" | "EXPIRED";
+export type JobIntentExecutionState = "NO_EXECUTION";
+
+export interface RebalancingJobConstraints {
+  executionMode: "PREPARE_ONLY";
+  maxSlippageBps: number;
+  maxActionCount: 1;
+  validForMinutes: number;
+  allowSwapPreparation: boolean;
+}
+
+export interface RebalancingJobIntentSubject {
+  protocol: "PancakeSwap";
+  version: "V3" | "INFINITY_CL";
+  network: BscNetwork;
+  tokenId: string;
+  positionManager?: string;
+  poolAddress?: string;
+  poolId?: string;
+  pair: string;
+  tickLower: number;
+  tickUpper: number;
+  currentTick: number;
+  rangeState: LiquidityRangeState;
+  blockNumber: string;
+  findingGeneratedAt?: string;
+  findingExpiresAt?: string;
+}
+
+export interface RebalancingJobIntentServiceSnapshot {
+  serviceId: string;
+  agentId: string;
+  listingId?: string;
+  name: string;
+  operator: string;
+  matchId: string;
+  matchRank: number;
+  matchTier: FindingServiceMatchTier;
+  readiness: ReadinessState;
+  readinessSnapshotId?: string;
+  activationEligible: boolean;
+  supportedProtocols: string[];
+  runtimeEndpoints: ServiceRuntimeEndpoint[];
+}
+
+export interface JobIntentAuthorityRequirement {
+  state: "UNRESOLVED";
+  requiredBeforeExecution: true;
+  permissionProfileId: string;
+  declarationState: "UNDECLARED" | "DECLARED";
+  walletControl: WalletControlState;
+  blockers: string[];
+}
+
+export interface RebalancingJobIntent {
+  jobIntentId: string;
+  state: JobIntentState;
+  executionState: JobIntentExecutionState;
+  category: "rebalancing";
+  checkSessionId: string;
+  findingId: string;
+  walletAddress: string;
+  walletControl: WalletControlState;
+  requestedAction: {
+    code: "PREPARE_RANGE_REBALANCE";
+    label: string;
+    description: string;
+  };
+  subject: RebalancingJobIntentSubject;
+  constraints: RebalancingJobConstraints;
+  selectedService: RebalancingJobIntentServiceSnapshot;
+  evidenceReferences: {
+    findingEvidenceIds: string[];
+    serviceEvidenceIds: string[];
+    readinessEvidenceIds: string[];
+  };
+  authority: JobIntentAuthorityRequirement;
+  methodVersion: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
   limitations: string[];
 }

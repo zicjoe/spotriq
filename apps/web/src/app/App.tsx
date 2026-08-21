@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, FindingServiceMatch, FindingServiceMatchPage, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -31,6 +31,7 @@ import {
 import { subscribeToSmartMoneyCheck } from "../services/smartMoneyRealtime";
 import { agentRegistryRepository } from "../repositories/agentRegistryRepository";
 import { marketplaceSupplyRepository } from "../repositories/marketplaceSupplyRepository";
+import { jobIntentRepository } from "../repositories/jobIntentRepository";
 
 const {
   services: SERVICES,
@@ -765,7 +766,7 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
   );
 }
 
-function FindingServiceMatchCard({ match, onInspect, inspecting, onRunTests, testing }: { match: FindingServiceMatch; onInspect: () => void; inspecting: boolean; onRunTests: () => void; testing: boolean }) {
+function FindingServiceMatchCard({ match, onInspect, inspecting, onRunTests, testing, onPrepareJob, preparingJob }: { match: FindingServiceMatch; onInspect: () => void; inspecting: boolean; onRunTests: () => void; testing: boolean; onPrepareJob?: () => void; preparingJob?: boolean }) {
   const tierLabel = match.tier === "EXACT_CONTEXT" ? "Exact structured context" : match.tier === "CONTEXT_COMPATIBLE" ? "Context compatible" : "Category match";
   const tierVariant = match.tier === "EXACT_CONTEXT" ? "green" as const : match.tier === "CONTEXT_COMPATIBLE" ? "teal" as const : "muted" as const;
   const contextChecks = match.checks.filter((check) => ["CATEGORY", "PROTOCOL", "ASSET", "PAIR"].includes(check.code));
@@ -792,8 +793,16 @@ function FindingServiceMatchCard({ match, onInspect, inspecting, onRunTests, tes
         </div>
         {match.strengths.length > 0 && <p className="text-[11px] text-[#6b7d99] mt-2">Why it ranks here: {match.strengths.slice(0, 3).join(" ")}</p>}
       </div>
-      <div className="p-3">
+      <div className="p-3 space-y-3">
         <LiveServiceCandidateCard record={match.service} onInspect={onInspect} inspecting={inspecting} onRunTests={onRunTests} testing={testing} />
+        {match.service.service.category === "rebalancing" && onPrepareJob && (
+          <div className="flex items-center justify-between gap-3 px-1">
+            <p className="text-[11px] text-[#6b7d99]">Prepare a reviewable job for the exact LP position. No permission or execution occurs yet.</p>
+            <Btn variant="primary" size="sm" onClick={onPrepareJob} disabled={preparingJob || inspecting || testing}>
+              {preparingJob ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Preparing</> : <><FileText className="w-3.5 h-3.5" /> Prepare job</>}
+            </Btn>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -892,6 +901,7 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
   const [matchPage, setMatchPage] = useState<FindingServiceMatchPage>();
   const [matchLoading, setMatchLoading] = useState(false);
   const [matchError, setMatchError] = useState<string>();
+  const [preparingJobServiceId, setPreparingJobServiceId] = useState<string>();
   const registryChainId: AgentRegistryChainId = 56;
 
   const normalizedSearch = searchText.trim().toLowerCase();
@@ -998,6 +1008,25 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
       setSupplyError(cause instanceof Error ? cause.message : "Spotriq Marketplace Test Lab could not complete the runtime verification.");
     } finally {
       setTestingServiceId(undefined);
+    }
+  };
+
+  const prepareRebalancingJob = async (match: FindingServiceMatch) => {
+    if (!fromFinding || getActiveCheckMode() !== "live") return;
+    const checkSessionId = getActiveCheckSessionId();
+    if (!checkSessionId) {
+      setMatchError("The active Smart Money Check session is unavailable. Run the check again before preparing a job.");
+      return;
+    }
+    setPreparingJobServiceId(match.serviceId);
+    setMatchError(undefined);
+    try {
+      const intent = await jobIntentRepository.prepare(checkSessionId, fromFinding, match.serviceId);
+      navigate("checkout", { agentId: match.serviceId, jobIntentId: intent.jobIntentId, fromFinding });
+    } catch (cause) {
+      setMatchError(cause instanceof Error ? cause.message : "Spotriq could not prepare the reviewable Rebalancing job intent.");
+    } finally {
+      setPreparingJobServiceId(undefined);
     }
   };
 
@@ -1152,6 +1181,8 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
                         inspecting={inspectingServiceId === match.serviceId}
                         onRunTests={() => void runServiceTests(match.serviceId)}
                         testing={testingServiceId === match.serviceId}
+                        onPrepareJob={match.service.service.category === "rebalancing" ? () => void prepareRebalancingJob(match) : undefined}
+                        preparingJob={preparingJobServiceId === match.serviceId}
                       />
                     ))}
                   </div>
@@ -2291,7 +2322,203 @@ function TryAgentPage({ serviceId, navigate }: { serviceId: string; navigate: (r
 
 // ─── PAGE: CHECKOUT ────────────────────────────────────────────────────────────
 
-function CheckoutPage({ serviceId, navigate }: { serviceId: string; navigate: (r: Route, p?: Partial<NavState>) => void }) {
+function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: string; navigate: (r: Route, p?: Partial<NavState>) => void }) {
+  const [intent, setIntent] = useState<RebalancingJobIntent>();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string>();
+  const [maxSlippageBps, setMaxSlippageBps] = useState("50");
+  const [validForMinutes, setValidForMinutes] = useState("30");
+  const [allowSwapPreparation, setAllowSwapPreparation] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(undefined);
+    void jobIntentRepository.get(jobIntentId).then((value) => {
+      if (!active) return;
+      setIntent(value);
+      setMaxSlippageBps(String(value.constraints.maxSlippageBps));
+      setValidForMinutes(String(value.constraints.validForMinutes));
+      setAllowSwapPreparation(value.constraints.allowSwapPreparation);
+    }).catch((cause) => {
+      if (active) setError(cause instanceof Error ? cause.message : "Spotriq could not load this job intent.");
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [jobIntentId]);
+
+  const saveConstraints = async () => {
+    if (!intent) return;
+    const slippage = Number(maxSlippageBps);
+    const validity = Number(validForMinutes);
+    setSaving(true);
+    setError(undefined);
+    try {
+      const next = await jobIntentRepository.revise(intent.jobIntentId, {
+        maxSlippageBps: slippage,
+        validForMinutes: validity,
+        allowSwapPreparation,
+      });
+      setIntent(next);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Spotriq could not save the proposed job limits.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmJob = async () => {
+    if (!intent) return;
+    setConfirming(true);
+    setError(undefined);
+    try {
+      const next = await jobIntentRepository.confirm(intent.jobIntentId);
+      setIntent(next);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Spotriq could not confirm this job intent.");
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  if (loading) return <div className="max-w-3xl mx-auto px-6 py-12"><div className="h-72 rounded-xl border border-white/6 bg-white/[0.02] animate-pulse" /></div>;
+  if (!intent || error && !intent) return (
+    <div className="max-w-2xl mx-auto px-6 py-12 space-y-4">
+      <h1 className="text-xl font-semibold text-[#dde3ef]">Job intent unavailable</h1>
+      <div className="p-4 rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 text-sm text-[#d6a04a]">{error ?? "Spotriq could not load this job intent."}</div>
+      <Btn variant="secondary" onClick={() => navigate("check", { checkPhase: "results" })}><ArrowLeft className="w-4 h-4" /> Back to findings</Btn>
+    </div>
+  );
+
+  const isConfirmed = intent.state === "AWAITING_AUTHORITY";
+  const subject = intent.subject;
+  const evidenceCount = intent.evidenceReferences.findingEvidenceIds.length + intent.evidenceReferences.serviceEvidenceIds.length + intent.evidenceReferences.readinessEvidenceIds.length;
+
+  return (
+    <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+      <button onClick={() => navigate("explore", { exploreCategory: "rebalancing", fromFinding: intent.findingId })} className="flex items-center gap-2 text-sm text-[#6b7d99] hover:text-[#9aacc4]">
+        <ArrowLeft className="w-4 h-4" /> Back to matched services
+      </button>
+
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="flex items-center gap-2 flex-wrap mb-2">
+            <Badge variant="teal">Live Rebalancing handoff</Badge>
+            <Badge variant="muted">PREPARE ONLY</Badge>
+            <Badge variant={isConfirmed ? "amber" : "teal"}>{isConfirmed ? "Awaiting authority" : "Reviewable"}</Badge>
+          </div>
+          <h1 className="text-2xl font-semibold text-[#dde3ef]">Review the job before authority</h1>
+          <p className="text-sm text-[#6b7d99] mt-1 max-w-2xl">This is a structured job intent for the exact PancakeSwap LP position found by Spotriq. It is not a permission request, transaction, or activation.</p>
+        </div>
+        <div className="text-right text-[11px] font-mono text-[#52637b]">
+          <div>{intent.methodVersion}</div>
+          <div className="mt-1">Execution: {intent.executionState}</div>
+        </div>
+      </div>
+
+      {error && <div className="p-3 rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 text-xs text-[#d6a04a]">{error}</div>}
+
+      <Card className="p-6 space-y-4">
+        <div className="flex items-center justify-between gap-3 border-b border-white/7 pb-4">
+          <div>
+            <div className="text-xs font-mono uppercase tracking-wide text-[#6b7d99]">Requested action</div>
+            <div className="font-semibold text-[#dde3ef] mt-1">{intent.requestedAction.label}</div>
+            <p className="text-xs text-[#8090a8] mt-1 max-w-2xl">{intent.requestedAction.description}</p>
+          </div>
+          <Target className="w-5 h-5 text-[#2dd4bf] shrink-0" />
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4 text-sm">
+          <div><div className="text-xs text-[#6b7d99]">LP pair</div><div className="text-[#dde3ef] font-medium">{subject.pair}</div></div>
+          <div><div className="text-xs text-[#6b7d99]">Position NFT</div><div className="text-[#dde3ef] font-mono">#{subject.tokenId}</div></div>
+          <div><div className="text-xs text-[#6b7d99]">Protocol</div><div className="text-[#dde3ef]">{subject.protocol} {subject.version === "INFINITY_CL" ? "Infinity CL" : subject.version}</div></div>
+          <div><div className="text-xs text-[#6b7d99]">Network</div><div className="text-[#dde3ef]">BSC {subject.network}</div></div>
+          <div><div className="text-xs text-[#6b7d99]">Observed range</div><div className="text-[#dde3ef] font-mono">{subject.tickLower} → {subject.tickUpper}</div></div>
+          <div><div className="text-xs text-[#6b7d99]">Current tick</div><div className="text-[#dde3ef] font-mono">{subject.currentTick} · {subject.rangeState.replaceAll("_", " ")}</div></div>
+          <div className="sm:col-span-2"><div className="text-xs text-[#6b7d99]">Pool</div><div className="text-[#9aacc4] font-mono text-xs break-all">{subject.poolAddress ?? subject.poolId ?? "Pool identifier unavailable"}</div></div>
+          <div><div className="text-xs text-[#6b7d99]">Observed block</div><div className="text-[#dde3ef] font-mono">{subject.blockNumber}</div></div>
+          <div><div className="text-xs text-[#6b7d99]">Evidence refs</div><div className="text-[#dde3ef]">{evidenceCount} captured</div></div>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-mono uppercase tracking-wide text-[#6b7d99]">Selected live service</div>
+            <div className="font-semibold text-[#dde3ef] mt-1">{intent.selectedService.name}</div>
+            <div className="text-xs text-[#6b7d99] mt-1">Rank #{intent.selectedService.matchRank} · {intent.selectedService.matchTier.replaceAll("_", " ")} · Readiness {intent.selectedService.readiness}</div>
+          </div>
+          <Badge variant={intent.selectedService.activationEligible ? "green" : "amber"}>{intent.selectedService.activationEligible ? "Activation eligible" : "Activation gated"}</Badge>
+        </div>
+        <div className="text-xs text-[#8090a8]">Service <span className="font-mono text-[#9aacc4]">{intent.selectedService.serviceId}</span></div>
+      </Card>
+
+      <Card className="p-6 space-y-5">
+        <div>
+          <h2 className="font-semibold text-[#dde3ef]">Proposed job limits</h2>
+          <p className="text-xs text-[#6b7d99] mt-1">These are review bounds for the future job. They do not grant wallet authority.</p>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <label className="space-y-1.5">
+            <span className="text-xs text-[#6b7d99]">Max slippage (basis points)</span>
+            <input type="number" min={1} max={500} disabled={isConfirmed} value={maxSlippageBps} onChange={(event) => setMaxSlippageBps(event.target.value)} className="w-full bg-[#1c2433] border border-white/8 rounded-lg px-3 py-2 text-sm text-[#dde3ef] focus:outline-none focus:border-[#2dd4bf]/40" />
+            <span className="text-[10px] text-[#52637b]">1–500 bps · proposed bound only</span>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs text-[#6b7d99]">Intent validity (minutes)</span>
+            <input type="number" min={5} max={1440} disabled={isConfirmed} value={validForMinutes} onChange={(event) => setValidForMinutes(event.target.value)} className="w-full bg-[#1c2433] border border-white/8 rounded-lg px-3 py-2 text-sm text-[#dde3ef] focus:outline-none focus:border-[#2dd4bf]/40" />
+            <span className="text-[10px] text-[#52637b]">5–1440 minutes · current context must be revalidated later</span>
+          </label>
+        </div>
+        <label className={cn("flex items-start gap-3 rounded-lg border border-white/7 bg-white/[0.02] p-3", isConfirmed && "opacity-70")}>
+          <input type="checkbox" disabled={isConfirmed} checked={allowSwapPreparation} onChange={(event) => setAllowSwapPreparation(event.target.checked)} className="mt-0.5 accent-[#2dd4bf]" />
+          <span><span className="text-sm text-[#dde3ef]">Allow the future agent to prepare swap steps if a rebalance requires them</span><span className="block text-[11px] text-[#6b7d99] mt-0.5">Preparation only. No swap permission or execution is granted here.</span></span>
+        </label>
+        {!isConfirmed && <Btn variant="teal-outline" onClick={() => void saveConstraints()} disabled={saving}>{saving ? <><RefreshCw className="w-4 h-4 animate-spin" /> Saving</> : <><Sliders className="w-4 h-4" /> Save proposed limits</>}</Btn>}
+      </Card>
+
+      <Card className="p-6 space-y-4 border-[#f59e0b]/20 bg-[#f59e0b]/[0.025]">
+        <div className="flex items-start gap-3">
+          <Lock className="w-5 h-5 text-[#f59e0b] shrink-0 mt-0.5" />
+          <div>
+            <h2 className="font-semibold text-[#dde3ef]">Authority is still unresolved</h2>
+            <p className="text-xs text-[#6b7d99] mt-1">The Job Intent deliberately stops before PermissionRequest, PermissionGrant, activation, or execution.</p>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {intent.authority.blockers.map((blocker) => <div key={blocker} className="flex gap-2 text-xs text-[#9aacc4]"><AlertCircle className="w-3.5 h-3.5 text-[#f59e0b] shrink-0 mt-0.5" />{blocker}</div>)}
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-white/7 text-xs">
+          <div><span className="text-[#6b7d99]">Wallet control</span><div className="text-[#dde3ef] mt-0.5">{intent.walletControl.replaceAll("_", " ")}</div></div>
+          <div><span className="text-[#6b7d99]">Permission declaration</span><div className="text-[#dde3ef] mt-0.5">{intent.authority.declarationState}</div></div>
+        </div>
+      </Card>
+
+      {isConfirmed ? (
+        <div className="rounded-xl border border-[#2dd4bf]/20 bg-[#2dd4bf]/[0.03] p-5 flex items-start gap-3">
+          <CheckCircle2 className="w-5 h-5 text-[#2dd4bf] shrink-0 mt-0.5" />
+          <div><div className="font-medium text-[#dde3ef]">Job confirmed — waiting for bounded authority</div><p className="text-xs text-[#8090a8] mt-1">Spotriq has recorded what you want this service to prepare. Nothing has been signed, granted, submitted, or executed. The next engineering milestone will build the explicit authority step.</p></div>
+        </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Btn variant="primary" size="lg" className="flex-1 justify-center" onClick={() => void confirmJob()} disabled={confirming || saving}>
+            {confirming ? <><RefreshCw className="w-4 h-4 animate-spin" /> Confirming</> : <>Confirm job intent <ArrowRight className="w-4 h-4" /></>}
+          </Btn>
+          <Btn variant="secondary" size="lg" onClick={() => navigate("explore", { exploreCategory: "rebalancing", fromFinding: intent.findingId })}>Choose another service</Btn>
+        </div>
+      )}
+
+      <p className="text-[10px] text-[#52637b] leading-relaxed">{intent.limitations.join(" ")}</p>
+    </div>
+  );
+}
+
+function CheckoutPage({ serviceId, jobIntentId, navigate }: { serviceId: string; jobIntentId?: string; navigate: (r: Route, p?: Partial<NavState>) => void }) {
+  if (jobIntentId) return <LiveRebalancingJobIntentPage jobIntentId={jobIntentId} navigate={navigate} />;
+  return <ReferenceCheckoutPage serviceId={serviceId} navigate={navigate} />;
+}
+
+function ReferenceCheckoutPage({ serviceId, navigate }: { serviceId: string; navigate: (r: Route, p?: Partial<NavState>) => void }) {
   const [step, setStep] = useState(0);
   const [dailyLimit, setDailyLimit] = useState("200");
   const [maxAction, setMaxAction] = useState("75");
@@ -3300,7 +3527,7 @@ export default function App() {
         return <TryAgentPage serviceId={nav.agentId || "svc-rangekeeper-01"} navigate={navigate} />;
 
       case "checkout":
-        return <CheckoutPage serviceId={nav.agentId || "svc-rangekeeper-01"} navigate={navigate} />;
+        return <CheckoutPage serviceId={nav.agentId || "svc-rangekeeper-01"} jobIntentId={nav.jobIntentId} navigate={navigate} />;
 
       case "my-agents":
         return <MyAgentsPage navigate={navigate} initialTab={nav.myAgentsTab} />;

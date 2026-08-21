@@ -110,14 +110,18 @@ POST http://localhost:3001/v1/checks
 GET  http://localhost:3001/v1/checks/:checkSessionId
 GET  http://localhost:3001/v1/checks/:checkSessionId/findings
 GET  http://localhost:3001/v1/checks/:checkSessionId/findings/:findingId/matches
+POST http://localhost:3001/v1/checks/:checkSessionId/findings/:findingId/job-intents
+GET  http://localhost:3001/v1/job-intents/:jobIntentId
+PATCH http://localhost:3001/v1/job-intents/:jobIntentId
+POST http://localhost:3001/v1/job-intents/:jobIntentId/confirm
 GET  http://localhost:3001/v1/checks/:checkSessionId/events
 ```
 
-Current live check coverage now has real data foundations across all four required financial categories: Rebalancing from supported PancakeSwap V3 LP range state, Health from Venus Core/Isolated lending risk, Yield from wallet-relevant Venus supply markets, and Grid from wallet-relevant PancakeSwap V3 onchain oracle averages. v0.13.0 adds an on-demand deterministic Finding → AgentService compatibility handoff. Wallet-wide token discovery, Infinity wallet-wide discovery, and historical realised-performance analytics remain explicitly unsupported/partial instead of being faked.
+Current live check coverage now has real data foundations across all four required financial categories: Rebalancing from supported PancakeSwap V3 LP range state, Health from Venus Core/Isolated lending risk, Yield from wallet-relevant Venus supply markets, and Grid from wallet-relevant PancakeSwap V3 onchain oracle averages. v0.13.0 adds an on-demand deterministic Finding → AgentService compatibility handoff. v0.14.0 adds the first live Rebalancing vertical handoff into a reviewable, persisted PREPARE_ONLY Job Intent with explicit no-execution authority blockers. Wallet-wide token discovery, Infinity wallet-wide discovery, and historical realised-performance analytics remain explicitly unsupported/partial instead of being faked.
 
 ## Live ERC-8004 / 8004scan agent discovery
 
-Spotriq separates **agent identity discovery** from **marketplace service activation**. 8004scan is used as an external indexed discovery source, while a selected identity can be rechecked directly against the configured ERC-8004 Identity Registry. A discovered identity is **not** automatically a Spotriq financial service. v0.12.0 added Marketplace Test Lab; v0.13.0 now connects real Smart Money Findings to normalized live AgentService candidates through deterministic, explainable compatibility ranking. Test/evidence quality and readiness can affect ordering, but neither compatibility nor a high rank bypasses the independent permission/authority gate.
+Spotriq separates **agent identity discovery** from **marketplace service activation**. 8004scan is used as an external indexed discovery source, while a selected identity can be rechecked directly against the configured ERC-8004 Identity Registry. A discovered identity is **not** automatically a Spotriq financial service. v0.12.0 added Marketplace Test Lab; v0.13.0 connects real Smart Money Findings to normalized live AgentService candidates through deterministic, explainable compatibility ranking; v0.14.0 lets a user select a compatible Rebalancing service and prepare a reviewable job without granting authority or executing funds. Test/evidence quality and readiness can affect ordering, but neither compatibility nor a high rank bypasses the independent permission/authority gate.
 
 ```text
 http://localhost:3001/v1/registry/status
@@ -171,7 +175,7 @@ pnpm dev:worker
 ## Current product-data state
 
 - Reference financial-service cards remain clearly labelled sample data; Explore now also displays a separate live ERC-8004 registry discovery surface.
-- Live discovered ERC-8004 identities remain distinct from normalized AgentServices; search relevance alone never creates a service claim. Eligible normalized A2A/MCP candidates can be contract-tested, and live Smart Money Findings can now be matched/ranked against normalized services using explicit context rules. Activation remains independently gated by permission authority.
+- Live discovered ERC-8004 identities remain distinct from normalized AgentServices; search relevance alone never creates a service claim. Eligible normalized A2A/MCP candidates can be contract-tested, live Smart Money Findings can be matched/ranked against normalized services using explicit context rules, and a selected Rebalancing match can become a PREPARE_ONLY Job Intent. Activation remains independently gated by permission authority.
 - BSC chain status, block, transaction, native balance, and requested ERC-20 balance APIs are now real provider-backed reads.
 - Those chain reads return normalized evidence/provenance/freshness structures.
 - PancakeSwap V3 and Infinity CL current-state normalization is live at the API layer.
@@ -205,6 +209,8 @@ pnpm dev:worker
 - `docs/IMPLEMENTATION_REPORT_MARKETPLACE_TEST_LAB_v0.12.0.md`
 - `docs/FINDING_SERVICE_COMPATIBILITY.md`
 - `docs/IMPLEMENTATION_REPORT_FINDING_SERVICE_COMPATIBILITY_v0.13.0.md`
+- `docs/REBALANCING_JOB_INTENT.md`
+- `docs/IMPLEMENTATION_REPORT_REBALANCING_JOB_INTENT_v0.14.0.md`
 - `docs/ENGINEERING_STATUS.md`
 
 ## v0.11.0 targeted financial supply discovery
@@ -245,9 +251,17 @@ The ranking is lexicographic and explainable rather than an opaque score: struct
 
 Explore now recognizes the `fromFinding` handoff from live Smart Money Check results and places **Best live matches for this finding** ahead of generic supply. Sample/reference cards remain separate and are never used as a hidden fallback for a zero-match live result.
 
+## v0.14.0 Rebalancing Vertical Handoff / Reviewable Job Intent
+
+A live Rebalancing match now exposes **Prepare job**. The server reloads the Smart Money Check/Finding, re-runs current compatibility, and constructs one deterministic Job Intent from the structured PancakeSwap LP context plus the selected service. The browser cannot submit arbitrary LP coordinates as authoritative job context.
+
+The intent records the position NFT/pool/pair/ticks/range state/block, selected service match/readiness, evidence references, wallet-control state, proposed slippage/validity/swap-preparation bounds, and unresolved authority blockers. Its execution policy is fixed to `PREPARE_ONLY` / `NO_EXECUTION`. Confirmation advances only `REVIEWABLE → AWAITING_AUTHORITY`; it does not create a PermissionRequest, PermissionGrant, activation or transaction.
+
+PostgreSQL persistence uses the existing `checkouts.job_context` foundation from migration 0001, so migration 0009 remains the latest migration. The live Job Intent review UI is intentionally separate from the existing reference/sample mock-activation checkout.
+
 ## Next milestone
 
-Build the first complete **Rebalancing vertical handoff**: convert a real PancakeSwap Rebalancing Finding plus a selected compatible AgentService into an explicit, reviewable service/job intent carrying the exact LP position context, requested agent action, constraints, evidence references and unresolved authority requirements. This should stop before execution until the following permission/authority milestone provides bounded user authorization.
+Build **v0.15.0 — Explicit Bounded Permission / Authority** from a confirmed `AWAITING_AUTHORITY` Job Intent. Verify wallet control, show the exact contracts/functions/assets/limits/expiry before signing, integrate scoped authority (Altana where current official interfaces map cleanly), reconcile the actual PermissionGrant returned, and keep real financial execution blocked until the grant is explicitly validated.
 
 
 ## v0.9.2 registry visibility

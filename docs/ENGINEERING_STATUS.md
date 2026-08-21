@@ -15,9 +15,10 @@
 - Targeted Financial Supply Discovery
 - Marketplace Test Lab + Service Readiness Verification
 - Smart Money Finding → AgentService Compatibility & Ranking
+- Rebalancing Vertical Handoff / Reviewable Job Intent
 
 ## Current source of truth
-Use Spotriq **v0.13.0**.
+Use Spotriq **v0.14.0**.
 
 ## Current live-data spine
 BSC JSON-RPC → protocol adapters → Evidence Engine → Smart Money Engine → Findings → Spotriq UI.
@@ -59,6 +60,17 @@ Result tiers are `EXACT_CONTEXT`, `CONTEXT_COMPATIBLE`, and `CATEGORY_ONLY`. The
 
 Explore consumes the existing `fromFinding` navigation seam. A live Finding now opens a **Best live matches for this finding** section before generic marketplace supply. A zero live match remains a zero live match; sample/reference services are not used as a hidden fallback.
 
+## Rebalancing Job Intent state in v0.14.0
+A live Rebalancing Finding can now move from compatibility ranking into an explicit review boundary. `POST /v1/checks/:checkSessionId/findings/:findingId/job-intents` reloads the real Smart Money Check, reloads the Finding, re-runs current compatibility, and only accepts a selected service that remains a live compatible match.
+
+The resulting `RebalancingJobIntent` records the exact PancakeSwap LP token ID/pool/pair/tick/range/block context, selected AgentService match/readiness snapshot, Finding/service/readiness evidence references, wallet-control state, proposed user limits, and every unresolved authority blocker.
+
+State is deliberately narrow: `REVIEWABLE → AWAITING_AUTHORITY`. `executionState` is always `NO_EXECUTION` in v0.14. Proposed slippage/validity/swap-preparation constraints are job inputs only and never become wallet authority automatically. WATCH_ONLY remains WATCH_ONLY.
+
+One Finding + selected service maps to one deterministic Job Intent ID. Repeated Prepare taps do not create duplicates; once confirmed, repeated preparation cannot revise the confirmed bounds. PostgreSQL persistence uses the existing `checkouts.job_context` table from migration 0001, so migration 0009 remains the latest migration.
+
+The live Explore match card now exposes **Prepare job** for Rebalancing. The live Job Intent review surface is separate from the existing reference/sample checkout and never calls the mock activation routine.
+
 ## Readiness state inherited from v0.12.0
 Deterministic gates now cover:
 1. BSC network
@@ -94,6 +106,10 @@ Marketplace supply/readiness:
 - `GET /v1/services/:serviceId/tests`
 - `POST /v1/services/:serviceId/tests` — run bounded non-financial Test Lab verification
 - `GET /v1/checks/:checkSessionId/findings/:findingId/matches` — deterministic live Finding → AgentService compatibility/ranking
+- `POST /v1/checks/:checkSessionId/findings/:findingId/job-intents` — prepare/re-open the idempotent live Rebalancing Job Intent
+- `GET /v1/job-intents/:jobIntentId` — retrieve the reviewable intent
+- `PATCH /v1/job-intents/:jobIntentId` — revise proposed limits while REVIEWABLE
+- `POST /v1/job-intents/:jobIntentId/confirm` — confirm the job description and advance only to AWAITING_AUTHORITY
 
 ## Test Lab contract
 A Test Lab PASS means Spotriq observed a safe-to-probe public runtime that satisfied the relevant protocol discovery/contract checks and exposed category-relevant machine capability evidence. It does **not** mean:
@@ -114,7 +130,7 @@ A2A verification uses Agent Card discovery/validation. Modern MCP verification t
 - Railway PostgreSQL can be attached when the API itself is deployed in Railway; local Railway tunnelling is not required.
 
 ## Next
-Build the first complete **Rebalancing vertical handoff**. A real PancakeSwap Rebalancing Finding and a user-selected compatible AgentService should become a structured, reviewable service/job intent containing the exact LP position context, requested action, explicit constraints, Finding/evidence references, selected service identity, and unresolved authority requirements. Do not execute yet. The following milestone should add explicit bounded permission/authority integration before real BSC Testnet activation. After that: Activity & Outcomes, then generalize the complete vertical across Grid, Yield and Health with equal depth.
+Build **v0.15.0 — Explicit Bounded Permission / Authority**. A confirmed `AWAITING_AUTHORITY` Rebalancing Job Intent should become a precise PermissionRequest only after wallet-control requirements are satisfied. The user must see contracts/functions/assets/limits/expiry before signing. Integrate scoped authority (Altana where current official interfaces fit), reconcile the actual PermissionGrant returned by the provider, and never assume requested authority equals granted authority. Keep real financial execution blocked until the grant is explicitly validated. After that: real BSC Testnet activation, Activity & Outcomes, then generalize the complete vertical across Grid, Yield and Health with equal depth.
 
 ## Rule
 Every completed replacement ZIP becomes the new source of truth.

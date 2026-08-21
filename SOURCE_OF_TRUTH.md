@@ -1,8 +1,8 @@
 # Spotriq Source of Truth
 
-Current release: **v0.13.0**
+Current release: **v0.14.0**
 
-This ZIP supersedes Spotriq v0.12.0.
+This ZIP supersedes Spotriq v0.13.0.
 
 Implemented live financial-data categories:
 1. Rebalancing — PancakeSwap V3/Infinity CL current-state foundation and V3 wallet discovery.
@@ -43,9 +43,20 @@ Finding → AgentService compatibility/ranking implemented in v0.13.0:
 - A top-ranked service remains non-activatable whenever its existing readiness/permission gates say so. Compatibility never overrides `activationEligible`.
 - Live Smart Money Finding actions now hand off into Explore through `fromFinding`; Explore renders ranked live matches ahead of generic supply and does not substitute sample cards when live matching yields zero.
 
+Rebalancing vertical handoff / Job Intent implemented in v0.14.0:
+- A real PancakeSwap Rebalancing Finding plus a user-selected compatible live AgentService can become one idempotent reviewable Job Intent.
+- The server reloads the Smart Money Check/Finding and re-runs current compatibility; the browser cannot submit arbitrary LP facts or manufacture compatibility.
+- The Job Intent snapshots exact LP token ID/pool/pair/tick/range/block context, selected service match/readiness, Finding/service/readiness evidence references, wallet-control state and unresolved authority requirements.
+- User-reviewable proposed constraints include bounded slippage, intent validity and optional swap-step preparation. `executionMode` is fixed to `PREPARE_ONLY` and max action count to 1.
+- Proposed constraints are not wallet authority. Job Intent is distinct from PermissionRequest, PermissionGrant, Activation, AgentAction and TransactionRecord.
+- Confirmation advances only `REVIEWABLE → AWAITING_AUTHORITY`; `executionState` remains `NO_EXECUTION`.
+- WATCH_ONLY never becomes VERIFIED_CONTROL by reviewing or confirming a job.
+- The original `checkouts.job_context` persistence seam from migration 0001 is now used for durable Job Intents; no new database migration is required in v0.14.0.
+- The live Explore match card exposes **Prepare job** for Rebalancing, and the live checkout review path is separate from the existing sample/mock activation path.
+
 Persistence:
 - Local development can continue with memory stores and blank `DATABASE_URL`.
 - Migration `0009_marketplace_test_lab.sql` persists immutable marketplace test runs and is now the latest migration.
 - Railway PostgreSQL remains a deployment-time integration rather than a local-development requirement.
 
-Next engineering milestone: **first complete Rebalancing vertical handoff** — convert a real Rebalancing Finding plus a selected compatible AgentService into an explicit reviewable service/job intent that carries exact LP context, requested action, constraints, evidence references and unresolved authority requirements. Execution remains blocked until the subsequent explicit permission/authority milestone.
+Next engineering milestone: **v0.15.0 Explicit Bounded Permission / Authority** — construct a precise PermissionRequest from a confirmed `AWAITING_AUTHORITY` Rebalancing Job Intent, verify wallet control where required, integrate scoped authority (Altana where current official interfaces map cleanly), show the exact requested scope before signing, reconcile the actual PermissionGrant after authorization, and keep real financial execution blocked until the grant is demonstrably valid.

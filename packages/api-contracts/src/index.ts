@@ -56,6 +56,7 @@ export interface CapabilityResponse {
   marketplaceReadinessEngineEnabled: boolean;
   marketplaceTestingEnabled: boolean;
   findingServiceCompatibilityEnabled: boolean;
+  rebalancingJobIntentEnabled: boolean;
   marketplaceActivationEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
@@ -219,4 +220,17 @@ export interface RunMarketplaceServiceTestsResponse {
 
 export interface FindingServiceMatchesResponse {
   page: import("@spotriq/domain").FindingServiceMatchPage;
+}
+
+export interface PrepareRebalancingJobIntentRequest {
+  serviceId: string;
+  constraints?: Partial<Omit<import("@spotriq/domain").RebalancingJobConstraints, "executionMode" | "maxActionCount">>;
+}
+
+export interface ReviseRebalancingJobIntentRequest {
+  constraints: Partial<Omit<import("@spotriq/domain").RebalancingJobConstraints, "executionMode" | "maxActionCount">>;
+}
+
+export interface RebalancingJobIntentResponse {
+  intent: import("@spotriq/domain").RebalancingJobIntent;
 }

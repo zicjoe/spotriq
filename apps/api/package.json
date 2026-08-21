@@ -1,7 +1,7 @@
 {
   "name": "@spotriq/api",
   "private": true,
-  "version": "0.13.0",
+  "version": "0.14.0",
   "type": "module",
   "dependencies": {
     "@fastify/cors": "11.3.0",
@@ -16,7 +16,8 @@
     "@spotriq/protocol-venus": "workspace:*",
     "@spotriq/market-context": "workspace:*",
     "@spotriq/agent-registry": "workspace:*",
-    "@spotriq/marketplace-supply": "workspace:*"
+    "@spotriq/marketplace-supply": "workspace:*",
+    "@spotriq/job-intents": "workspace:*"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",

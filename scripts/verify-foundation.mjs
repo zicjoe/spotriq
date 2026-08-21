@@ -53,6 +53,12 @@ const required = [
   "docs/IMPLEMENTATION_REPORT_MARKETPLACE_TEST_LAB_v0.12.0.md",
   "docs/FINDING_SERVICE_COMPATIBILITY.md",
   "docs/IMPLEMENTATION_REPORT_FINDING_SERVICE_COMPATIBILITY_v0.13.0.md",
+  "packages/job-intents/package.json",
+  "packages/job-intents/src/index.ts",
+  "apps/api/src/routes/job-intents.ts",
+  "apps/web/src/repositories/jobIntentRepository.ts",
+  "docs/REBALANCING_JOB_INTENT.md",
+  "docs/IMPLEMENTATION_REPORT_REBALANCING_JOB_INTENT_v0.14.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -205,4 +211,29 @@ if (!checkRoutes.includes("marketplaceSupply.matchFinding") || !checkRoutes.incl
 if (!smartMoney.includes('agentCompatibility: "AVAILABLE"') || !smartMoney.includes('"agent_compatibility", "COMPLETED"')) throw new Error("Smart Money Check must expose the compatibility handoff as available after findings are generated.");
 if (!appUi.includes("Best live matches for this finding") || !appUi.includes("fromFinding={nav.fromFinding}") || !appUi.includes("getFindingMatches")) throw new Error("Explore must consume the live Finding handoff and render deterministic matched services.");
 
-console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + deterministic Finding → AgentService compatibility verification passed.");
+
+const jobIntents = await readFile(path.join(root, "packages/job-intents/src/index.ts"), "utf8");
+for (const marker of ["REBALANCING_JOB_INTENT_METHOD", "PREPARE_RANGE_REBALANCE", "PREPARE_ONLY", "NO_EXECUTION", "AWAITING_AUTHORITY", "MemoryJobIntentStore", "PostgresJobIntentStore", "checkouts"]) {
+  if (!jobIntents.includes(marker)) throw new Error(`Rebalancing Job Intent engine is missing ${marker}.`);
+}
+const jobIntentRoutes = await readFile(path.join(root, "apps/api/src/routes/job-intents.ts"), "utf8");
+for (const route of ["/v1/checks/:checkSessionId/findings/:findingId/job-intents", "/v1/job-intents/:jobIntentId", "/v1/job-intents/:jobIntentId/confirm"]) {
+  if (!jobIntentRoutes.includes(route)) throw new Error(`Missing Job Intent route ${route}.`);
+}
+if (!jobIntentRoutes.includes("marketplaceSupply.matchFinding") || !jobIntentRoutes.includes("snapshot.findings.find")) {
+  throw new Error("Job Intent preparation must reload the Smart Money Finding and revalidate current service compatibility server-side.");
+}
+for (const marker of ["RebalancingJobIntent", "RebalancingJobConstraints", "JobIntentAuthorityRequirement", "jobIntentId?: string"]) {
+  if (!domain.includes(marker)) throw new Error(`Job Intent domain model is missing ${marker}.`);
+}
+if (!appUi.includes("Prepare job") || !appUi.includes("Review the job before authority") || !appUi.includes("Confirm job intent") || !appUi.includes("Nothing has been signed, granted, submitted, or executed")) {
+  throw new Error("The live Rebalancing handoff UI must expose reviewable Job Intent preparation without pretending authority or execution exists.");
+}
+if (!appUi.includes("jobIntentRepository.prepare") || !appUi.includes("jobIntentId={nav.jobIntentId}")) {
+  throw new Error("Explore and Checkout must be wired through the live Job Intent API handoff.");
+}
+if (!apiApp.includes("rebalancingJobIntentEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
+  throw new Error("System capabilities must expose Job Intent support while keeping marketplace activation disabled.");
+}
+
+console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing reviewable Job Intent verification passed.");
