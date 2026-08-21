@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, FindingServiceMatch, FindingServiceMatchPage, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -32,6 +32,7 @@ import { subscribeToSmartMoneyCheck } from "../services/smartMoneyRealtime";
 import { agentRegistryRepository } from "../repositories/agentRegistryRepository";
 import { marketplaceSupplyRepository } from "../repositories/marketplaceSupplyRepository";
 import { jobIntentRepository } from "../repositories/jobIntentRepository";
+import { authorityRepository } from "../repositories/authorityRepository";
 
 const {
   services: SERVICES,
@@ -2331,6 +2332,13 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
   const [maxSlippageBps, setMaxSlippageBps] = useState("50");
   const [validForMinutes, setValidForMinutes] = useState("30");
   const [allowSwapPreparation, setAllowSwapPreparation] = useState(false);
+  const [permissionRequest, setPermissionRequest] = useState<BoundedPermissionRequest>();
+  const [permissionGrant, setPermissionGrant] = useState<BoundedPermissionGrant>();
+  const [token0Limit, setToken0Limit] = useState("");
+  const [token1Limit, setToken1Limit] = useState("");
+  const [authorityValidForMinutes, setAuthorityValidForMinutes] = useState("30");
+  const [authoritySaving, setAuthoritySaving] = useState(false);
+  const [reverifyingGrant, setReverifyingGrant] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -2342,6 +2350,19 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
       setMaxSlippageBps(String(value.constraints.maxSlippageBps));
       setValidForMinutes(String(value.constraints.validForMinutes));
       setAllowSwapPreparation(value.constraints.allowSwapPreparation);
+      setAuthorityValidForMinutes(String(value.constraints.validForMinutes));
+      if (value.authority.permissionRequestId) {
+        void authorityRepository.getRequest(value.authority.permissionRequestId).then((request) => {
+          if (!active) return;
+          setPermissionRequest(request);
+          setToken0Limit(request.spendCaps[0]?.limitDisplay ?? "");
+          setToken1Limit(request.spendCaps[1]?.limitDisplay ?? "");
+          setAuthorityValidForMinutes(String(Math.max(5, Math.ceil((new Date(request.expiresAt).getTime() - Date.now()) / 60_000))));
+        }).catch(() => undefined);
+      }
+      if (value.authority.permissionGrantId) {
+        void authorityRepository.getGrant(value.authority.permissionGrantId).then((grant) => { if (active) setPermissionGrant(grant); }).catch(() => undefined);
+      }
     }).catch((cause) => {
       if (active) setError(cause instanceof Error ? cause.message : "Spotriq could not load this job intent.");
     }).finally(() => { if (active) setLoading(false); });
@@ -2379,6 +2400,39 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
       setError(cause instanceof Error ? cause.message : "Spotriq could not confirm this job intent.");
     } finally {
       setConfirming(false);
+    }
+  };
+
+  const prepareBoundedAuthority = async () => {
+    if (!intent) return;
+    setAuthoritySaving(true);
+    setError(undefined);
+    try {
+      const input = { token0Limit: token0Limit.trim(), token1Limit: token1Limit.trim(), validForMinutes: Number(authorityValidForMinutes) };
+      const result = permissionRequest
+        ? await authorityRepository.revise(permissionRequest.permissionRequestId, input)
+        : await authorityRepository.prepare(intent.jobIntentId, input);
+      setPermissionRequest(result.request);
+      if (result.intent) setIntent(result.intent);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Spotriq could not prepare the bounded authority request.");
+    } finally {
+      setAuthoritySaving(false);
+    }
+  };
+
+  const reverifyBoundedGrant = async () => {
+    if (!permissionGrant) return;
+    setReverifyingGrant(true);
+    setError(undefined);
+    try {
+      const result = await authorityRepository.reverify(permissionGrant.permissionGrantId);
+      setPermissionGrant(result.grant);
+      if (result.intent) setIntent(result.intent);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Spotriq could not re-verify this Altana grant onchain.");
+    } finally {
+      setReverifyingGrant(false);
     }
   };
 
@@ -2481,8 +2535,8 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
         <div className="flex items-start gap-3">
           <Lock className="w-5 h-5 text-[#f59e0b] shrink-0 mt-0.5" />
           <div>
-            <h2 className="font-semibold text-[#dde3ef]">Authority is still unresolved</h2>
-            <p className="text-xs text-[#6b7d99] mt-1">The Job Intent deliberately stops before PermissionRequest, PermissionGrant, activation, or execution.</p>
+            <h2 className="font-semibold text-[#dde3ef]">{intent.authority.state === "GRANT_VERIFIED" ? "Bounded authority observed" : intent.authority.state === "REQUEST_PREPARED" ? "Bounded authority request prepared" : "Authority is still unresolved"}</h2>
+            <p className="text-xs text-[#6b7d99] mt-1">PermissionRequest and PermissionGrant are separate resources. Spotriq still performs no financial execution in v0.15.</p>
           </div>
         </div>
         <div className="space-y-2">
@@ -2494,10 +2548,95 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
         </div>
       </Card>
 
+      {isConfirmed && (
+        <Card className="p-6 space-y-5 border-[#2dd4bf]/15">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-mono uppercase tracking-wide text-[#6b7d99]">Bounded authority · Altana</div>
+              <h2 className="font-semibold text-[#dde3ef] mt-1">Define the maximum authority for this job</h2>
+              <p className="text-xs text-[#6b7d99] mt-1 max-w-2xl">Spotriq derives the contract/function allowlist from the observed PancakeSwap V3 position. You choose the per-token daily caps and expiry. Preparing this scope does not sign or grant it.</p>
+            </div>
+            <ShieldCheck className="w-5 h-5 text-[#2dd4bf] shrink-0" />
+          </div>
+
+          {subject.version !== "V3" ? (
+            <div className="rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 p-4 text-xs text-[#d6a04a]">Infinity CL authority is intentionally blocked in v0.15 until its exact safe call surface is modeled. Spotriq will not copy V3 permissions onto a different protocol interface.</div>
+          ) : !subject.positionManager || !subject.token0 || !subject.token1 || subject.token0.decimals === undefined || subject.token1.decimals === undefined ? (
+            <div className="rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 p-4 text-xs text-[#d6a04a]">This Finding does not contain the exact position-manager/token metadata required to calculate enforceable authority. Run a fresh Smart Money Check with the v0.15 data model rather than guessing addresses or decimals.</div>
+          ) : (
+            <>
+              <div className="grid sm:grid-cols-3 gap-4">
+                <label className="space-y-1.5">
+                  <span className="text-xs text-[#6b7d99]">{subject.token0.symbol ?? "Token 0"} daily cap</span>
+                  <input value={token0Limit} onChange={(event) => setToken0Limit(event.target.value)} placeholder="Enter amount" disabled={permissionRequest?.status === "CONFIRMED"} className="w-full bg-[#1c2433] border border-white/8 rounded-lg px-3 py-2 text-sm text-[#dde3ef] focus:outline-none focus:border-[#2dd4bf]/40" />
+                  <span className="block text-[10px] text-[#52637b] break-all">{subject.token0.address}</span>
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-xs text-[#6b7d99]">{subject.token1.symbol ?? "Token 1"} daily cap</span>
+                  <input value={token1Limit} onChange={(event) => setToken1Limit(event.target.value)} placeholder="Enter amount" disabled={permissionRequest?.status === "CONFIRMED"} className="w-full bg-[#1c2433] border border-white/8 rounded-lg px-3 py-2 text-sm text-[#dde3ef] focus:outline-none focus:border-[#2dd4bf]/40" />
+                  <span className="block text-[10px] text-[#52637b] break-all">{subject.token1.address}</span>
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-xs text-[#6b7d99]">Authority expiry (minutes)</span>
+                  <input type="number" min={5} max={1440} value={authorityValidForMinutes} onChange={(event) => setAuthorityValidForMinutes(event.target.value)} disabled={permissionRequest?.status === "CONFIRMED"} className="w-full bg-[#1c2433] border border-white/8 rounded-lg px-3 py-2 text-sm text-[#dde3ef] focus:outline-none focus:border-[#2dd4bf]/40" />
+                  <span className="block text-[10px] text-[#52637b]">5–1440 minutes</span>
+                </label>
+              </div>
+              {permissionRequest?.status !== "CONFIRMED" && (
+                <Btn variant="teal-outline" onClick={() => void prepareBoundedAuthority()} disabled={authoritySaving || !token0Limit.trim() || !token1Limit.trim()}>
+                  {authoritySaving ? <><RefreshCw className="w-4 h-4 animate-spin" /> Preparing scope</> : <><Shield className="w-4 h-4" /> {permissionRequest ? "Update bounded authority" : "Prepare bounded authority"}</>}
+                </Btn>
+              )}
+            </>
+          )}
+
+          {permissionRequest && (
+            <div className="space-y-4 pt-4 border-t border-white/7">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div><div className="text-xs text-[#6b7d99]">Permission request</div><div className="text-xs font-mono text-[#9aacc4] break-all">{permissionRequest.permissionRequestId}</div></div>
+                <div className="flex gap-2"><Badge variant="teal">{permissionRequest.provider}</Badge><Badge variant="muted">{permissionRequest.status}</Badge></div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-[#dde3ef] mb-2">Allowed contract functions</div>
+                <div className="space-y-2">{permissionRequest.callAllowlist.map((call) => <div key={`${call.to}:${call.signature}`} className="rounded-lg border border-white/7 bg-white/[0.02] p-3"><div className="text-xs text-[#dde3ef]">{call.label}</div><div className="text-[10px] font-mono text-[#6b7d99] mt-1 break-all">{call.to} · {call.signature}</div></div>)}</div>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">{permissionRequest.spendCaps.map((cap) => <div key={cap.token} className="rounded-lg border border-white/7 bg-white/[0.02] p-3"><div className="text-xs text-[#6b7d99]">Daily spend cap · {cap.symbol ?? "token"}</div><div className="text-sm text-[#dde3ef] mt-1">{cap.limitDisplay}</div><div className="text-[10px] font-mono text-[#52637b] mt-1 break-all">{cap.token} · raw {cap.limitRaw}</div></div>)}</div>
+              <div className="grid sm:grid-cols-2 gap-3 text-xs">
+                <div><span className="text-[#6b7d99]">Expires</span><div className="text-[#dde3ef] mt-0.5">{new Date(permissionRequest.expiresAt).toLocaleString()}</div></div>
+                <div><span className="text-[#6b7d99]">Position manager</span><div className="text-[#9aacc4] font-mono mt-0.5 break-all">{permissionRequest.positionManager}</div></div>
+              </div>
+              <div className="rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 p-4">
+                <div className="text-xs font-medium text-[#d6a04a]">Grant submission is deliberately blocked</div>
+                <div className="grid sm:grid-cols-2 gap-2 mt-3">{permissionRequest.safetyPrerequisites.map((prerequisite) => <div key={prerequisite.code} className="rounded-lg border border-[#f59e0b]/15 bg-black/10 p-3"><div className="flex items-center justify-between gap-2"><div className="text-[11px] font-medium text-[#d6a04a]">{prerequisite.label}</div><Badge variant={prerequisite.state === "SATISFIED" ? "green" : "amber"}>{prerequisite.state}</Badge></div><div className="text-[10px] text-[#9c8663] mt-1.5 leading-relaxed">{prerequisite.detail}</div></div>)}</div>
+                <div className="space-y-1.5 mt-3">{permissionRequest.submissionBlockers.filter((blocker) => !permissionRequest.safetyPrerequisites.some((prerequisite) => prerequisite.detail === blocker)).map((blocker) => <div key={blocker} className="flex gap-2 text-[11px] text-[#b99a67]"><AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />{blocker}</div>)}</div>
+                <p className="text-[10px] text-[#7f725f] mt-3">Both prerequisites are independent. A trusted service-owned session key without exact calldata enforcement is insufficient, and a calldata guard without a trustworthy agent-key binding is also insufficient.</p>
+              </div>
+              <div className="text-[10px] text-[#52637b] leading-relaxed">No token approve, Permit2 approval, router swap, withdrawal, transfer, arbitrary target, or multicall permission is included. {intent.constraints.allowSwapPreparation ? "Swap preparation remains planning only." : "No swap preparation was requested."}</div>
+            </div>
+          )}
+
+          {permissionGrant && (
+            <div className="space-y-3 pt-4 border-t border-white/7">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div><div className="text-xs text-[#6b7d99]">Observed permission grant</div><div className="text-xs font-mono text-[#9aacc4] break-all">{permissionGrant.permissionGrantId}</div></div>
+                <div className="flex gap-2"><Badge variant={permissionGrant.state === "ACTIVE" ? "green" : "amber"}>{permissionGrant.state}</Badge><Badge variant={permissionGrant.reconciliation === "EXACT_MATCH" ? "green" : "amber"}>{permissionGrant.reconciliation.replaceAll("_", " ")}</Badge></div>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3 text-xs">
+                <div><span className="text-[#6b7d99]">Onchain key validity</span><div className={permissionGrant.onchainValid ? "text-[#4ade80] mt-0.5" : "text-[#f59e0b] mt-0.5"}>{permissionGrant.onchainValid ? "Valid now" : "Not valid"}</div></div>
+                <div><span className="text-[#6b7d99]">Verified block</span><div className="text-[#dde3ef] font-mono mt-0.5">{permissionGrant.verifiedBlockNumber ?? "Unavailable"}</div></div>
+                <div className="sm:col-span-2"><span className="text-[#6b7d99]">Altana key ID</span><div className="text-[#9aacc4] font-mono mt-0.5 break-all">{permissionGrant.keyId}</div></div>
+              </div>
+              <Btn variant="secondary" onClick={() => void reverifyBoundedGrant()} disabled={reverifyingGrant}>{reverifyingGrant ? <><RefreshCw className="w-4 h-4 animate-spin" /> Re-checking</> : <><RefreshCw className="w-4 h-4" /> Re-check onchain authority</>}</Btn>
+              <p className="text-[10px] text-[#52637b]">Spotriq can observe expiry/revocation through Altana Keystore, but it does not hold the wallet admin key and cannot fake a revoke transaction.</p>
+            </div>
+          )}
+        </Card>
+      )}
+
       {isConfirmed ? (
         <div className="rounded-xl border border-[#2dd4bf]/20 bg-[#2dd4bf]/[0.03] p-5 flex items-start gap-3">
           <CheckCircle2 className="w-5 h-5 text-[#2dd4bf] shrink-0 mt-0.5" />
-          <div><div className="font-medium text-[#dde3ef]">Job confirmed — waiting for bounded authority</div><p className="text-xs text-[#8090a8] mt-1">Spotriq has recorded what you want this service to prepare. Nothing has been signed, granted, submitted, or executed. The next engineering milestone will build the explicit authority step.</p></div>
+          <div><div className="font-medium text-[#dde3ef]">{intent.authority.state === "GRANT_VERIFIED" ? "Bounded grant verified — execution still disabled" : intent.authority.state === "REQUEST_PREPARED" ? "Job confirmed — bounded authority scope prepared" : "Job confirmed — define bounded authority below"}</div><p className="text-xs text-[#8090a8] mt-1">Spotriq has recorded the job and can now derive an explicit permission scope. Nothing is executed in v0.15; a PermissionRequest is not a grant, and even a reconciled Altana grant remains blocked from financial execution until the dedicated BSC Testnet activation milestone.</p></div>
         </div>
       ) : (
         <div className="flex flex-col sm:flex-row gap-3">

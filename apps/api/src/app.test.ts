@@ -15,6 +15,9 @@ const config: ServerConfig = {
   agentDiscoveryChainId: 56,
   scan8004BaseUrl: "https://8004scan.example/api/v1/public",
   scan8004TimeoutMs: 7500,
+  marketplaceTestTimeoutMs: 5000,
+  marketplaceTestMaxResponseBytes: 262144,
+  marketplaceTestMaxRedirects: 2,
 };
 
 function rpcResponse(id: number, result: unknown): Response {

@@ -73,6 +73,9 @@ test("rebalancing finding never describes out-of-range as a loss", () => {
   assert.doesNotMatch(`${finding.headline} ${finding.summary}`, /lost|losing money|loss/i);
   assert.equal(finding.methodVersion, "smart-money.rebalancing-finding@1.0.0");
   assert.deepEqual(finding.evidenceIds, ["ev-range"]);
+  assert.equal(finding.subject?.positionManager, "0x1111111111111111111111111111111111111111");
+  assert.equal((finding.subject?.token0 as { address?: string } | undefined)?.address, "0x4444444444444444444444444444444444444444");
+  assert.equal((finding.subject?.token1 as { decimals?: number } | undefined)?.decimals, 18);
 });
 
 test("in-range finding is healthy but does not claim portfolio safety", () => {

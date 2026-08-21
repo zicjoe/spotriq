@@ -16,9 +16,10 @@
 - Marketplace Test Lab + Service Readiness Verification
 - Smart Money Finding → AgentService Compatibility & Ranking
 - Rebalancing Vertical Handoff / Reviewable Job Intent
+- Explicit Bounded Permission / Altana Authority Verification
 
 ## Current source of truth
-Use Spotriq **v0.14.0**.
+Use Spotriq **v0.15.0**.
 
 ## Current live-data spine
 BSC JSON-RPC → protocol adapters → Evidence Engine → Smart Money Engine → Findings → Spotriq UI.
@@ -71,6 +72,17 @@ One Finding + selected service maps to one deterministic Job Intent ID. Repeated
 
 The live Explore match card now exposes **Prepare job** for Rebalancing. The live Job Intent review surface is separate from the existing reference/sample checkout and never calls the mock activation routine.
 
+## Bounded authority state in v0.15.0
+A confirmed PancakeSwap V3 Rebalancing Job Intent can now produce a deterministic `BoundedPermissionRequest`. The request is derived server-side from the persisted Job Intent, not from browser-supplied contract/token facts. User inputs are limited to token0/token1 caps and a bounded expiry.
+
+Spotriq maps the job to an Altana-oriented selector allowlist on the exact observed V3 Position Manager: decrease liquidity, collect, increase liquidity and mint. It explicitly excludes arbitrary calls, `multicall`, token approval, Permit2, router swap, withdrawal and transfer authority. Infinity CL is refused until its call surface is modeled separately.
+
+The permission request, provider-returned proof and reconciled grant remain different resources. A grant reaches `ACTIVE` only if wallet/call/spend/expiry scope exactly matches the reviewed request, the expiry is still current, and Altana Keystore `isValidKey` independently returns true for `keccak256(sessionPublicKey)`. Re-verification can mark a previously active grant revoked/unusable.
+
+Consumer grant submission is deliberately blocked as `SAFETY_PREREQUISITES_REQUIRED` behind two structured independent gates: `TRUSTED_AGENT_SESSION_KEY` and `ARGUMENT_LEVEL_EXECUTION_GUARD`. The external AgentService model does not yet provide a trustworthy service-owned Altana delegate/session key, and selector-scoped Altana call permissions do not bind the exact PancakeSwap V3 `tokenId`, recipient, amounts or deadline/slippage arguments. Spotriq does not invent a key, retain an external agent session secret in browser storage, or treat selector scope as argument safety. Even a reconciled active grant remains `executionEligible = false`, and the linked Job Intent remains `NO_EXECUTION` in v0.15.0.
+
+Persistence uses the original `permission_requests` and `permission_grants` tables from migration 0001. No new migration was added.
+
 ## Readiness state inherited from v0.12.0
 Deterministic gates now cover:
 1. BSC network
@@ -110,6 +122,12 @@ Marketplace supply/readiness:
 - `GET /v1/job-intents/:jobIntentId` — retrieve the reviewable intent
 - `PATCH /v1/job-intents/:jobIntentId` — revise proposed limits while REVIEWABLE
 - `POST /v1/job-intents/:jobIntentId/confirm` — confirm the job description and advance only to AWAITING_AUTHORITY
+- `POST /v1/job-intents/:jobIntentId/permissions` — derive/re-open the bounded authority request from server-side Job Intent context
+- `GET /v1/permissions/:permissionRequestId` — retrieve the reviewed request
+- `PATCH /v1/permissions/:permissionRequestId` — revise user caps/expiry before grant reconciliation
+- `POST /v1/permissions/:permissionRequestId/reconcile` — compare an observed Altana grant against the reviewed request and verify it onchain
+- `GET /v1/permission-grants/:permissionGrantId` — retrieve the reconciled grant
+- `POST /v1/permission-grants/:permissionGrantId/reverify` — refresh current Keystore validity/revocation/expiry state
 
 ## Test Lab contract
 A Test Lab PASS means Spotriq observed a safe-to-probe public runtime that satisfied the relevant protocol discovery/contract checks and exposed category-relevant machine capability evidence. It does **not** mean:
@@ -130,7 +148,7 @@ A2A verification uses Agent Card discovery/validation. Modern MCP verification t
 - Railway PostgreSQL can be attached when the API itself is deployed in Railway; local Railway tunnelling is not required.
 
 ## Next
-Build **v0.15.0 — Explicit Bounded Permission / Authority**. A confirmed `AWAITING_AUTHORITY` Rebalancing Job Intent should become a precise PermissionRequest only after wallet-control requirements are satisfied. The user must see contracts/functions/assets/limits/expiry before signing. Integrate scoped authority (Altana where current official interfaces fit), reconcile the actual PermissionGrant returned by the provider, and never assume requested authority equals granted authority. Keep real financial execution blocked until the grant is explicitly validated. After that: real BSC Testnet activation, Activity & Outcomes, then generalize the complete vertical across Grid, Yield and Health with equal depth.
+Build **v0.16.0 — Trusted Agent Session-Key Binding + Argument-Level Execution Guard + Live Altana BSC Testnet Grant**. Bind a trustworthy service-owned delegate/session public key to the selected AgentService, implement deterministic V3 calldata decoding/validation against the reviewed Job Intent, require both structured prerequisites to be satisfied, prove the user/admin-controlled Altana wallet owns the relevant BSC Testnet context, submit the exact reviewed grant, capture its transaction hash and byte-exact policy/session evidence, reconcile it through v0.15, independently confirm Keystore validity, and expose real revocation. Financial transaction execution remains a separate gate until current LP ownership/state, exact calldata and current grant validity are revalidated immediately before execution. After that: Activity & Outcomes, then generalize the complete vertical across Grid, Yield and Health with equal depth.
 
 ## Rule
 Every completed replacement ZIP becomes the new source of truth.

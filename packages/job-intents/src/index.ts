@@ -1,7 +1,10 @@
 import type {
+  BoundedPermissionGrant,
+  BoundedPermissionRequest,
   CheckSession,
   Finding,
   FindingServiceMatch,
+  ProtocolTokenMetadata,
   RebalancingJobConstraints,
   RebalancingJobIntent,
 } from "@spotriq/domain";
@@ -96,6 +99,8 @@ export interface JobIntentEngine {
   get(jobIntentId: string): Promise<RebalancingJobIntent>;
   revise(jobIntentId: string, constraints: Partial<Omit<RebalancingJobConstraints, "executionMode" | "maxActionCount">>): Promise<RebalancingJobIntent>;
   confirm(jobIntentId: string): Promise<RebalancingJobIntent>;
+  linkPermissionRequest(jobIntentId: string, request: BoundedPermissionRequest): Promise<RebalancingJobIntent>;
+  linkPermissionGrant(jobIntentId: string, grant: BoundedPermissionGrant): Promise<RebalancingJobIntent>;
 }
 
 function asString(subject: Record<string, unknown> | undefined, key: string): string | undefined {
@@ -106,6 +111,22 @@ function asString(subject: Record<string, unknown> | undefined, key: string): st
 function asNumber(subject: Record<string, unknown> | undefined, key: string): number | undefined {
   const value = subject?.[key];
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function asToken(subject: Record<string, unknown> | undefined, key: string): ProtocolTokenMetadata | undefined {
+  const value = subject?.[key];
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const token = value as Record<string, unknown>;
+  const address = typeof token.address === "string" ? token.address.trim() : "";
+  const decimals = typeof token.decimals === "number" && Number.isInteger(token.decimals) ? token.decimals : undefined;
+  if (!address) return undefined;
+  return {
+    address,
+    symbol: typeof token.symbol === "string" ? token.symbol : undefined,
+    name: typeof token.name === "string" ? token.name : undefined,
+    decimals,
+    isNative: token.isNative === true,
+  };
 }
 
 function normalizedConstraints(
@@ -203,6 +224,8 @@ function buildIntent(input: PrepareRebalancingJobIntentInput, existing?: Rebalan
       network,
       tokenId,
       positionManager: asString(subject, "positionManager"),
+      token0: asToken(subject, "token0"),
+      token1: asToken(subject, "token1"),
       poolAddress: asString(subject, "poolAddress"),
       poolId: asString(subject, "poolId"),
       pair,
@@ -300,6 +323,57 @@ export function createJobIntentEngine(store: JobIntentStore = new MemoryJobInten
         state: "AWAITING_AUTHORITY",
         executionState: "NO_EXECUTION",
         updatedAt: new Date().toISOString(),
+      };
+      await store.save(next);
+      return next;
+    },
+
+    async linkPermissionRequest(jobIntentId, request) {
+      const intent = await store.get(jobIntentId);
+      if (!intent) throw new JobIntentError(`Job intent ${jobIntentId} was not found.`, "JOB_INTENT_NOT_FOUND");
+      if (intent.state !== "AWAITING_AUTHORITY") throw new JobIntentError("The job intent must be AWAITING_AUTHORITY before a permission request can be linked.", "INVALID_STATE");
+      if (request.jobIntentId !== intent.jobIntentId || request.serviceId !== intent.selectedService.serviceId || request.walletAddress.toLowerCase() !== intent.walletAddress.toLowerCase()) {
+        throw new JobIntentError("Permission request does not belong to this job intent.", "INVALID_INPUT");
+      }
+      const next: RebalancingJobIntent = {
+        ...intent,
+        executionState: "NO_EXECUTION",
+        updatedAt: new Date().toISOString(),
+        authority: {
+          ...intent.authority,
+          state: "REQUEST_PREPARED",
+          permissionRequestId: request.permissionRequestId,
+          provider: request.provider,
+          blockers: [...new Set([...request.submissionBlockers, "Spotriq v0.15 performs no financial execution even after a grant is reconciled."])],
+        },
+      };
+      await store.save(next);
+      return next;
+    },
+
+    async linkPermissionGrant(jobIntentId, grant) {
+      const intent = await store.get(jobIntentId);
+      if (!intent) throw new JobIntentError(`Job intent ${jobIntentId} was not found.`, "JOB_INTENT_NOT_FOUND");
+      if (grant.jobIntentId !== intent.jobIntentId || grant.permissionRequestId !== intent.authority.permissionRequestId) {
+        throw new JobIntentError("Permission grant does not belong to this job intent or its prepared request.", "INVALID_INPUT");
+      }
+      const verified = grant.state === "ACTIVE" && grant.reconciliation === "EXACT_MATCH" && grant.onchainValid;
+      const next: RebalancingJobIntent = {
+        ...intent,
+        executionState: "NO_EXECUTION",
+        updatedAt: new Date().toISOString(),
+        authority: {
+          ...intent.authority,
+          state: verified ? "GRANT_VERIFIED" : "REQUEST_PREPARED",
+          permissionGrantId: grant.permissionGrantId,
+          provider: grant.provider,
+          blockers: verified
+            ? [
+                ...grant.executionSafetyPrerequisites.filter((item) => item.blocking && item.state !== "SATISFIED").map((item) => item.detail),
+                "A bounded Altana grant is verified, but Spotriq v0.15 deliberately keeps execution disabled. Provider authority does not replace the trusted service-key binding or argument-level execution guard required before live financial activation.",
+              ]
+            : [...grant.reconciliationReasons, ...grant.executionSafetyPrerequisites.filter((item) => item.blocking && item.state !== "SATISFIED").map((item) => item.detail), "The observed grant is not sufficient for activation."],
+        },
       };
       await store.save(next);
       return next;

@@ -327,6 +327,113 @@ export interface PermissionRequest {
   status: "DRAFT" | "READY" | "AWAITING_WALLET" | "SUBMITTED" | "CONFIRMED" | "REJECTED" | "FAILED";
 }
 
+export type PermissionAuthorityProvider = "ALTANA";
+export type PermissionSpendPeriod = "hour" | "day";
+export type PermissionGrantReconciliationState =
+  | "PENDING"
+  | "EXACT_MATCH"
+  | "WALLET_MISMATCH"
+  | "SCOPE_MISMATCH"
+  | "ONCHAIN_INVALID"
+  | "EXPIRED";
+
+export interface PermissionCallScope {
+  to: string;
+  signature: string;
+  label: string;
+  provenance: "marketplace-derived";
+}
+
+export interface PermissionSpendScope {
+  token: string;
+  symbol?: string;
+  decimals: number;
+  limitDisplay: string;
+  limitRaw: string;
+  period: PermissionSpendPeriod;
+  provenance: "user-proposed";
+}
+
+export type AuthoritySafetyPrerequisiteCode =
+  | "TRUSTED_AGENT_SESSION_KEY"
+  | "ARGUMENT_LEVEL_EXECUTION_GUARD";
+
+export interface AuthoritySafetyPrerequisite {
+  code: AuthoritySafetyPrerequisiteCode;
+  state: "REQUIRED" | "SATISFIED";
+  blocking: boolean;
+  label: string;
+  detail: string;
+  provenance: "marketplace-derived";
+}
+
+export interface BoundedPermissionRequest {
+  permissionRequestId: string;
+  jobIntentId: string;
+  serviceId: string;
+  walletAddress: string;
+  provider: PermissionAuthorityProvider;
+  network: BscNetwork;
+  chainId: 56 | 97;
+  protocol: "PancakeSwap";
+  positionManager: string;
+  tokenId: string;
+  callAllowlist: PermissionCallScope[];
+  spendCaps: PermissionSpendScope[];
+  expiresAt: string;
+  expiryUnix: number;
+  status: "READY" | "SUBMITTED" | "CONFIRMED" | "REJECTED" | "FAILED" | "EXPIRED";
+  providerSubmissionState: "SAFETY_PREREQUISITES_REQUIRED" | "SESSION_KEY_REQUIRED" | "READY_FOR_WALLET" | "SUBMITTED" | "RECONCILED";
+  safetyPrerequisites: AuthoritySafetyPrerequisite[];
+  submissionBlockers: string[];
+  walletControl: WalletControlState;
+  scopeProvenance: "marketplace-derived";
+  activationEligible: false;
+  methodVersion: string;
+  createdAt: string;
+  updatedAt: string;
+  limitations: string[];
+}
+
+export interface AltanaGrantProof {
+  walletAddress: string;
+  sessionPublicKey: string;
+  transactionHash?: string;
+  calls: Array<{ to: string; signature: string }>;
+  spend: Array<{ token: string; limitRaw: string; period: PermissionSpendPeriod }>;
+  expiryUnix: number;
+}
+
+export interface BoundedPermissionGrant {
+  permissionGrantId: string;
+  permissionRequestId: string;
+  jobIntentId: string;
+  serviceId: string;
+  walletAddress: string;
+  provider: PermissionAuthorityProvider;
+  network: BscNetwork;
+  chainId: 56 | 97;
+  sessionPublicKey: string;
+  keyId: string;
+  transactionHash?: string;
+  state: PermissionGrantState;
+  reconciliation: PermissionGrantReconciliationState;
+  requestedCalls: PermissionCallScope[];
+  grantedCalls: Array<{ to: string; signature: string }>;
+  requestedSpendCaps: PermissionSpendScope[];
+  grantedSpendCaps: Array<{ token: string; limitRaw: string; period: PermissionSpendPeriod }>;
+  expiresAt: string;
+  expiryUnix: number;
+  keystoreAddress: string;
+  onchainValid: boolean;
+  verifiedAt: string;
+  verifiedBlockNumber?: string;
+  executionSafetyPrerequisites: AuthoritySafetyPrerequisite[];
+  executionEligible: false;
+  reconciliationReasons: string[];
+  limitations: string[];
+}
+
 export interface Activation {
   activationId: string;
   serviceId: string;
@@ -1244,6 +1351,8 @@ export interface RebalancingJobIntentSubject {
   network: BscNetwork;
   tokenId: string;
   positionManager?: string;
+  token0?: ProtocolTokenMetadata;
+  token1?: ProtocolTokenMetadata;
   poolAddress?: string;
   poolId?: string;
   pair: string;
@@ -1273,11 +1382,14 @@ export interface RebalancingJobIntentServiceSnapshot {
 }
 
 export interface JobIntentAuthorityRequirement {
-  state: "UNRESOLVED";
+  state: "UNRESOLVED" | "REQUEST_PREPARED" | "GRANT_VERIFIED";
   requiredBeforeExecution: true;
   permissionProfileId: string;
   declarationState: "UNDECLARED" | "DECLARED";
   walletControl: WalletControlState;
+  permissionRequestId?: string;
+  permissionGrantId?: string;
+  provider?: PermissionAuthorityProvider;
   blockers: string[];
 }
 

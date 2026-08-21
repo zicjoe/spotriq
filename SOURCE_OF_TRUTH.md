@@ -1,8 +1,8 @@
 # Spotriq Source of Truth
 
-Current release: **v0.14.0**
+Current release: **v0.15.0**
 
-This ZIP supersedes Spotriq v0.13.0.
+This ZIP supersedes Spotriq v0.14.0.
 
 Implemented live financial-data categories:
 1. Rebalancing — PancakeSwap V3/Infinity CL current-state foundation and V3 wallet discovery.
@@ -54,9 +54,21 @@ Rebalancing vertical handoff / Job Intent implemented in v0.14.0:
 - The original `checkouts.job_context` persistence seam from migration 0001 is now used for durable Job Intents; no new database migration is required in v0.14.0.
 - The live Explore match card exposes **Prepare job** for Rebalancing, and the live checkout review path is separate from the existing sample/mock activation path.
 
+Explicit bounded permission / authority implemented in v0.15.0:
+- A confirmed `AWAITING_AUTHORITY` PancakeSwap V3 Rebalancing Job Intent can become one deterministic `BoundedPermissionRequest` using `marketplace.bounded-authority@1.0.0`.
+- The server derives the exact Position Manager, token addresses/decimals, protocol, network and token ID from the persisted Job Intent; clients submit only user-proposed token caps and expiry.
+- Authority is selector-scoped to the exact observed V3 Position Manager for `decreaseLiquidity`, `collect`, `increaseLiquidity` and `mint`; no `multicall`, arbitrary target, token approval, Permit2, router swap, withdrawal or transfer authority is added.
+- User token caps are converted to raw smallest units from observed token decimals and stored with their reviewed display values. Expiry is explicitly bounded.
+- Infinity CL authority is blocked instead of being guessed from the V3 call surface.
+- Provider-returned Altana grant proof is reconciled against the reviewed request. A broader/different wallet/call/spend/expiry scope cannot become an active Spotriq grant.
+- Spotriq independently derives `keccak256(sessionPublicKey)` and reads Altana Keystore `isValidKey(wallet,keyId)` on BSC Mainnet/Testnet. Re-verification can downgrade a previously active grant after revocation or expiry.
+- A request remains `SAFETY_PREREQUISITES_REQUIRED` behind two machine-readable independent gates: `TRUSTED_AGENT_SESSION_KEY` and `ARGUMENT_LEVEL_EXECUTION_GUARD`. Current external AgentService metadata does not yet bind a trusted service-owned Altana delegate/session public key, and Altana selector-scoped permissions do not bind PancakeSwap V3 `tokenId`/recipient/amount/deadline arguments. Spotriq does not fabricate or browser-store an external agent's session private key and does not treat selector scope alone as execution safety.
+- Even an exact, currently onchain-valid grant has `executionEligible: false`; the linked Job Intent remains `NO_EXECUTION` in v0.15.0.
+- The existing `permission_requests` and `permission_grants` tables from migration 0001 are now used for durable authority state. No new migration is required; migration 0009 remains latest.
+
 Persistence:
 - Local development can continue with memory stores and blank `DATABASE_URL`.
 - Migration `0009_marketplace_test_lab.sql` persists immutable marketplace test runs and is now the latest migration.
 - Railway PostgreSQL remains a deployment-time integration rather than a local-development requirement.
 
-Next engineering milestone: **v0.15.0 Explicit Bounded Permission / Authority** — construct a precise PermissionRequest from a confirmed `AWAITING_AUTHORITY` Rebalancing Job Intent, verify wallet control where required, integrate scoped authority (Altana where current official interfaces map cleanly), show the exact requested scope before signing, reconcile the actual PermissionGrant after authorization, and keep real financial execution blocked until the grant is demonstrably valid.
+Next engineering milestone: **v0.16.0 Trusted Agent Session-Key Binding + Argument-Level Execution Guard + Live Altana BSC Testnet Grant** — satisfy both structured v0.15 safety prerequisites, bind a trustworthy service-owned delegate/session public key to the selected AgentService, decode/validate exact PancakeSwap V3 calldata against the reviewed Job Intent, prove a user/admin-controlled Altana wallet on BSC Testnet, submit the exact reviewed grant, capture and reconcile its transaction/policy evidence, independently verify current Keystore validity, expose real revocation, and keep financial transaction execution separately gated behind immediate state/calldata/grant revalidation.

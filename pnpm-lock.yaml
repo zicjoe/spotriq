@@ -29,6 +29,9 @@ importers:
       '@spotriq/api-contracts':
         specifier: workspace:*
         version: link:../../packages/api-contracts
+      '@spotriq/authority':
+        specifier: workspace:*
+        version: link:../../packages/authority
       '@spotriq/chain':
         specifier: workspace:*
         version: link:../../packages/chain
@@ -325,6 +328,28 @@ importers:
         specifier: workspace:*
         version: link:../domain
     devDependencies:
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+
+  packages/authority:
+    dependencies:
+      '@spotriq/chain':
+        specifier: workspace:*
+        version: link:../chain
+      '@spotriq/domain':
+        specifier: workspace:*
+        version: link:../domain
+      viem:
+        specifier: 2.55.11
+        version: 2.55.11(typescript@5.7.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      tsx:
+        specifier: 4.23.1
+        version: 4.23.1
       typescript:
         specifier: 5.7.3
         version: 5.7.3

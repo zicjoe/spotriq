@@ -59,6 +59,13 @@ const required = [
   "apps/web/src/repositories/jobIntentRepository.ts",
   "docs/REBALANCING_JOB_INTENT.md",
   "docs/IMPLEMENTATION_REPORT_REBALANCING_JOB_INTENT_v0.14.0.md",
+  "packages/authority/package.json",
+  "packages/authority/src/index.ts",
+  "packages/authority/src/altana.ts",
+  "apps/api/src/routes/authority.ts",
+  "apps/web/src/repositories/authorityRepository.ts",
+  "docs/BOUNDED_PERMISSION_AUTHORITY.md",
+  "docs/IMPLEMENTATION_REPORT_BOUNDED_PERMISSION_AUTHORITY_v0.15.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -226,7 +233,7 @@ if (!jobIntentRoutes.includes("marketplaceSupply.matchFinding") || !jobIntentRou
 for (const marker of ["RebalancingJobIntent", "RebalancingJobConstraints", "JobIntentAuthorityRequirement", "jobIntentId?: string"]) {
   if (!domain.includes(marker)) throw new Error(`Job Intent domain model is missing ${marker}.`);
 }
-if (!appUi.includes("Prepare job") || !appUi.includes("Review the job before authority") || !appUi.includes("Confirm job intent") || !appUi.includes("Nothing has been signed, granted, submitted, or executed")) {
+if (!appUi.includes("Prepare job") || !appUi.includes("Review the job before authority") || !appUi.includes("Confirm job intent") || !appUi.includes("Nothing is executed in v0.15")) {
   throw new Error("The live Rebalancing handoff UI must expose reviewable Job Intent preparation without pretending authority or execution exists.");
 }
 if (!appUi.includes("jobIntentRepository.prepare") || !appUi.includes("jobIntentId={nav.jobIntentId}")) {
@@ -236,4 +243,35 @@ if (!apiApp.includes("rebalancingJobIntentEnabled: true") || !apiApp.includes("m
   throw new Error("System capabilities must expose Job Intent support while keeping marketplace activation disabled.");
 }
 
-console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing reviewable Job Intent verification passed.");
+const authority = await readFile(path.join(root, "packages/authority/src/index.ts"), "utf8");
+for (const marker of ["BOUNDED_AUTHORITY_METHOD", "SAFETY_PREREQUISITES_REQUIRED", "TRUSTED_AGENT_SESSION_KEY", "ARGUMENT_LEVEL_EXECUTION_GUARD", "EXACT_MATCH", "executionEligible: false", "decreaseLiquidity((uint256,uint128,uint256,uint256,uint256))", "collect((uint256,address,uint128,uint128))", "increaseLiquidity((uint256,uint256,uint256,uint256,uint256,uint256))", "mint((address,address,uint24,int24,int24,uint256,uint256,uint256,uint256,address,uint256))"]) {
+  if (!authority.includes(marker)) throw new Error(`Bounded authority engine is missing ${marker}.`);
+}
+if (!authority.includes("permission_requests") || !authority.includes("permission_grants")) {
+  throw new Error("Bounded authority persistence must use the existing permission request/grant tables.");
+}
+for (const marker of ["AuthoritySafetyPrerequisite", "TRUSTED_AGENT_SESSION_KEY", "ARGUMENT_LEVEL_EXECUTION_GUARD", "safetyPrerequisites", "executionSafetyPrerequisites"]) {
+  if (!domain.includes(marker)) throw new Error(`Bounded authority domain model is missing ${marker}.`);
+}
+const altanaAuthority = await readFile(path.join(root, "packages/authority/src/altana.ts"), "utf8");
+for (const marker of ["ALTANA_KEYSTORE_BY_NETWORK", "isValidKey", "keccak256", "0x6572427ED530BadcF7375Cf9A4709D8d2b0E7E0a", "0x6b8361C29d05D498b1a12B54A37310f94171E94A"]) {
+  if (!altanaAuthority.includes(marker)) throw new Error(`Altana Keystore verifier is missing ${marker}.`);
+}
+const authorityRoutes = await readFile(path.join(root, "apps/api/src/routes/authority.ts"), "utf8");
+for (const route of ["/v1/job-intents/:jobIntentId/permissions", "/v1/permissions/:permissionRequestId", "/v1/permissions/:permissionRequestId/reconcile", "/v1/permission-grants/:permissionGrantId", "/v1/permission-grants/:permissionGrantId/reverify"]) {
+  if (!authorityRoutes.includes(route)) throw new Error(`Missing bounded authority route ${route}.`);
+}
+if (!apiApp.includes("boundedPermissionAuthorityEnabled: true") || !apiApp.includes("altanaKeystoreVerificationEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
+  throw new Error("API capabilities must expose bounded authority + Altana verification while keeping marketplace activation disabled.");
+}
+for (const marker of ["Bounded authority · Altana", "Grant submission is deliberately blocked", "Re-check onchain authority", "Prepare bounded authority"]) {
+  if (!appUi.includes(marker)) throw new Error(`Live authority review UI is missing ${marker}.`);
+}
+if (!appUi.includes("authorityRepository.prepare") || !appUi.includes("authorityRepository.reverify")) {
+  throw new Error("Live authority review UI must use the bounded authority API repository.");
+}
+if (!jobIntents.includes("linkPermissionRequest") || !jobIntents.includes("linkPermissionGrant") || !jobIntents.includes('executionState: "NO_EXECUTION"')) {
+  throw new Error("Job Intent authority linkage must preserve the NO_EXECUTION boundary.");
+}
+
+console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + explicit bounded Altana authority verification passed.");

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { CheckSession, Finding, FindingServiceMatch, MarketplaceServiceRecord } from "@spotriq/domain";
+import type { BoundedPermissionGrant, BoundedPermissionRequest, CheckSession, Finding, FindingServiceMatch, MarketplaceServiceRecord } from "@spotriq/domain";
 import { createJobIntentEngine } from "./index.js";
 
 const now = "2026-08-21T12:00:00.000Z";
@@ -189,4 +189,88 @@ test("confirm advances only to AWAITING_AUTHORITY and never enables execution", 
 test("non-rebalancing findings cannot enter the v0.14 vertical", async () => {
   const engine = createJobIntentEngine();
   await assert.rejects(() => engine.prepare({ session: session(), finding: finding("yield"), match: match() }), /Only Rebalancing findings/);
+});
+
+
+test("linking a bounded request and verified grant never enables execution", async () => {
+  const engine = createJobIntentEngine();
+  const prepared = await engine.prepare({ session: session("VERIFIED_CONTROL"), finding: finding(), match: match(), now: new Date() });
+  const confirmed = await engine.confirm(prepared.jobIntentId);
+
+  const request: BoundedPermissionRequest = {
+    permissionRequestId: "permission-request:test",
+    jobIntentId: confirmed.jobIntentId,
+    serviceId: confirmed.selectedService.serviceId,
+    walletAddress: confirmed.walletAddress,
+    provider: "ALTANA",
+    network: "mainnet",
+    chainId: 56,
+    protocol: "PancakeSwap",
+    positionManager: "0x2222222222222222222222222222222222222222",
+    tokenId: "42",
+    callAllowlist: [{
+      to: "0x2222222222222222222222222222222222222222",
+      signature: "collect((uint256,address,uint128,uint128))",
+      label: "Collect V3 position fees",
+      provenance: "marketplace-derived",
+    }],
+    spendCaps: [],
+    expiresAt: "2026-08-21T13:00:00.000Z",
+    expiryUnix: 1787317200,
+    status: "READY",
+    providerSubmissionState: "SAFETY_PREREQUISITES_REQUIRED",
+    safetyPrerequisites: [
+      { code: "TRUSTED_AGENT_SESSION_KEY", state: "REQUIRED", blocking: true, label: "Trusted agent session key", detail: "Trusted agent session key is required.", provenance: "marketplace-derived" },
+      { code: "ARGUMENT_LEVEL_EXECUTION_GUARD", state: "REQUIRED", blocking: true, label: "Argument-level execution guard", detail: "Exact calldata must be checked against the Job Intent.", provenance: "marketplace-derived" },
+    ],
+    submissionBlockers: ["Trusted agent session key is required.", "Exact calldata must be checked against the Job Intent."],
+    walletControl: "VERIFIED_CONTROL",
+    scopeProvenance: "marketplace-derived",
+    activationEligible: false,
+    methodVersion: "marketplace.bounded-authority@1.0.0",
+    createdAt: now,
+    updatedAt: now,
+    limitations: [],
+  };
+
+  const withRequest = await engine.linkPermissionRequest(confirmed.jobIntentId, request);
+  assert.equal(withRequest.authority.state, "REQUEST_PREPARED");
+  assert.equal(withRequest.executionState, "NO_EXECUTION");
+  assert.equal(withRequest.authority.permissionRequestId, request.permissionRequestId);
+
+  const grant: BoundedPermissionGrant = {
+    permissionGrantId: "permission-grant:test",
+    permissionRequestId: request.permissionRequestId,
+    jobIntentId: confirmed.jobIntentId,
+    serviceId: confirmed.selectedService.serviceId,
+    walletAddress: confirmed.walletAddress,
+    provider: "ALTANA",
+    network: "mainnet",
+    chainId: 56,
+    sessionPublicKey: "0x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    keyId: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    requestedCalls: request.callAllowlist,
+    grantedCalls: request.callAllowlist.map(({ to, signature }) => ({ to, signature })),
+    requestedSpendCaps: request.spendCaps,
+    grantedSpendCaps: [],
+    expiresAt: request.expiresAt,
+    expiryUnix: request.expiryUnix,
+    keystoreAddress: "0x6572427ED530BadcF7375Cf9A4709D8d2b0E7E0a",
+    state: "ACTIVE",
+    reconciliation: "EXACT_MATCH",
+    onchainValid: true,
+    verifiedAt: now,
+    executionSafetyPrerequisites: request.safetyPrerequisites,
+    executionEligible: false,
+    reconciliationReasons: [],
+    limitations: [],
+  };
+
+  const withGrant = await engine.linkPermissionGrant(confirmed.jobIntentId, grant);
+  assert.equal(withGrant.authority.state, "GRANT_VERIFIED");
+  assert.equal(withGrant.executionState, "NO_EXECUTION");
+  assert.equal(withGrant.authority.permissionGrantId, grant.permissionGrantId);
+  assert.ok(withGrant.authority.blockers.some((blocker) => /trusted agent session key/i.test(blocker)));
+  assert.ok(withGrant.authority.blockers.some((blocker) => /calldata|execution guard/i.test(blocker)));
+  assert.ok(withGrant.authority.blockers.some((blocker) => /execution disabled/i.test(blocker)));
 });

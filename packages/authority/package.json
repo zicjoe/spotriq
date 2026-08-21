@@ -1,15 +1,16 @@
 {
-  "name": "@spotriq/marketplace-supply",
+  "name": "@spotriq/authority",
   "private": true,
   "version": "0.15.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./altana": "./src/altana.ts"
   },
   "dependencies": {
-    "@spotriq/agent-registry": "workspace:*",
+    "@spotriq/chain": "workspace:*",
     "@spotriq/domain": "workspace:*",
-    "@spotriq/evidence": "workspace:*"
+    "viem": "2.55.11"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

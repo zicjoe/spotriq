@@ -57,6 +57,8 @@ export interface CapabilityResponse {
   marketplaceTestingEnabled: boolean;
   findingServiceCompatibilityEnabled: boolean;
   rebalancingJobIntentEnabled: boolean;
+  boundedPermissionAuthorityEnabled: boolean;
+  altanaKeystoreVerificationEnabled: boolean;
   marketplaceActivationEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
@@ -233,4 +235,24 @@ export interface ReviseRebalancingJobIntentRequest {
 
 export interface RebalancingJobIntentResponse {
   intent: import("@spotriq/domain").RebalancingJobIntent;
+}
+
+export interface PrepareBoundedPermissionRequest {
+  token0Limit: string;
+  token1Limit: string;
+  validForMinutes: number;
+}
+
+export interface BoundedPermissionRequestResponse {
+  request: import("@spotriq/domain").BoundedPermissionRequest;
+  intent?: import("@spotriq/domain").RebalancingJobIntent;
+}
+
+export interface ReconcileAltanaGrantRequest {
+  proof: import("@spotriq/domain").AltanaGrantProof;
+}
+
+export interface BoundedPermissionGrantResponse {
+  grant: import("@spotriq/domain").BoundedPermissionGrant;
+  intent?: import("@spotriq/domain").RebalancingJobIntent;
 }

@@ -114,14 +114,20 @@ POST http://localhost:3001/v1/checks/:checkSessionId/findings/:findingId/job-int
 GET  http://localhost:3001/v1/job-intents/:jobIntentId
 PATCH http://localhost:3001/v1/job-intents/:jobIntentId
 POST http://localhost:3001/v1/job-intents/:jobIntentId/confirm
+POST http://localhost:3001/v1/job-intents/:jobIntentId/permissions
+GET  http://localhost:3001/v1/permissions/:permissionRequestId
+PATCH http://localhost:3001/v1/permissions/:permissionRequestId
+POST http://localhost:3001/v1/permissions/:permissionRequestId/reconcile
+GET  http://localhost:3001/v1/permission-grants/:permissionGrantId
+POST http://localhost:3001/v1/permission-grants/:permissionGrantId/reverify
 GET  http://localhost:3001/v1/checks/:checkSessionId/events
 ```
 
-Current live check coverage now has real data foundations across all four required financial categories: Rebalancing from supported PancakeSwap V3 LP range state, Health from Venus Core/Isolated lending risk, Yield from wallet-relevant Venus supply markets, and Grid from wallet-relevant PancakeSwap V3 onchain oracle averages. v0.13.0 adds an on-demand deterministic Finding → AgentService compatibility handoff. v0.14.0 adds the first live Rebalancing vertical handoff into a reviewable, persisted PREPARE_ONLY Job Intent with explicit no-execution authority blockers. Wallet-wide token discovery, Infinity wallet-wide discovery, and historical realised-performance analytics remain explicitly unsupported/partial instead of being faked.
+Current live check coverage now has real data foundations across all four required financial categories: Rebalancing from supported PancakeSwap V3 LP range state, Health from Venus Core/Isolated lending risk, Yield from wallet-relevant Venus supply markets, and Grid from wallet-relevant PancakeSwap V3 onchain oracle averages. v0.13.0 adds an on-demand deterministic Finding → AgentService compatibility handoff. v0.14.0 adds the first live Rebalancing vertical handoff into a reviewable, persisted PREPARE_ONLY Job Intent. v0.15.0 derives exact bounded Altana-oriented authority requests, reconciles observed grants against the reviewed scope, and independently verifies current Keystore validity while keeping execution disabled. Wallet-wide token discovery, Infinity wallet-wide discovery, and historical realised-performance analytics remain explicitly unsupported/partial instead of being faked.
 
 ## Live ERC-8004 / 8004scan agent discovery
 
-Spotriq separates **agent identity discovery** from **marketplace service activation**. 8004scan is used as an external indexed discovery source, while a selected identity can be rechecked directly against the configured ERC-8004 Identity Registry. A discovered identity is **not** automatically a Spotriq financial service. v0.12.0 added Marketplace Test Lab; v0.13.0 connects real Smart Money Findings to normalized live AgentService candidates through deterministic, explainable compatibility ranking; v0.14.0 lets a user select a compatible Rebalancing service and prepare a reviewable job without granting authority or executing funds. Test/evidence quality and readiness can affect ordering, but neither compatibility nor a high rank bypasses the independent permission/authority gate.
+Spotriq separates **agent identity discovery** from **marketplace service activation**. 8004scan is used as an external indexed discovery source, while a selected identity can be rechecked directly against the configured ERC-8004 Identity Registry. A discovered identity is **not** automatically a Spotriq financial service. v0.12.0 added Marketplace Test Lab; v0.13.0 connects real Smart Money Findings to normalized live AgentService candidates through deterministic, explainable compatibility ranking; v0.14.0 lets a user select a compatible Rebalancing service and prepare a reviewable job; v0.15.0 adds a bounded authority review/reconciliation layer without pretending a trusted external-agent session key or live grant already exists. Test/evidence quality and readiness can affect ordering, but neither compatibility nor a high rank bypasses the independent permission/authority gate.
 
 ```text
 http://localhost:3001/v1/registry/status
@@ -175,7 +181,7 @@ pnpm dev:worker
 ## Current product-data state
 
 - Reference financial-service cards remain clearly labelled sample data; Explore now also displays a separate live ERC-8004 registry discovery surface.
-- Live discovered ERC-8004 identities remain distinct from normalized AgentServices; search relevance alone never creates a service claim. Eligible normalized A2A/MCP candidates can be contract-tested, live Smart Money Findings can be matched/ranked against normalized services using explicit context rules, and a selected Rebalancing match can become a PREPARE_ONLY Job Intent. Activation remains independently gated by permission authority.
+- Live discovered ERC-8004 identities remain distinct from normalized AgentServices; search relevance alone never creates a service claim. Eligible normalized A2A/MCP candidates can be contract-tested, live Smart Money Findings can be matched/ranked against normalized services using explicit context rules, a selected Rebalancing match can become a PREPARE_ONLY Job Intent, and a confirmed V3 intent can now produce an exact bounded permission request plus independently verified Altana grant state. Activation/execution remain separately gated.
 - BSC chain status, block, transaction, native balance, and requested ERC-20 balance APIs are now real provider-backed reads.
 - Those chain reads return normalized evidence/provenance/freshness structures.
 - PancakeSwap V3 and Infinity CL current-state normalization is live at the API layer.
@@ -211,6 +217,8 @@ pnpm dev:worker
 - `docs/IMPLEMENTATION_REPORT_FINDING_SERVICE_COMPATIBILITY_v0.13.0.md`
 - `docs/REBALANCING_JOB_INTENT.md`
 - `docs/IMPLEMENTATION_REPORT_REBALANCING_JOB_INTENT_v0.14.0.md`
+- `docs/BOUNDED_PERMISSION_AUTHORITY.md`
+- `docs/IMPLEMENTATION_REPORT_BOUNDED_PERMISSION_AUTHORITY_v0.15.0.md`
 - `docs/ENGINEERING_STATUS.md`
 
 ## v0.11.0 targeted financial supply discovery
@@ -259,9 +267,19 @@ The intent records the position NFT/pool/pair/ticks/range state/block, selected 
 
 PostgreSQL persistence uses the existing `checkouts.job_context` foundation from migration 0001, so migration 0009 remains the latest migration. The live Job Intent review UI is intentionally separate from the existing reference/sample mock-activation checkout.
 
+## v0.15.0 Explicit Bounded Permission / Authority
+
+A confirmed PancakeSwap V3 Rebalancing Job Intent can now produce a deterministic `BoundedPermissionRequest`. Spotriq derives the Position Manager, token addresses/decimals, protocol, network and token ID from the persisted server-side Job Intent; the browser supplies only explicit token caps and bounded expiry. The request maps to exact Position Manager + function signatures for decrease/collect/increase/mint and explicitly excludes arbitrary calls, multicall, approvals, Permit2, router swaps, withdrawals and transfers.
+
+The reviewed request is not treated as a grant. An externally observed Altana grant must exactly match wallet/calls/spend/expiry and must independently pass the BSC Keystore `isValidKey(wallet, keccak256(sessionPublicKey))` read before Spotriq represents it as active. Re-verification can later downgrade a grant after revocation or expiry.
+
+Consumer grant submission remains deliberately blocked as `SAFETY_PREREQUISITES_REQUIRED` behind two independent machine-readable gates: `TRUSTED_AGENT_SESSION_KEY` and `ARGUMENT_LEVEL_EXECUTION_GUARD`. Current external AgentService metadata does not bind a trustworthy service-owned Altana delegate/session key, and selector-scoped Altana authority cannot by itself bind PancakeSwap V3 `tokenId`, recipient, amount or deadline arguments. Spotriq will not invent/browser-store an external agent secret or mistake selector scope for calldata safety. Even an exact, currently valid grant has `executionEligible = false`; the Job Intent remains `NO_EXECUTION`.
+
+No new database migration is required: the original `permission_requests` and `permission_grants` tables are now used for durable authority state.
+
 ## Next milestone
 
-Build **v0.15.0 — Explicit Bounded Permission / Authority** from a confirmed `AWAITING_AUTHORITY` Job Intent. Verify wallet control, show the exact contracts/functions/assets/limits/expiry before signing, integrate scoped authority (Altana where current official interfaces map cleanly), reconcile the actual PermissionGrant returned, and keep real financial execution blocked until the grant is explicitly validated.
+Build **v0.16.0 — Trusted Agent Session-Key Binding + Argument-Level Execution Guard + Live Altana BSC Testnet Grant**. Bind a trustworthy service-owned delegate/session public key to the selected AgentService, implement deterministic PancakeSwap V3 calldata validation against the reviewed Job Intent, require both safety prerequisites before provider submission, prove the user/admin-controlled Altana wallet owns the relevant BSC Testnet context, submit the exact reviewed grant, capture its transaction hash and byte-exact policy/session evidence, reconcile it through v0.15, verify it independently onchain, and expose real revocation. Keep financial transaction execution separately gated until current LP state, exact calldata and grant validity are revalidated immediately before execution.
 
 
 ## v0.9.2 registry visibility
