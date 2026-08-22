@@ -42,6 +42,7 @@ export interface NavState {
   activationId?: string;
   fromFinding?: string;
   jobIntentId?: string;
+  executionId?: string;
 }
 
 export interface AgentOperator {
@@ -1881,5 +1882,95 @@ export interface ControlledRebalancingExecution {
   expiresAt: string;
   executionEligible: boolean;
   methodVersion: string;
+  limitations: string[];
+}
+
+
+// ─── Controlled execution Activity & Outcomes (v0.20) ───────────────────────
+export type ExecutionActivityEventType =
+  | "JOB_INTENT_CONFIRMED"
+  | "BOUNDARY_AUTHORITY_ACTIVE"
+  | "APPROVALS_CONFIRMED"
+  | "EXECUTION_PREPARED"
+  | "EXECUTION_SUBMITTED"
+  | "EXECUTION_CONFIRMED"
+  | "EXECUTION_BLOCKED"
+  | "EXECUTION_FAILED"
+  | "REPLACEMENT_POSITION_VERIFIED"
+  | "BOUNDARY_CONSUMED"
+  | "JOB_INTENT_COMPLETED"
+  | "FINANCIAL_SESSION_REVOKED";
+
+export interface ExecutionActivityEvent {
+  activityEventId: string;
+  executionId: string;
+  jobIntentId: string;
+  serviceId: string;
+  walletAddress: string;
+  network: "testnet";
+  chainId: 97;
+  eventType: ExecutionActivityEventType;
+  severity: "info" | "success" | "warning" | "error";
+  title: string;
+  description: string;
+  occurredAt: string;
+  provenance: EvidenceProvenance;
+  sourceType: "JOB_INTENT" | "BOUNDARY_FINANCIAL_SESSION" | "APPROVAL_PLAN" | "CONTROLLED_EXECUTION" | "BSC_RECEIPT" | "PANCAKESWAP_POSITION" | "FINANCIAL_EXECUTION_BOUNDARY";
+  sourceId: string;
+  transactionHash?: string;
+  blockNumber?: string;
+  evidenceIds: string[];
+  metadata: Record<string, string | number | boolean>;
+}
+
+export interface ExecutionOutcomeMetric {
+  outcomeMetricId: string;
+  executionId: string;
+  metric: string;
+  value: string | number;
+  unit?: string;
+  attribution: "DIRECT" | "OBSERVED" | "DERIVED";
+  provenance: EvidenceProvenance;
+  evidenceIds: string[];
+  limitation?: string;
+}
+
+export interface RebalancingExecutionOutcome {
+  outcomeId: string;
+  executionId: string;
+  jobIntentId: string;
+  serviceId: string;
+  walletAddress: string;
+  network: "testnet";
+  chainId: 97;
+  state: OutcomeState;
+  transactionHash: string;
+  receiptBlockNumber: string;
+  oldPositionTokenId: string;
+  replacementPositionTokenId: string;
+  replacementPosition: PancakeSwapClPositionSnapshot;
+  gasUsedRaw: string;
+  effectiveGasPriceRaw?: string;
+  gasCostNativeRaw?: string;
+  gasCostNativeFormatted?: string;
+  gasAsset: "tBNB";
+  startedAt: string;
+  measuredAt: string;
+  metrics: ExecutionOutcomeMetric[];
+  evidenceIds: string[];
+  performanceMeasurement: {
+    state: "INSUFFICIENT_HISTORY" | "COLLECTING";
+    detail: string;
+  };
+  limitations: string[];
+  methodVersion: string;
+}
+
+export interface ExecutionActivityOutcomeBundle {
+  execution: ControlledRebalancingExecution;
+  activity: ExecutionActivityEvent[];
+  outcome?: RebalancingExecutionOutcome;
+  evidence: EvidenceRecord[];
+  syncedAt: string;
   limitations: string[];
 }

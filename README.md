@@ -372,4 +372,21 @@ POST /v1/controlled-executions/:executionId/reconcile
 
 A real transaction is produced only when the user runs the flow with the matching Altana/passkey wallet. Repository tests do not fabricate that onchain evidence.
 
-The next milestone is **v0.20.0 — Activity & Outcomes**, with a separate remaining requirement to prove actual AgentService task invocation/hiring before final submission.
+## v0.20.0 Activity & Outcomes
+
+Confirmed controlled Rebalancing executions now produce a durable execution-scoped timeline plus immediate, provenance-labelled outcome evidence. Spotriq records BSC receipt/gas facts, replacement PancakeSwap V3 NFT state, boundary consumption, Job Intent completion and current financial-session revocation state without creating a fake marketplace Activation.
+
+Immediate outcome measurement intentionally stops at what can be proven from the transaction and receipt-block protocol state. PnL, fees earned, APY, USD gas cost and Agent Advantage remain unavailable until a later measurement window supplies defensible history.
+
+New migration: `0014_execution_activity_outcomes.sql`.
+
+Key APIs:
+
+```text
+POST /v1/controlled-executions/:executionId/activity-outcomes/sync
+GET  /v1/controlled-executions/:executionId/activity-outcomes
+GET  /v1/controlled-executions/:executionId/activity
+GET  /v1/controlled-executions/:executionId/outcome
+```
+
+The next milestone is **v0.21.0 — Real AgentService Task Invocation / Hiring Origin Proof** so marketplace activation is established from a real service task/proposal origin rather than inferred from service selection.

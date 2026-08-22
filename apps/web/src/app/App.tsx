@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, FindingServiceMatch, FindingServiceMatchPage, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution, ExecutionActivityOutcomeBundle,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -36,6 +36,7 @@ import { authorityRepository } from "../repositories/authorityRepository";
 import { altanaHandlers } from "../services/altanaHandlers";
 import { executionPlanRepository } from "../repositories/executionPlanRepository";
 import { controlledExecutionRepository } from "../repositories/controlledExecutionRepository";
+import { activityOutcomesRepository } from "../repositories/activityOutcomesRepository";
 
 const {
   services: SERVICES,
@@ -2896,7 +2897,7 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
                 {controlledExecution.state === "READY_TO_DISPATCH" && financialSession && <div className="space-y-2"><div className={altanaHandlers.hasBoundaryFinancialSessionSigner(financialSession.sessionPublicKey) ? "text-[10px] text-[#4ade80]" : "text-[10px] text-[#f59e0b]"}>{altanaHandlers.hasBoundaryFinancialSessionSigner(financialSession.sessionPublicKey) ? "Boundary session signer is present in this browser process." : "The ephemeral boundary signer is not present after reload. Spotriq will not reconstruct private key material; create a fresh financial session before execution."}</div><Btn variant="danger" onClick={() => void submitControlledExecution()} disabled={controlledBusy || !altanaHandlers.hasBoundaryFinancialSessionSigner(financialSession.sessionPublicKey)}><Play className="w-4 h-4" /> Execute exact reviewed plan on BSC Testnet</Btn></div>}
                 {controlledExecution.state === "SUBMITTED" && <Btn variant="secondary" onClick={() => void reconcileControlledExecution()} disabled={controlledBusy}><RefreshCw className="w-4 h-4" /> Reconcile BSC receipt</Btn>}
                 {controlledExecution.transactionHash && <div className="text-[10px]"><span className="text-[#6b7d99]">Transaction</span><div className="font-mono text-[#9aacc4] break-all mt-1">{controlledExecution.transactionHash}</div></div>}
-                {controlledExecution.state === "CONFIRMED" && <div className="rounded-md border border-[#4ade80]/15 bg-[#4ade80]/[0.03] p-3 text-[10px] space-y-1"><div className="text-[#4ade80] font-medium">Confirmed on BSC Testnet; sealed boundary consumed.</div>{controlledExecution.mintedPositionTokenId && <div className="text-[#9aacc4]">Replacement LP NFT: <span className="font-mono">{controlledExecution.mintedPositionTokenId}</span> · verified: {controlledExecution.mintedPositionVerified ? "yes" : "not fully"}</div>}<div className="text-[#6b7d99]">{controlledExecution.postStateDetail}</div></div>}
+                {controlledExecution.state === "CONFIRMED" && <div className="rounded-md border border-[#4ade80]/15 bg-[#4ade80]/[0.03] p-3 text-[10px] space-y-2"><div className="text-[#4ade80] font-medium">Confirmed on BSC Testnet; sealed boundary consumed.</div>{controlledExecution.mintedPositionTokenId && <div className="text-[#9aacc4]">Replacement LP NFT: <span className="font-mono">{controlledExecution.mintedPositionTokenId}</span> · verified: {controlledExecution.mintedPositionVerified ? "yes" : "not fully"}</div>}<div className="text-[#6b7d99]">{controlledExecution.postStateDetail}</div><Btn variant="teal-outline" size="sm" onClick={() => navigate("outcomes", { executionId: controlledExecution.executionId })}><Activity className="w-3.5 h-3.5" /> Activity & Outcomes</Btn></div>}
                 <p className="text-[10px] text-[#7f725f]">This button dispatches only the exact server-authorized sealed batch through the boundary-controlled Altana session. It is BSC Testnet-only. The external AgentService cannot supply arbitrary calldata to the signer.</p>
               </div>}
 
@@ -3231,6 +3232,38 @@ function ReferenceCheckoutPage({ serviceId, navigate }: { serviceId: string; nav
   );
 }
 
+// ─── PAGE: LIVE EXECUTION ACTIVITY & OUTCOMES ──────────────────────────────────
+function ExecutionActivityOutcomesPage({ executionId, navigate }: { executionId: string; navigate: (r: Route, p?: Partial<NavState>) => void }) {
+  const [bundle, setBundle] = useState<ExecutionActivityOutcomeBundle>();
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState<string>();
+  const load = useCallback(async (refresh = false) => {
+    refresh ? setSyncing(true) : setLoading(true);
+    setError(undefined);
+    try { setBundle(refresh ? await activityOutcomesRepository.sync(executionId) : await activityOutcomesRepository.get(executionId)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Spotriq could not load execution evidence."); }
+    finally { refresh ? setSyncing(false) : setLoading(false); }
+  }, [executionId]);
+  useEffect(() => { void load(false); }, [load]);
+  if (loading) return <div className="max-w-5xl mx-auto px-6 py-10"><div className="flex items-center gap-2 text-sm text-[#6b7d99]"><RefreshCw className="w-4 h-4 animate-spin" /> Loading Activity & Outcomes…</div></div>;
+  if (error || !bundle) return <div className="max-w-5xl mx-auto px-6 py-10"><Card className="p-5"><div className="text-sm text-[#f87171]">{error ?? "Execution evidence is unavailable."}</div><Btn variant="secondary" className="mt-3" onClick={() => void load(false)}>Retry</Btn></Card></div>;
+  const outcome=bundle.outcome;
+  return <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+    <button onClick={() => navigate("checkout", { jobIntentId: bundle.execution.jobIntentId })} className="flex items-center gap-2 text-sm text-[#6b7d99] hover:text-[#9aacc4]"><ArrowLeft className="w-4 h-4" /> Back to reviewed job</button>
+    <div className="flex items-start justify-between gap-4"><div><div className="text-[11px] font-mono uppercase tracking-wide text-[#2dd4bf]">Marketplace observed evidence</div><h1 className="text-2xl font-semibold text-[#dde3ef] mt-1">Activity & Outcomes</h1><p className="text-sm text-[#6b7d99] mt-1 max-w-2xl">Execution-scoped evidence for the controlled BSC Testnet Rebalancing transaction. This does not claim the external AgentService was hired or that the strategy was profitable.</p></div><Btn variant="secondary" onClick={() => void load(true)} disabled={syncing}>{syncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Refresh evidence</Btn></div>
+    <div className="grid md:grid-cols-4 gap-3">
+      <Card className="p-4"><div className="text-[11px] text-[#6b7d99]">Execution</div><div className="text-sm text-[#4ade80] font-medium mt-1">{bundle.execution.state}</div></Card>
+      <Card className="p-4"><div className="text-[11px] text-[#6b7d99]">Replacement NFT</div><div className="text-sm font-mono text-[#dde3ef] mt-1">{outcome?.replacementPositionTokenId ?? "Not measured"}</div></Card>
+      <Card className="p-4"><div className="text-[11px] text-[#6b7d99]">Gas</div><div className="text-sm font-mono text-[#dde3ef] mt-1">{outcome?.gasCostNativeFormatted ? `${outcome.gasCostNativeFormatted} ${outcome.gasAsset}` : "Unavailable"}</div></Card>
+      <Card className="p-4"><div className="text-[11px] text-[#6b7d99]">Performance</div><div className="text-sm text-[#f59e0b] mt-1">{outcome?.performanceMeasurement.state.replaceAll("_"," ") ?? "Not measured"}</div></Card>
+    </div>
+    <Card className="p-5"><div className="flex items-center justify-between mb-4"><SectionHeader label="Execution timeline" /><Badge variant="teal">Observed</Badge></div><div className="space-y-4">{bundle.activity.map((ev,i)=><div key={ev.activityEventId} className="flex gap-3"><div className="flex flex-col items-center"><span className={cn("w-2.5 h-2.5 rounded-full mt-1",ev.severity==="success"?"bg-[#4ade80]":ev.severity==="error"?"bg-[#f87171]":ev.severity==="warning"?"bg-[#f59e0b]":"bg-[#60a5fa]")} />{i<bundle.activity.length-1&&<span className="w-px flex-1 bg-white/8 mt-1" />}</div><div className="pb-4 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><div className="text-sm font-medium text-[#dde3ef]">{ev.title}</div><div className="text-[10px] text-[#6b7d99]">{new Date(ev.occurredAt).toLocaleString()}</div></div><div className="text-xs text-[#6b7d99] mt-1">{ev.description}</div>{ev.transactionHash&&<div className="text-[10px] font-mono text-[#2dd4bf] break-all mt-1">{ev.transactionHash}</div>}</div></div>)}</div></Card>
+    {outcome ? <Card className="p-5 space-y-4"><div className="flex items-center justify-between"><SectionHeader label="Immediate execution outcome" /><Badge variant="amber">{outcome.state}</Badge></div><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{outcome.metrics.map(m=><div key={m.outcomeMetricId} className="rounded-lg border border-white/7 bg-white/[0.02] p-3"><div className="text-[10px] uppercase font-mono text-[#6b7d99]">{m.metric.replaceAll("_"," ")}</div><div className="text-sm text-[#dde3ef] font-mono mt-1 break-all">{m.value}{m.unit ? ` ${m.unit}` : ""}</div><div className="flex items-center gap-2 mt-2"><ProvenanceBadge type={m.provenance} /><span className="text-[10px] text-[#52637b]">{m.attribution}</span></div></div>)}</div><div className="rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 p-4"><div className="text-xs font-medium text-[#d6a04a]">Performance claims remain unavailable</div><p className="text-[11px] text-[#9c8663] mt-1">{outcome.performanceMeasurement.detail}</p></div><div className="space-y-1">{outcome.limitations.map(x=><div key={x} className="text-[10px] text-[#6b7d99]">• {x}</div>)}</div></Card> : <Card className="p-5"><SectionHeader label="Outcome" /><p className="text-sm text-[#6b7d99]">No reconciled execution outcome exists yet. Failed or blocked attempts remain visible in the activity timeline without being converted into performance claims.</p></Card>}
+    <Card className="p-5"><SectionHeader label="Evidence records" /><div className="space-y-2 mt-3">{bundle.evidence.length ? bundle.evidence.map(ev=><div key={ev.evidenceId} className="rounded-md border border-white/6 p-3"><div className="flex items-center justify-between gap-3"><div className="text-xs text-[#dde3ef]">{ev.metric}</div><ProvenanceBadge type={ev.provenance} /></div><div className="text-[10px] font-mono text-[#6b7d99] mt-1 break-all">{String(ev.value)}</div>{ev.limitation&&<div className="text-[10px] text-[#52637b] mt-1">{ev.limitation}</div>}</div>) : <div className="text-sm text-[#6b7d99]">No outcome evidence records are available for this execution state.</div>}</div></Card>
+  </div>;
+}
+
 // ─── PAGE: MY AGENTS ──────────────────────────────────────────────────────────
 
 function MyAgentsPage({ navigate, initialTab = "overview" }: { navigate: (r: Route, p?: Partial<NavState>) => void; initialTab?: MyAgentsTab }) {
@@ -3252,7 +3285,7 @@ function MyAgentsPage({ navigate, initialTab = "overview" }: { navigate: (r: Rou
         </Btn>
       </div>
 
-      <div className="flex gap-1 mb-6 border-b border-white/7 overflow-x-auto">
+      <div className="flex gap-1 mb-4 border-b border-white/7 overflow-x-auto">
         {tabs.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={cn("px-4 py-2.5 text-sm whitespace-nowrap border-b-2 -mb-px transition-colors",
@@ -3261,6 +3294,7 @@ function MyAgentsPage({ navigate, initialTab = "overview" }: { navigate: (r: Rou
           </button>
         ))}
       </div>
+      <div className="text-[10px] font-mono text-center text-[#6b7d99] bg-white/3 border border-white/6 rounded px-3 py-1.5 mb-6">Example Portfolio / Sample Data · Live execution Activity & Outcomes are opened from a confirmed controlled Job Intent.</div>
 
       {tab === "overview" && (
         <div className="space-y-6">
@@ -3978,6 +4012,10 @@ export default function App() {
 
       case "plan-profile":
         return <PlanProfilePage planId={nav.planId || "plan-earn-protect"} navigate={navigate} />;
+
+      case "outcomes":
+      case "activity-page":
+        return nav.executionId ? <ExecutionActivityOutcomesPage executionId={nav.executionId} navigate={navigate} /> : <MyAgentsPage navigate={navigate} initialTab={nav.route === "outcomes" ? "outcomes" : "activity"} />;
 
       case "operator":
         return <OperatorWorkspacePage navigate={navigate} />;

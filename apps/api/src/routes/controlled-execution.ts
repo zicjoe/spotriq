@@ -8,12 +8,13 @@ import type {
 } from "@spotriq/api-contracts";
 import type { ControlledExecutionEngine } from "@spotriq/controlled-execution";
 import type { JobIntentEngine } from "@spotriq/job-intents";
+import type { ActivityOutcomesEngine } from "@spotriq/activity-outcomes";
 import { ApiInputError } from "../errors.js";
 
 function id(value:string|undefined,label:string):string { const v=value?.trim();if(!v||v.length>1024)throw new ApiInputError(`${label} is required.`,"INVALID_ID");return v; }
 function envelope<T>(data:T,requestId:string):ApiEnvelope<T>{return{data,meta:{requestId,generatedAt:new Date().toISOString()}};}
 
-export async function registerControlledExecutionRoutes(app:FastifyInstance,engine:ControlledExecutionEngine,jobs:JobIntentEngine):Promise<void>{
+export async function registerControlledExecutionRoutes(app:FastifyInstance,engine:ControlledExecutionEngine,jobs:JobIntentEngine,activityOutcomes?:ActivityOutcomesEngine):Promise<void>{
   app.post<{Params:{boundaryId:string}}>("/v1/execution-boundaries/:boundaryId/approval-plans",async(request,reply)=>{
     const result=await engine.prepareApprovalPlan(id(request.params.boundaryId,"boundaryId"));
     const data:BoundaryApprovalPlanResponse={plan:result.plan,readiness:result.readiness};return reply.code(201).send(envelope(data,request.id));
@@ -41,12 +42,24 @@ export async function registerControlledExecutionRoutes(app:FastifyInstance,engi
   app.post<{Params:{executionId:string};Body:ObserveControlledExecutionRequest}>("/v1/controlled-executions/:executionId/observe",async(request,reply)=>{
     if(!request.body?.proof)throw new ApiInputError("Altana controlled execution proof is required.","INVALID_EXECUTION_PROOF");
     const execution=await engine.observeExecution(id(request.params.executionId,"executionId"),request.body.proof);let intent;
-    if(execution.state==="CONFIRMED")intent=await jobs.linkControlledExecution(execution.jobIntentId,execution);
+    if(execution.state==="CONFIRMED"){
+      intent=await jobs.linkControlledExecution(execution.jobIntentId,execution);
+      if(activityOutcomes){
+        try{await activityOutcomes.sync(execution.executionId);}
+        catch(cause){request.log.warn({err:cause,executionId:execution.executionId},"Activity & Outcomes sync failed after confirmed execution; execution truth remains confirmed and evidence can be refreshed independently.");}
+      }
+    }
     const data:ControlledExecutionResponse={execution,intent};return reply.send(envelope(data,request.id));
   });
   app.post<{Params:{executionId:string}}>("/v1/controlled-executions/:executionId/reconcile",async(request,reply)=>{
     const execution=await engine.reconcileExecution(id(request.params.executionId,"executionId"));let intent;
-    if(execution.state==="CONFIRMED")intent=await jobs.linkControlledExecution(execution.jobIntentId,execution);
+    if(execution.state==="CONFIRMED"){
+      intent=await jobs.linkControlledExecution(execution.jobIntentId,execution);
+      if(activityOutcomes){
+        try{await activityOutcomes.sync(execution.executionId);}
+        catch(cause){request.log.warn({err:cause,executionId:execution.executionId},"Activity & Outcomes sync failed after confirmed execution; execution truth remains confirmed and evidence can be refreshed independently.");}
+      }
+    }
     const data:ControlledExecutionResponse={execution,intent};return reply.send(envelope(data,request.id));
   });
 }

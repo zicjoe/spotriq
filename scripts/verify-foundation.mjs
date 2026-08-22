@@ -85,6 +85,18 @@ const required = [
   "packages/db/migrations/0012_boundary_financial_session_readiness.sql",
   "docs/BOUNDARY_CONTROLLED_ALTANA_FINANCIAL_SESSION.md",
   "docs/IMPLEMENTATION_REPORT_BOUNDARY_FINANCIAL_SESSION_v0.18.0.md",
+  "packages/controlled-execution/package.json",
+  "packages/controlled-execution/src/index.ts",
+  "packages/db/migrations/0013_controlled_rebalancing_execution.sql",
+  "docs/CONTROLLED_BSC_TESTNET_REBALANCING_EXECUTION.md",
+  "docs/IMPLEMENTATION_REPORT_CONTROLLED_REBALANCING_EXECUTION_v0.19.0.md",
+  "packages/activity-outcomes/package.json",
+  "packages/activity-outcomes/src/index.ts",
+  "packages/db/migrations/0014_execution_activity_outcomes.sql",
+  "apps/api/src/routes/activity-outcomes.ts",
+  "apps/web/src/repositories/activityOutcomesRepository.ts",
+  "docs/ACTIVITY_OUTCOMES.md",
+  "docs/IMPLEMENTATION_REPORT_ACTIVITY_OUTCOMES_v0.20.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -429,5 +441,33 @@ if (!apiApp.includes("boundedTokenApprovalFlowEnabled: true") || !apiApp.include
   throw new Error("API capabilities must expose v0.19 controlled execution while keeping marketplace agent activation explicitly separate/unproven.");
 }
 
-console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + bounded Altana authority + trusted service-key binding + calldata guard + Altana BSC Testnet probe + reviewed Rebalancing execution plan + non-bypassable boundary + boundary-controlled financial session + exact bounded approvals + controlled BSC Testnet Rebalancing dispatch/receipt/replay protection verification passed.");
+
+const activityOutcomes = await readFile(path.join(root, "packages/activity-outcomes/src/index.ts"), "utf8");
+for (const marker of ["ACTIVITY_OUTCOMES_METHOD", "MemoryActivityOutcomesStore", "PostgresActivityOutcomesStore", "transaction.gas_cost_native", "INSUFFICIENT_HISTORY", "FINANCIAL_SESSION_REVOKED"]) {
+  if (!activityOutcomes.includes(marker)) throw new Error(`v0.20 Activity & Outcomes engine is missing ${marker}.`);
+}
+const activityOutcomeRoutes = await readFile(path.join(root, "apps/api/src/routes/activity-outcomes.ts"), "utf8");
+for (const route of [
+  "/v1/controlled-executions/:executionId/activity-outcomes/sync",
+  "/v1/controlled-executions/:executionId/activity-outcomes",
+  "/v1/controlled-executions/:executionId/activity",
+  "/v1/controlled-executions/:executionId/outcome",
+]) {
+  if (!activityOutcomeRoutes.includes(route)) throw new Error(`Missing v0.20 Activity & Outcomes route ${route}.`);
+}
+const migration0014 = await readFile(path.join(root, "packages/db/migrations/0014_execution_activity_outcomes.sql"), "utf8");
+for (const marker of ["activity_events", "outcome_windows", "outcome_metrics", "controlled_execution_id"]) {
+  if (!migration0014.includes(marker)) throw new Error(`v0.20 Activity & Outcomes migration is missing ${marker}.`);
+}
+if (!apiApp.includes("executionActivityOutcomesEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
+  throw new Error("API capabilities must expose execution-scoped Activity & Outcomes while keeping marketplace AgentService activation unproven.");
+}
+for (const marker of ["Activity & Outcomes", "Performance claims remain unavailable", "Refresh evidence", "Example Portfolio / Sample Data"]) {
+  if (!appUi.includes(marker)) throw new Error(`v0.20 Activity & Outcomes UI is missing ${marker}.`);
+}
+if (!controlledRoutes.includes("Activity & Outcomes sync failed after confirmed execution; execution truth remains confirmed")) {
+  throw new Error("Post-confirmation Activity & Outcomes enrichment must not invalidate already-confirmed execution truth.");
+}
+
+console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + bounded Altana authority + trusted service-key binding + calldata guard + Altana BSC Testnet probe + reviewed Rebalancing execution plan + non-bypassable boundary + boundary-controlled financial session + exact bounded approvals + controlled BSC Testnet Rebalancing dispatch/receipt/replay protection + execution-scoped Activity & Outcomes evidence verification passed.");
 

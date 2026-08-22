@@ -21,9 +21,10 @@
 - Reviewed Rebalancing Execution Plan + Non-Bypassable Financial Execution Boundary
 - Boundary-Controlled Altana Financial Session + Plan-Specific Balance/Allowance Readiness
 - First Controlled BSC Testnet Rebalancing Execution + Exact User-Controlled Approval Flow
+- Execution-scoped Activity & Outcomes evidence
 
 ## Current source of truth
-Use Spotriq **v0.19.0**.
+Use Spotriq **v0.20.0**.
 
 ## Current live-data spine
 BSC JSON-RPC → protocol adapters → Evidence Engine → Smart Money Engine → Findings → Spotriq UI.
@@ -214,6 +215,7 @@ A2A verification uses Agent Card discovery/validation. Modern MCP verification t
 - Migration 0011 stores reviewed Rebalancing execution plans and sealed financial execution boundaries.
 - Migration 0012 stores boundary-controlled Altana financial-session evidence and plan-specific asset/allowance readiness.
 - Migration 0013 stores exact bounded approval plans/observations and controlled BSC Testnet Rebalancing execution attempts/results.
+- Migration 0014 stores execution-scoped Activity & Outcomes linkage using the original activity/outcome tables without fabricating an Activation.
 - Railway PostgreSQL can be attached when the API itself is deployed in Railway; local Railway tunnelling is not required.
 
 ## Controlled execution state in v0.19.0
@@ -225,8 +227,15 @@ Financial dispatch uses Altana `execute({ session, calls, chainId: 97 })` only w
 
 Only an independently successful receipt can mark the linked Job Intent `COMPLETED / CONTROLLED_TESTNET_EXECUTED`. This architecture is live-execution capable, but repository validation itself does not claim that the user’s passkey wallet broadcast a live BSC Testnet transaction. `marketplaceActivationEnabled` remains false because the selected external AgentService is still not yet invoked/hired as the actual proposal origin in this path.
 
+## Activity & Outcomes state in v0.20.0
+`@spotriq/activity-outcomes` now materializes a deterministic execution-scoped timeline and immediate outcome evidence from the confirmed controlled execution. BSC receipt/gas and replacement PancakeSwap position state are Marketplace Observed; native gas cost and range width are Marketplace Derived. Failed/blocked attempts remain activity evidence without becoming successful outcomes.
+
+The outcome deliberately remains `COLLECTING / INSUFFICIENT_HISTORY` for long-horizon strategy performance. No PnL, LP fees earned, APY, USD gas cost, drawdown, success rate or Agent Advantage claim is inferred from one execution. The live Activity & Outcomes page makes those limitations visible.
+
+`marketplaceActivationEnabled` remains false because execution evidence does not prove the external AgentService was actually invoked/hired as proposal origin.
+
 ## Next
-Build **v0.20.0 — Activity & Outcomes**. Persist and surface the controlled execution lifecycle as marketplace evidence: exact actions, provider/BSC transaction status, replacement-position state, gas/cost evidence, failure/retry detail, permission/revocation state and measurable results. Also schedule the remaining real AgentService task-invocation/hiring gap before final hackathon submission so Spotriq can prove not only controlled execution but actual marketplace agent activation.
+Build **v0.21.0 — Real AgentService Task Invocation / Hiring Origin Proof**. Invoke/hire the selected live service through a supported machine/task interface, bind a real task/proposal reference and authenticated response to the Job Intent/execution path, and only then consider the marketplace activation journey proven.
 
 ## Rule
 Every completed replacement ZIP becomes the new source of truth.

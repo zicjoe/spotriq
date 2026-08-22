@@ -69,6 +69,7 @@ export interface CapabilityResponse {
   liveFinancialSignerEnabled: boolean;
   boundedTokenApprovalFlowEnabled: boolean;
   controlledBscTestnetExecutionEnabled: boolean;
+  executionActivityOutcomesEnabled: boolean;
   marketplaceActivationEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
@@ -348,4 +349,19 @@ export interface ControlledExecutionResponse {
 }
 export interface ObserveControlledExecutionRequest {
   proof: import("@spotriq/domain").ControlledExecutionProof;
+}
+
+
+// ─── Execution Activity & Outcomes (v0.20) ─────────────────────────────────
+export interface ExecutionActivityOutcomesResponse {
+  bundle: import("@spotriq/domain").ExecutionActivityOutcomeBundle;
+}
+export interface ExecutionActivityResponse {
+  executionId: string;
+  activity: import("@spotriq/domain").ExecutionActivityEvent[];
+}
+export interface ExecutionOutcomeResponse {
+  executionId: string;
+  outcome?: import("@spotriq/domain").RebalancingExecutionOutcome;
+  evidence: import("@spotriq/domain").EvidenceRecord[];
 }

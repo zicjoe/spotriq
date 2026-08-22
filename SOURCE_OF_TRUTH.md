@@ -1,8 +1,8 @@
 # Spotriq Source of Truth
 
-Current release: **v0.19.0**
+Current release: **v0.20.0**
 
-This ZIP supersedes Spotriq v0.18.0.
+This ZIP supersedes Spotriq v0.19.0.
 
 Implemented live financial-data categories:
 1. Rebalancing — PancakeSwap V3/Infinity CL current-state foundation and V3 wallet discovery.
@@ -98,7 +98,8 @@ Persistence:
 - Migration `0010_trusted_agent_binding_and_altana_probe.sql` persists authority bindings and Altana testnet probe observations.
 - Migration `0011_rebalancing_execution_plan_boundary.sql` persists reviewed execution plans plus sealed execution boundaries.
 - Migration `0012_boundary_financial_session_readiness.sql` persists boundary financial-session evidence plus asset/allowance readiness observations.
-- Migration `0013_controlled_rebalancing_execution.sql` is now the latest migration and persists exact bounded approval plans/observations plus controlled BSC Testnet execution attempts and receipt evidence.
+- Migration `0013_controlled_rebalancing_execution.sql` persists exact bounded approval plans/observations plus controlled BSC Testnet execution attempts and receipt evidence.
+- Migration `0014_execution_activity_outcomes.sql` is now the latest migration and activates execution-scoped activity/outcome persistence without fabricating a marketplace Activation.
 - Railway PostgreSQL remains a deployment-time integration rather than a local-development requirement.
 
 Controlled BSC Testnet Rebalancing execution implemented in v0.19.0:
@@ -107,8 +108,18 @@ Controlled BSC Testnet Rebalancing execution implemented in v0.19.0:
 - The browser dispatches only the server-prepared exact call batch through the in-memory boundary-controlled Altana Session object. If the ephemeral signer was lost on reload, Spotriq refuses to reconstruct private key material and requires a fresh bounded financial session.
 - A provider `CONFIRMED` result is not enough. When a transaction hash exists, Spotriq independently reads the BSC Testnet receipt; only a successful receipt can mark the controlled execution `CONFIRMED`. A reverted receipt becomes `FAILED`; pending/unavailable receipt evidence remains reconcilable.
 - A successful receipt is not sufficient by itself. Spotriq requires transaction-local Position Manager `DecreaseLiquidity` and `Collect` evidence for the exact old NFT, zero remaining old-NFT liquidity at the receipt block, and a replacement ERC-721 mint to the reviewed wallet whose NFT re-reads to the exact reviewed pair/fee/range. Only then is the sealed boundary consumed exactly once.
-- Only an independently receipt-confirmed execution can advance the linked Job Intent to `COMPLETED / CONTROLLED_TESTNET_EXECUTED`. Activity/performance accounting remains a separate next milestone.
+- Only an independently receipt-confirmed execution can advance the linked Job Intent to `COMPLETED / CONTROLLED_TESTNET_EXECUTED`. v0.20 now consumes that confirmed evidence into execution-scoped Activity & Outcomes; v0.19 itself did not infer performance.
 - Migration `0013_controlled_rebalancing_execution.sql` persists exact approval plans/observations and controlled execution attempts/results.
 - Repository tests validate the execution architecture, but this sandbox does not control the user’s Altana passkey and therefore does not claim that a live BSC Testnet transaction has already been broadcast.
 
-Next engineering milestone: **v0.20.0 Activity & Outcomes** — turn confirmed onchain execution into durable marketplace evidence: action timeline, transaction/receipt state, replacement-position tracking, costs, errors/retries, permission lifecycle, and outcome evidence suitable for comparison/Agent Advantage benchmarking. Before final hackathon submission, also close any remaining gap between selecting a real AgentService and actually invoking/hiring that service to originate the proposal rather than relying on user-entered target ticks.
+Activity & Outcomes implemented in v0.20.0:
+- Confirmed controlled executions can now materialize a durable execution-scoped timeline from Job Intent review, boundary authority, exact approvals, dispatch, BSC receipt reconciliation, replacement LP verification, boundary consumption, Job completion, and later financial-session revocation.
+- Activity is persisted in the original `activity_events` foundation with `activation_id = null` and controlled-execution source linkage. Spotriq does not fabricate an Activation merely to make historical tables usable.
+- Immediate outcome evidence is limited to defensible facts: receipt success, gas used/effective gas price, derived native tBNB gas cost, old-position liquidity after, replacement NFT/liquidity/range state, and replacement-range width.
+- BSC receipt and PancakeSwap position facts are Marketplace Observed; gas cost and range width are Marketplace Derived.
+- The outcome remains `COLLECTING` with `INSUFFICIENT_HISTORY` for financial performance. Spotriq does not fabricate PnL, fees earned, APY, USD gas cost, drawdown, success rate, or counterfactual agent advantage from a single transaction.
+- The live Activity & Outcomes page is reachable from a confirmed controlled Rebalancing execution; the old My Agents portfolio/activity/outcome fixtures are explicitly labelled Sample Data.
+- Migration `0014_execution_activity_outcomes.sql` reuses the original activity/outcome schema for execution-scoped evidence.
+- `marketplaceActivationEnabled` remains false because the selected external AgentService is still not proven as the actual task/hiring/proposal origin.
+
+Next engineering milestone: **v0.21.0 Real AgentService Task Invocation / Hiring Origin Proof** — invoke/hire the selected real marketplace service through a supported machine/task interface, bind a trustworthy task/proposal identifier to the Job Intent and controlled execution path, and prove that the actual service originated the proposed work rather than being selected only as metadata.

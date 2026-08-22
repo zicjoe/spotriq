@@ -25,6 +25,7 @@ import { createAltanaKeystoreVerifier } from "@spotriq/authority/altana";
 import { createExecutionPlanEngine, ExecutionPlanError, MemoryExecutionPlanStore, PostgresExecutionPlanStore, type ExecutionPlanEngine } from "@spotriq/execution-plans";
 import { createExecutionBoundaryEngine, ExecutionBoundaryError, MemoryExecutionBoundaryStore, PostgresExecutionBoundaryStore, type ExecutionBoundaryEngine } from "@spotriq/execution-boundary";
 import { ControlledExecutionError, createControlledExecutionEngine, MemoryControlledExecutionStore, PostgresControlledExecutionStore, type ControlledExecutionEngine } from "@spotriq/controlled-execution";
+import { ActivityOutcomesError, createActivityOutcomesEngine, MemoryActivityOutcomesStore, PostgresActivityOutcomesStore, type ActivityOutcomesEngine } from "@spotriq/activity-outcomes";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
@@ -39,6 +40,7 @@ import { registerJobIntentRoutes } from "./routes/job-intents.js";
 import { registerAuthorityRoutes } from "./routes/authority.js";
 import { registerExecutionPlanRoutes } from "./routes/execution-plans.js";
 import { registerControlledExecutionRoutes } from "./routes/controlled-execution.js";
+import { registerActivityOutcomeRoutes } from "./routes/activity-outcomes.js";
 
 export interface BuildServerOptions {
   config?: ServerConfig;
@@ -55,6 +57,7 @@ export interface BuildServerOptions {
   executionPlans?: ExecutionPlanEngine;
   executionBoundary?: ExecutionBoundaryEngine;
   controlledExecution?: ControlledExecutionEngine;
+  activityOutcomes?: ActivityOutcomesEngine;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -127,6 +130,10 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     ? new PostgresControlledExecutionStore({ query: (text, values) => database.query(text, values) })
     : new MemoryControlledExecutionStore();
   const controlledExecution = options.controlledExecution ?? createControlledExecutionEngine({ store: controlledExecutionStore, boundaries: executionBoundary, plans: executionPlans, authority, chain, pancakeSwap });
+  const activityOutcomesStore = database
+    ? new PostgresActivityOutcomesStore({ query: (text, values) => database.query(text, values) })
+    : new MemoryActivityOutcomesStore();
+  const activityOutcomes = options.activityOutcomes ?? createActivityOutcomesEngine({ store: activityOutcomesStore, executions: controlledExecution, jobs: jobIntents, plans: executionPlans, boundaries: executionBoundary, authority, pancakeSwap });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
@@ -147,7 +154,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.19.0",
+      version: "0.20.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -202,6 +209,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       liveFinancialSignerEnabled: true,
       boundedTokenApprovalFlowEnabled: true,
       controlledBscTestnetExecutionEnabled: true,
+      executionActivityOutcomesEnabled: true,
       marketplaceActivationEnabled: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
@@ -224,10 +232,11 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "A deterministic V3 calldata guard decodes proposed calls and checks target, LP token ID, recipients, token caps, slippage/deadline bounds, fee tier, and tick alignment against reviewed evidence.",
         "v0.17 builds a user-reviewed three-step decrease → collect → mint execution plan from a fresh V3 position plus independent owner-context eth_call simulation, and seals exact call hashes/order behind a non-bypassable execution boundary.",
         "The external AgentService is an authenticated proposer only. v0.18 can provision a distinct boundary-controlled Altana BSC Testnet financial session whose exact scope and Keystore validity are independently reconciled; the financial signer is never handed to the external service.",
-        "A real BSC Testnet Altana passkey/grant/revoke probe remains available for read-only provider testing, and v0.18 adds a separate real financial session bound to the sealed execution boundary. Transaction submission remains disabled.",
+        "A real BSC Testnet Altana passkey/grant/revoke probe remains available for read-only provider testing, and v0.18 adds a separate real financial session bound to the sealed execution boundary. That read-only probe itself remains non-financial; v0.19 added a separate, tightly gated controlled BSC Testnet transaction path.",
         "v0.18 reads current token balances and ERC-20 allowances to the exact V3 Position Manager, distinguishes current balance from projected post-collect balance, and never auto-creates unlimited approvals.",
         "v0.19 can prepare explicitly reviewed exact ERC-20 allowance calls through the wallet-admin/passkey path and independently re-read allowances after the action; the external AgentService and financial session never receive approve authority.",
         "v0.19 can prepare a short-lived one-shot controlled BSC Testnet dispatch only after fresh Altana Keystore verification, financial readiness, LP/quote preflight, and exact call-hash/order authorization. Confirmed receipt evidence consumes the sealed boundary to prevent replay.",
+        "v0.20 persists execution-scoped Activity & Outcomes evidence from the confirmed controlled dispatch: lifecycle events, BSC receipt/gas evidence, replacement LP state, boundary consumption, Job Intent completion and current Altana revocation state. It does not fabricate PnL, fees earned or marketplace agent activation.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
       ],
@@ -247,7 +256,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerJobIntentRoutes(app, smartMoney, marketplaceSupply, jobIntents);
   await registerAuthorityRoutes(app, authority, jobIntents, marketplaceSupply);
   await registerExecutionPlanRoutes(app, executionPlans, executionBoundary, authority, jobIntents);
-  await registerControlledExecutionRoutes(app, controlledExecution, jobIntents);
+  await registerControlledExecutionRoutes(app, controlledExecution, jobIntents, activityOutcomes);
+  await registerActivityOutcomeRoutes(app, activityOutcomes);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {
@@ -311,6 +321,12 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     if (error instanceof ExecutionBoundaryError) {
       const statusCode = error.code === "BOUNDARY_NOT_FOUND" ? 404 : error.code === "STALE_CONTEXT" || error.code === "INVALID_STATE" ? 422 : 400;
       const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
+      return reply.code(statusCode).send(body);
+    }
+
+    if (error instanceof ActivityOutcomesError) {
+      const statusCode = error.code === "EXECUTION_NOT_FOUND" ? 404 : error.code === "EXECUTION_NOT_CONFIRMED" || error.code === "OUTCOME_UNAVAILABLE" ? 422 : 400;
+      const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: false, correlationId: request.id } };
       return reply.code(statusCode).send(body);
     }
 
