@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { BoundedPermissionRequest, FinancialExecutionBoundary, PancakeSwapClPositionSnapshot, RebalancingExecutionPlan } from "@spotriq/domain";
+import type { BoundaryFinancialSessionObservation, BoundedPermissionRequest, FinancialExecutionBoundary, PancakeSwapClPositionSnapshot, RebalancingExecutionPlan } from "@spotriq/domain";
 import type { PancakeSwapReader } from "@spotriq/protocol-pancakeswap";
 import { createExecutionBoundaryEngine, MemoryExecutionBoundaryStore } from "./index.js";
 const wallet="0x1111111111111111111111111111111111111111",pm="0x2222222222222222222222222222222222222222",token0="0x3333333333333333333333333333333333333333",token1="0x4444444444444444444444444444444444444444",pool="0x5555555555555555555555555555555555555555";
@@ -14,3 +14,35 @@ test("seals only exact reviewed plan hashes and never provisions a signer",async
 test("boundary rejects calldata that differs from the sealed plan",async()=>{const p=plan();const engine=createExecutionBoundaryEngine({plans:{get:async()=>p},pancakeSwap:reader()});const b=await engine.seal(p,request());const decision=await engine.authorizeCall(b.boundaryId,0,{to:pm,data:"0xbeef",valueRaw:"0"});assert.equal(decision.state,"BLOCKED");assert.equal(decision.executionEligible,false);});
 
 test("fresh LP state can pass preflight while financial authority remains required",async()=>{const p=plan();const engine=createExecutionBoundaryEngine({plans:{get:async()=>p},pancakeSwap:reader()});const b=await engine.seal(p,request());const result=await engine.preflight(b.boundaryId,request());assert.equal(result.state,"PASS_AUTHORITY_REQUIRED");assert.equal(result.signerProvisioned,false);assert.equal(result.financialGrantRequired,true);});
+
+
+function activeFinancialSession(boundary: FinancialExecutionBoundary): BoundaryFinancialSessionObservation {
+  return {
+    financialSessionId: "financial-session-1", boundaryId: boundary.boundaryId, planId: boundary.planId, jobIntentId: boundary.jobIntentId,
+    permissionRequestId: boundary.permissionRequestId, serviceId: boundary.serviceId, walletAddress: boundary.walletAddress, network: "testnet", chainId: 97,
+    provider: "ALTANA", state: "ACTIVE", custody: "SPOTRIQ_BOUNDARY_EPHEMERAL_CLIENT_SIGNER", sessionPublicKey: `0x04${"33".repeat(64)}`,
+    keyId: `0x${"aa".repeat(32)}`, transactionHash: `0x${"bb".repeat(32)}`, requestedCalls: [], grantedCalls: [], requestedSpendCaps: [], grantedSpendCaps: [],
+    expiryUnix: Math.floor(Date.now() / 1000) + 600, expiresAt: new Date(Date.now() + 600000).toISOString(), reconciliation: "EXACT_MATCH", reconciliationReasons: [],
+    keystoreAddress: "0x6b8361C29d05D498b1a12B54A37310f94171E94A", onchainValid: true, verifiedAt: new Date().toISOString(), verifiedBlockNumber: "700",
+    exactBoundaryScope: true, distinctFromAgentProposalKey: true, externalAgentHasFinancialSigner: false, signerProvisioned: true, executionEligible: false,
+    methodVersion: "test", limitations: [],
+  };
+}
+
+test("linking an exact active Altana financial session provisions the boundary signer but still cannot execute", async () => {
+  const p = plan();
+  const store = new MemoryExecutionBoundaryStore();
+  const engine = createExecutionBoundaryEngine({ store, plans: { get: async () => p }, pancakeSwap: reader() });
+  const sealed = await engine.seal(p, request());
+  const session = activeFinancialSession(sealed);
+  const linked = await engine.linkFinancialSession(sealed.boundaryId, session);
+  assert.equal(linked.financialSignerCustody, "BOUNDARY_CONTROLLED_ALTANA_TESTNET_SESSION");
+  assert.equal(linked.financialSessionId, session.financialSessionId);
+  assert.equal(linked.signerProvisioned, true);
+  assert.equal(linked.executionEligible, false);
+  const preflight = await engine.preflight(linked.boundaryId, request(), session);
+  assert.equal(preflight.state, "PASS_EXECUTION_DISABLED");
+  assert.equal(preflight.financialGrantRequired, false);
+  assert.equal(preflight.signerProvisioned, true);
+  assert.equal(preflight.executionEligible, false);
+});

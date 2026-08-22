@@ -1,7 +1,8 @@
-import type { AltanaTestnetProbeProof } from "../domain/types";
+import type { AltanaTestnetProbeProof, BoundaryFinancialSessionProof, PermissionCallScope, PermissionSpendScope } from "../domain/types";
 
 let client: any;
 let wallet: any;
+const boundaryFinancialSessions = new Map<string, any>();
 
 async function sdk() {
   const altana = await import("@altananetwork/sdk");
@@ -54,6 +55,37 @@ export const altanaHandlers = {
       transactionHash: result.transactionHash,
       expiryUnix: result.expiry,
     };
+  },
+
+
+  async grantBoundaryFinancialSession(input: { expectedWalletAddress: string; calls: PermissionCallScope[]; spendCaps: PermissionSpendScope[]; expiryUnix: number }): Promise<BoundaryFinancialSessionProof> {
+    const { altana, client } = await sdk();
+    if (!wallet) throw new Error("Create or recover the Altana BSC Testnet passkey wallet first.");
+    if (normalizeAddress(wallet.address) !== normalizeAddress(input.expectedWalletAddress)) throw new Error("Recovered Altana wallet does not match the execution-boundary wallet.");
+    if (!input.calls.length || !input.spendCaps.length) throw new Error("Spotriq refuses to create an unrestricted Altana financial session. Exact calls and token spend caps are required.");
+    const sessionSigner = altana.createPrivateKeySigner();
+    const result = await client.grantSession({
+      wallet, signer: wallet.signer, sessionSigner,
+      permissions: {
+        calls: input.calls.map((call) => ({ to: call.to, signature: call.signature })),
+        spend: input.spendCaps.map((cap) => ({ token: cap.token, limit: BigInt(cap.limitRaw), period: cap.period })),
+      },
+      expiry: input.expiryUnix, register: true, chainId: 97,
+    });
+    boundaryFinancialSessions.set(String(result.publicKey).toLowerCase(), result);
+    const grantedCalls = Array.isArray(result.permissions?.calls) ? result.permissions.calls.map((call: any) => ({ to: String(call.to), signature: String(call.signature ?? "") })) : input.calls.map((call) => ({ to: call.to, signature: call.signature }));
+    const grantedSpend = Array.isArray(result.permissions?.spend) ? result.permissions.spend.map((cap: any) => ({ token: String(cap.token), limitRaw: String(cap.limit), period: cap.period })) : input.spendCaps.map((cap) => ({ token: cap.token, limitRaw: cap.limitRaw, period: cap.period }));
+    return { walletAddress: normalizeAddress(result.walletAddress), sessionPublicKey: result.publicKey, transactionHash: result.transactionHash, calls: grantedCalls, spend: grantedSpend, expiryUnix: result.expiry };
+  },
+
+  async revokeBoundaryFinancialSession(input: { expectedWalletAddress: string; sessionPublicKey: string }): Promise<{ transactionHash?: string }> {
+    const { client } = await sdk();
+    if (!wallet) throw new Error("Recover the Altana BSC Testnet passkey wallet before revoking the financial session.");
+    if (normalizeAddress(wallet.address) !== normalizeAddress(input.expectedWalletAddress)) throw new Error("Recovered Altana wallet does not match the financial-session wallet.");
+    const result = await client.revokeSession({ wallet, signer: wallet.signer, session: input.sessionPublicKey, chainId: 97 });
+    if (String(result?.status ?? "").toUpperCase() === "FAILED") throw new Error("Altana returned FAILED while revoking the BSC Testnet financial session.");
+    boundaryFinancialSessions.delete(input.sessionPublicKey.toLowerCase());
+    return { transactionHash: result?.transactionHash };
   },
 
   async revokeReadOnlyProbe(input: { expectedWalletAddress: string; sessionPublicKey: string }): Promise<{ transactionHash?: string }> {

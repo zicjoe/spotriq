@@ -82,6 +82,9 @@ const required = [
   "apps/web/src/repositories/executionPlanRepository.ts",
   "docs/REBALANCING_EXECUTION_PLAN_BOUNDARY.md",
   "docs/IMPLEMENTATION_REPORT_REBALANCING_EXECUTION_PLAN_BOUNDARY_v0.17.0.md",
+  "packages/db/migrations/0012_boundary_financial_session_readiness.sql",
+  "docs/BOUNDARY_CONTROLLED_ALTANA_FINANCIAL_SESSION.md",
+  "docs/IMPLEMENTATION_REPORT_BOUNDARY_FINANCIAL_SESSION_v0.18.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -249,7 +252,7 @@ if (!jobIntentRoutes.includes("marketplaceSupply.matchFinding") || !jobIntentRou
 for (const marker of ["RebalancingJobIntent", "RebalancingJobConstraints", "JobIntentAuthorityRequirement", "jobIntentId?: string"]) {
   if (!domain.includes(marker)) throw new Error(`Job Intent domain model is missing ${marker}.`);
 }
-if (!appUi.includes("Prepare job") || !appUi.includes("Review the job before authority") || !appUi.includes("Confirm job intent") || !appUi.includes("Nothing is financially executed in v0.17")) {
+if (!appUi.includes("Prepare job") || !appUi.includes("Review the job before authority") || !appUi.includes("Confirm job intent") || !appUi.includes("Nothing is financially executed in v0.18")) {
   throw new Error("The live Rebalancing handoff UI must expose reviewable Job Intent preparation without pretending authority or execution exists.");
 }
 if (!appUi.includes("jobIntentRepository.prepare") || !appUi.includes("jobIntentId={nav.jobIntentId}")) {
@@ -344,11 +347,11 @@ const migration0011 = await readFile(path.join(root, "packages/db/migrations/001
 for (const table of ["rebalancing_execution_plans", "financial_execution_boundaries"]) {
   if (!migration0011.includes(table)) throw new Error(`v0.17 migration is missing ${table}.`);
 }
-for (const marker of ["Prepare exact plan", "Review range + refresh quote", "Seal execution boundary", "Fresh preflight", "Future financial signer: boundary-controlled and not provisioned.", "Nothing is financially executed in v0.17"]) {
+for (const marker of ["Prepare exact plan", "Review range + refresh quote", "Seal execution boundary", "Fresh preflight", "Future financial signer: boundary-controlled and not provisioned.", "Nothing is financially executed in v0.18"]) {
   if (!appUi.includes(marker)) throw new Error(`v0.17 live execution-plan UI is missing ${marker}.`);
 }
-if (!apiApp.includes("rebalancingExecutionPlanEnabled: true") || !apiApp.includes("nonBypassableExecutionBoundaryEnabled: true") || !apiApp.includes("liveFinancialSignerEnabled: false") || !apiApp.includes("marketplaceActivationEnabled: false")) {
-  throw new Error("API capabilities must expose v0.17 plan/boundary support while keeping the financial signer and activation disabled.");
+if (!apiApp.includes("rebalancingExecutionPlanEnabled: true") || !apiApp.includes("nonBypassableExecutionBoundaryEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
+  throw new Error("API capabilities must preserve v0.17 plan/boundary support while keeping marketplace activation disabled.");
 }
 const pancakeSwapAdapter = await readFile(path.join(root, "packages/protocol-pancakeswap/src/index.ts"), "utf8");
 const chainAdapter = await readFile(path.join(root, "packages/chain/src/index.ts"), "utf8");
@@ -356,5 +359,30 @@ if (!pancakeSwapAdapter.includes("quoteV3DecreaseLiquidity") || !pancakeSwapAdap
   throw new Error("v0.17 must obtain independent owner-context expected-output evidence through read-only eth_call simulation.");
 }
 
-console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + bounded Altana authority + trusted service-key binding + calldata guard + Altana BSC Testnet probe + reviewed Rebalancing execution plan + non-bypassable financial execution boundary verification passed.");
+
+
+const migration0012 = await readFile(path.join(root, "packages/db/migrations/0012_boundary_financial_session_readiness.sql"), "utf8");
+for (const table of ["boundary_financial_sessions", "boundary_financial_readiness"]) {
+  if (!migration0012.includes(table)) throw new Error(`v0.18 migration is missing ${table}.`);
+}
+for (const marker of ["BOUNDARY_FINANCIAL_SESSION_METHOD", "BOUNDARY_FINANCIAL_READINESS_METHOD", "observeBoundaryFinancialSession", "assessBoundaryFinancialReadiness", "SPOTRIQ_BOUNDARY_EPHEMERAL_CLIENT_SIGNER", "PROJECTED_SUFFICIENT", "APPROVAL_REQUIRED", "executionEligible:false"]) {
+  if (!authority.replaceAll(" ", "").includes(marker.replaceAll(" ", ""))) throw new Error(`v0.18 authority engine is missing ${marker}.`);
+}
+for (const marker of ["BOUNDARY_CONTROLLED_ALTANA_TESTNET_SESSION", "PASS_EXECUTION_DISABLED", "linkFinancialSession", "executionEligible:false"]) {
+  if (!executionBoundary.replaceAll(" ", "").includes(marker.replaceAll(" ", ""))) throw new Error(`v0.18 execution boundary is missing ${marker}.`);
+}
+for (const route of ["/v1/execution-boundaries/:boundaryId/financial-sessions", "/v1/execution-boundaries/:boundaryId/financial-session", "/v1/financial-sessions/:financialSessionId", "/v1/financial-sessions/:financialSessionId/reverify", "/v1/execution-boundaries/:boundaryId/financial-readiness"]) {
+  if (!executionPlanRoutes.includes(route)) throw new Error(`Missing v0.18 financial-session/readiness route ${route}.`);
+}
+for (const marker of ["grantBoundaryFinancialSession", "revokeBoundaryFinancialSession", "sessionSigner", "register: true"]) {
+  if (!altanaHandlers.includes(marker)) throw new Error(`v0.18 Altana financial-session handler is missing ${marker}.`);
+}
+for (const marker of ["Boundary-controlled Altana financial session", "Grant boundary financial session", "Check balances & allowances", "APPROVAL REQUIRED", "No transaction submission exists in v0.18"]) {
+  if (!appUi.includes(marker)) throw new Error(`v0.18 Job Intent financial-authority UI is missing ${marker}.`);
+}
+if (!apiApp.includes("boundaryControlledAltanaFinancialSessionEnabled: true") || !apiApp.includes("financialAssetReadinessEnabled: true") || !apiApp.includes("liveFinancialSignerEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
+  throw new Error("API capabilities must expose v0.18 boundary financial-session/readiness support while keeping marketplace activation disabled.");
+}
+
+console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + bounded Altana authority + trusted service-key binding + calldata guard + Altana BSC Testnet probe + reviewed Rebalancing execution plan + non-bypassable financial execution boundary + boundary-controlled Altana financial session + plan-specific balance/allowance readiness verification passed.");
 

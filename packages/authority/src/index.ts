@@ -3,6 +3,9 @@ import type {
   AltanaGrantProof,
   AltanaTestnetProbeObservation,
   AltanaTestnetProbeProof,
+  BoundaryFinancialSessionProof,
+  BoundaryFinancialSessionObservation,
+  BoundaryFinancialReadiness,
   AuthoritySafetyPrerequisite,
   BoundedPermissionGrant,
   BoundedPermissionRequest,
@@ -13,8 +16,12 @@ import type {
   FinancialExecutionBoundary,
   RebalancingJobIntent,
 } from "@spotriq/domain";
+import type { BscChainReader } from "@spotriq/chain";
+import { decodeFunctionResult, encodeFunctionData } from "viem";
 
-export const BOUNDED_AUTHORITY_METHOD = "marketplace.bounded-authority@1.1.0";
+export const BOUNDED_AUTHORITY_METHOD = "marketplace.bounded-authority@1.2.0";
+export const BOUNDARY_FINANCIAL_SESSION_METHOD = "marketplace.boundary-financial-session@1.0.0";
+export const BOUNDARY_FINANCIAL_READINESS_METHOD = "marketplace.boundary-financial-readiness@1.0.0";
 
 export class AuthorityError extends Error {
   constructor(
@@ -59,12 +66,19 @@ export interface AuthorityStore {
   saveProbe(probe: AltanaTestnetProbeObservation): Promise<void>;
   getProbe(probeId: string): Promise<AltanaTestnetProbeObservation | undefined>;
   getProbeForJob(jobIntentId: string): Promise<AltanaTestnetProbeObservation | undefined>;
+  saveFinancialSession(session: BoundaryFinancialSessionObservation): Promise<void>;
+  getFinancialSession(financialSessionId: string): Promise<BoundaryFinancialSessionObservation | undefined>;
+  getFinancialSessionForBoundary(boundaryId: string): Promise<BoundaryFinancialSessionObservation | undefined>;
+  saveFinancialReadiness(readiness: BoundaryFinancialReadiness): Promise<void>;
+  getFinancialReadinessForBoundary(boundaryId: string): Promise<BoundaryFinancialReadiness | undefined>;
 }
 
 export class MemoryAuthorityStore implements AuthorityStore {
   private readonly requests = new Map<string, BoundedPermissionRequest>();
   private readonly grants = new Map<string, BoundedPermissionGrant>();
   private readonly probes = new Map<string, AltanaTestnetProbeObservation>();
+  private readonly financialSessions = new Map<string, BoundaryFinancialSessionObservation>();
+  private readonly financialReadiness = new Map<string, BoundaryFinancialReadiness>();
   async saveRequest(request: BoundedPermissionRequest): Promise<void> { this.requests.set(request.permissionRequestId, structuredClone(request)); }
   async getRequest(id: string): Promise<BoundedPermissionRequest | undefined> { const value = this.requests.get(id); return value ? structuredClone(value) : undefined; }
   async saveGrant(grant: BoundedPermissionGrant): Promise<void> { this.grants.set(grant.permissionGrantId, structuredClone(grant)); }
@@ -75,6 +89,11 @@ export class MemoryAuthorityStore implements AuthorityStore {
     const values = [...this.probes.values()].filter((value) => value.jobIntentId === jobIntentId).sort((a, b) => b.verifiedAt.localeCompare(a.verifiedAt));
     return values[0] ? structuredClone(values[0]) : undefined;
   }
+  async saveFinancialSession(value: BoundaryFinancialSessionObservation): Promise<void> { this.financialSessions.set(value.financialSessionId, structuredClone(value)); }
+  async getFinancialSession(id: string): Promise<BoundaryFinancialSessionObservation | undefined> { const v=this.financialSessions.get(id); return v?structuredClone(v):undefined; }
+  async getFinancialSessionForBoundary(boundaryId: string): Promise<BoundaryFinancialSessionObservation | undefined> { const v=[...this.financialSessions.values()].filter(x=>x.boundaryId===boundaryId).sort((a,b)=>b.verifiedAt.localeCompare(a.verifiedAt))[0]; return v?structuredClone(v):undefined; }
+  async saveFinancialReadiness(value: BoundaryFinancialReadiness): Promise<void> { this.financialReadiness.set(value.boundaryId, structuredClone(value)); }
+  async getFinancialReadinessForBoundary(boundaryId: string): Promise<BoundaryFinancialReadiness | undefined> { const v=this.financialReadiness.get(boundaryId); return v?structuredClone(v):undefined; }
 }
 
 export interface SqlQueryResult<Row = Record<string, unknown>> { rows: Row[]; rowCount?: number | null; }
@@ -160,6 +179,13 @@ export class PostgresAuthorityStore implements AuthorityStore {
     );
     return result.rows[0]?.payload;
   }
+  async saveFinancialSession(value: BoundaryFinancialSessionObservation): Promise<void> {
+    await this.database.query(`insert into boundary_financial_sessions (financial_session_id,boundary_id,permission_request_id,wallet_address,session_public_key,state,payload,verified_at,updated_at) values ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,now()) on conflict (financial_session_id) do update set state=excluded.state,payload=excluded.payload,verified_at=excluded.verified_at,updated_at=now()`, [value.financialSessionId,value.boundaryId,value.permissionRequestId,value.walletAddress,value.sessionPublicKey,value.state,JSON.stringify(value),value.verifiedAt]);
+  }
+  async getFinancialSession(id: string): Promise<BoundaryFinancialSessionObservation | undefined> { const r=await this.database.query<{payload:BoundaryFinancialSessionObservation}>("select payload from boundary_financial_sessions where financial_session_id=$1",[id]); return r.rows[0]?.payload; }
+  async getFinancialSessionForBoundary(boundaryId: string): Promise<BoundaryFinancialSessionObservation | undefined> { const r=await this.database.query<{payload:BoundaryFinancialSessionObservation}>("select payload from boundary_financial_sessions where boundary_id=$1 order by updated_at desc limit 1",[boundaryId]); return r.rows[0]?.payload; }
+  async saveFinancialReadiness(value: BoundaryFinancialReadiness): Promise<void> { await this.database.query(`insert into boundary_financial_readiness (readiness_id,boundary_id,financial_session_id,state,payload,checked_at,updated_at) values ($1,$2,$3,$4,$5::jsonb,$6,now()) on conflict (readiness_id) do update set state=excluded.state,payload=excluded.payload,checked_at=excluded.checked_at,updated_at=now()`, [value.readinessId,value.boundaryId,value.financialSessionId,value.state,JSON.stringify(value),value.checkedAt]); }
+  async getFinancialReadinessForBoundary(boundaryId: string): Promise<BoundaryFinancialReadiness | undefined> { const r=await this.database.query<{payload:BoundaryFinancialReadiness}>("select payload from boundary_financial_readiness where boundary_id=$1 order by updated_at desc limit 1",[boundaryId]); return r.rows[0]?.payload; }
 }
 
 export interface AuthorityEngine {
@@ -177,6 +203,12 @@ export interface AuthorityEngine {
   getTestnetProbe(probeId: string): Promise<AltanaTestnetProbeObservation>;
   getTestnetProbeForJob(jobIntentId: string): Promise<AltanaTestnetProbeObservation | undefined>;
   reverifyTestnetProbe(probeId: string, input?: { revocationTransactionHash?: string }, now?: Date): Promise<AltanaTestnetProbeObservation>;
+  observeBoundaryFinancialSession(boundary: FinancialExecutionBoundary, plan: RebalancingExecutionPlan, request: BoundedPermissionRequest, proof: BoundaryFinancialSessionProof, now?: Date): Promise<BoundaryFinancialSessionObservation>;
+  getBoundaryFinancialSession(financialSessionId: string): Promise<BoundaryFinancialSessionObservation>;
+  getBoundaryFinancialSessionForBoundary(boundaryId: string): Promise<BoundaryFinancialSessionObservation | undefined>;
+  reverifyBoundaryFinancialSession(financialSessionId: string, input?: { revocationTransactionHash?: string }, now?: Date): Promise<BoundaryFinancialSessionObservation>;
+  assessBoundaryFinancialReadiness(boundary: FinancialExecutionBoundary, plan: RebalancingExecutionPlan, financialSessionId: string, now?: Date): Promise<BoundaryFinancialReadiness>;
+  getBoundaryFinancialReadiness(boundaryId: string): Promise<BoundaryFinancialReadiness | undefined>;
 }
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -349,14 +381,54 @@ function buildRequest(job: RebalancingJobIntent, input: PrepareBoundedAuthorityI
         ? "The Job Intent allows swap preparation only. No swap/router execution permission is included in this authority request."
         : "The Job Intent does not request swap preparation, and no swap/router permission is included.",
       "A PermissionRequest is not a PermissionGrant. Spotriq must reconcile the provider-returned scope and verify the session key on the Altana Keystore before calling a grant active.",
-      "Even a reconciled grant remains non-executable in Spotriq v0.16; a non-bypassable financial execution boundary is still required before financial selector authority can become usable.",
+      "Legacy direct AgentService grants remain non-executable. Financial selector authority in v0.18 must be held only by the sealed Spotriq execution boundary, never by the external service proposal key.",
     ],
   };
 }
 
-export function createAuthorityEngine(options: { store?: AuthorityStore; verifier: AltanaKeystoreVerifier }): AuthorityEngine {
+
+const ERC20_ALLOWANCE_ABI = [{ type: "function", name: "allowance", stateMutability: "view", inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], outputs: [{ name: "amount", type: "uint256" }] }] as const;
+
+function financialSessionId(boundaryIdValue: string, keyId: string): string { return `boundary_financial_session:${boundaryIdValue}:${keyId}`; }
+function financialReadinessId(boundaryIdValue: string, blockNumber: string): string { return `boundary_financial_readiness:${boundaryIdValue}:${blockNumber}`; }
+
+function assertFinancialBoundaryContext(boundary: FinancialExecutionBoundary, plan: RebalancingExecutionPlan, request: BoundedPermissionRequest): void {
+  if (boundary.state !== "SEALED" || !boundary.nonBypassable) throw new AuthorityError("A sealed non-bypassable execution boundary is required before financial authority can be observed.", "INVALID_STATE");
+  if (boundary.network !== "testnet" || plan.network !== "testnet" || request.network !== "testnet" || boundary.walletAddress.toLowerCase() !== request.walletAddress.toLowerCase()) throw new AuthorityError("v0.18 financial sessions are restricted to the exact BSC Testnet boundary wallet.", "INVALID_STATE");
+  if (boundary.planId !== plan.planId || boundary.permissionRequestId !== request.permissionRequestId || plan.permissionRequestId !== request.permissionRequestId || request.executionBoundaryId !== boundary.boundaryId) throw new AuthorityError("Boundary, reviewed plan and PermissionRequest do not belong to the same financial job.", "INVALID_INPUT");
+  if (plan.state !== "REVIEWED" || plan.guardState !== "PASS") throw new AuthorityError("Only a reviewed PASS execution plan can receive boundary-controlled financial authority.", "INVALID_STATE");
+  if (request.providerSubmissionState !== "BOUNDARY_SIGNER_REQUIRED" && request.providerSubmissionState !== "RECONCILED") throw new AuthorityError("The PermissionRequest has not satisfied its reviewed safety prerequisites.", "INVALID_STATE");
+  const unsatisfied = request.safetyPrerequisites.filter((item) => item.state !== "SATISFIED" || item.blocking);
+  if (unsatisfied.length) throw new AuthorityError("All authority safety prerequisites must be satisfied before the boundary financial session is granted.", "INVALID_STATE", false, unsatisfied.map((x)=>x.code));
+}
+
+function readPlanAmounts(plan: RebalancingExecutionPlan): { token0Required: bigint; token1Required: bigint; token0Inflow: bigint; token1Inflow: bigint } {
+  const mint = plan.steps.find((step) => step.kind === "MINT");
+  const collect = plan.steps.find((step) => step.kind === "COLLECT");
+  if (!mint || !collect) throw new AuthorityError("The reviewed v0.18 plan must contain collect and mint steps.", "INVALID_STATE");
+  const raw = (value: unknown, label: string): bigint => {
+    const text = String(value ?? "");
+    if (!/^\d+$/.test(text)) throw new AuthorityError(`${label} is missing from the reviewed execution plan.`, "INVALID_STATE");
+    return BigInt(text);
+  };
+  return {
+    token0Required: raw(mint.decodedSummary.amount0DesiredRaw, "mint amount0DesiredRaw"),
+    token1Required: raw(mint.decodedSummary.amount1DesiredRaw, "mint amount1DesiredRaw"),
+    token0Inflow: raw(plan.quote.expectedCollectAmount0Raw, "expected collect token0"),
+    token1Inflow: raw(plan.quote.expectedCollectAmount1Raw, "expected collect token1"),
+  };
+}
+
+async function readAllowance(chain: BscChainReader, token: string, owner: string, spender: string, blockNumber: string): Promise<bigint> {
+  const data = encodeFunctionData({ abi: ERC20_ALLOWANCE_ABI, functionName: "allowance", args: [owner as `0x${string}`, spender as `0x${string}`] });
+  const result = await chain.callContract(token, data, blockNumber);
+  return decodeFunctionResult({ abi: ERC20_ALLOWANCE_ABI, functionName: "allowance", data: result.data }) as bigint;
+}
+
+export function createAuthorityEngine(options: { store?: AuthorityStore; verifier: AltanaKeystoreVerifier; chain?: BscChainReader }): AuthorityEngine {
   const store = options.store ?? new MemoryAuthorityStore();
   const verifier = options.verifier;
+  const chain = options.chain;
   return {
     async prepare(jobIntent, input, now = new Date()) {
       const id = requestId(jobIntent.jobIntentId);
@@ -436,7 +508,7 @@ export function createAuthorityEngine(options: { store?: AuthorityStore; verifie
         reconciliationReasons: reasons,
         limitations: [
           "Altana Keystore validity proves that the session key is currently authorized for the wallet; Spotriq separately compares the provider-returned policy to the reviewed PermissionRequest.",
-          "Spotriq does not persist or transmit the service session private key and does not execute financial actions with this grant in v0.16.",
+          "Spotriq does not persist or transmit the external service proposal-key private key, and that key is never used as the v0.18 financial signer.",
           "Grant validity can change through expiry or revocation. Re-verify isValidKey immediately before any future execution.",
         ],
       };
@@ -539,6 +611,58 @@ export function createAuthorityEngine(options: { store?: AuthorityStore; verifie
       await store.saveRequest(next);
       return next;
     },
+    async observeBoundaryFinancialSession(boundary, plan, request, proof, now = new Date()) {
+      assertFinancialBoundaryContext(boundary, plan, request);
+      if (!/^0x[0-9a-fA-F]+$/.test(proof.sessionPublicKey) || proof.sessionPublicKey.length < 68 || proof.sessionPublicKey.length % 2 !== 0) throw new AuthorityError("Boundary sessionPublicKey must be a SEC1-encoded hex public key.", "INVALID_INPUT");
+      validateGrantProof(proof);
+      const scope = compareScope(request, proof);
+      const proposalKey = request.trustedAgentBinding?.sessionPublicKey?.toLowerCase();
+      const distinctFromAgentProposalKey = Boolean(proposalKey && proposalKey !== proof.sessionPublicKey.toLowerCase());
+      if (!proposalKey) { scope.exact = false; scope.reasons.push("The selected AgentService proposal key has not been verified, so signer separation cannot be proven."); }
+      else if (!distinctFromAgentProposalKey) { scope.exact = false; scope.reasons.push("Boundary financial session key must be distinct from the external AgentService proposal/authentication key."); }
+      let verification: AltanaKeyVerification;
+      try { verification = await verifier.verify({ walletAddress: proof.walletAddress, sessionPublicKey: proof.sessionPublicKey, network: "testnet" }); }
+      catch (cause) { throw new AuthorityError("Spotriq could not independently verify the boundary-controlled Altana financial session onchain.", "ONCHAIN_VERIFICATION_FAILED", true, cause instanceof Error ? cause.message : cause); }
+      const expired = proof.expiryUnix <= Math.floor(now.getTime()/1000);
+      let reconciliation: BoundaryFinancialSessionObservation["reconciliation"] = "EXACT_MATCH";
+      const reasons=[...scope.reasons];
+      if (proof.walletAddress.toLowerCase() !== boundary.walletAddress.toLowerCase()) reconciliation="WALLET_MISMATCH";
+      else if (expired) { reconciliation="EXPIRED"; reasons.push("The boundary financial session is already expired."); }
+      else if (!scope.exact) reconciliation="SCOPE_MISMATCH";
+      else if (!verification.valid) { reconciliation="ONCHAIN_INVALID"; reasons.push("Altana Keystore isValidKey returned false for the boundary financial session."); }
+      const active = reconciliation === "EXACT_MATCH" && verification.valid && distinctFromAgentProposalKey && !expired;
+      if (active) reasons.push("The financial session is testnet-only, exact-scope, onchain-valid, and cryptographically distinct from the external AgentService proposal key.");
+      const value:BoundaryFinancialSessionObservation={
+        financialSessionId:financialSessionId(boundary.boundaryId,verification.keyId),boundaryId:boundary.boundaryId,planId:plan.planId,jobIntentId:plan.jobIntentId,permissionRequestId:request.permissionRequestId,serviceId:request.serviceId,walletAddress:boundary.walletAddress,network:"testnet",chainId:97,provider:"ALTANA",state:active?"ACTIVE":expired?"EXPIRED":"INVALID",custody:"SPOTRIQ_BOUNDARY_EPHEMERAL_CLIENT_SIGNER",sessionPublicKey:proof.sessionPublicKey,keyId:verification.keyId,transactionHash:proof.transactionHash,requestedCalls:request.callAllowlist,grantedCalls:proof.calls,requestedSpendCaps:request.spendCaps,grantedSpendCaps:proof.spend,expiryUnix:proof.expiryUnix,expiresAt:new Date(proof.expiryUnix*1000).toISOString(),reconciliation,reconciliationReasons:reasons,keystoreAddress:verification.keystoreAddress,onchainValid:verification.valid,verifiedAt:now.toISOString(),verifiedBlockNumber:verification.blockNumber,exactBoundaryScope:scope.exact,distinctFromAgentProposalKey,externalAgentHasFinancialSigner:false,signerProvisioned:active,executionEligible:false,methodVersion:BOUNDARY_FINANCIAL_SESSION_METHOD,limitations:["The Altana session signer is generated inside the Spotriq client boundary and is never provided to the external AgentService.","v0.18 does not persist the financial session private key server-side and exposes no transaction-submission endpoint. A reload may therefore require a fresh financial session before the later execution milestone.","Keystore validity and exact provider-returned scope are re-verified independently; expiry or revocation makes this session unusable.","ACTIVE authority still does not execute the reviewed plan. v0.18 proves bounded, revocable financial authority only."]};
+      await store.saveFinancialSession(value);
+      await store.saveRequest({...request,status:active?"CONFIRMED":"FAILED",providerSubmissionState:"RECONCILED",updatedAt:now.toISOString(),limitations:[...request.limitations.filter(x=>!x.includes("no financial Altana session signer is provisioned")),"v0.18 observed a boundary-controlled Altana BSC Testnet financial session. Transaction submission remains disabled until the next controlled execution milestone."]});
+      return value;
+    },
+    async getBoundaryFinancialSession(id) { const value=await store.getFinancialSession(id); if(!value) throw new AuthorityError(`Boundary financial session ${id} was not found.`,"PERMISSION_GRANT_NOT_FOUND"); return value; },
+    async getBoundaryFinancialSessionForBoundary(boundaryIdValue) { return store.getFinancialSessionForBoundary(boundaryIdValue); },
+    async reverifyBoundaryFinancialSession(id, input = {}, now = new Date()) {
+      const existing=await store.getFinancialSession(id); if(!existing) throw new AuthorityError(`Boundary financial session ${id} was not found.`,"PERMISSION_GRANT_NOT_FOUND");
+      let verification:AltanaKeyVerification; try{verification=await verifier.verify({walletAddress:existing.walletAddress,sessionPublicKey:existing.sessionPublicKey,network:"testnet"});}catch(cause){throw new AuthorityError("Spotriq could not re-verify the boundary financial session onchain.","ONCHAIN_VERIFICATION_FAILED",true,cause instanceof Error?cause.message:cause);}
+      const expired=existing.expiryUnix<=Math.floor(now.getTime()/1000); const state:BoundaryFinancialSessionObservation["state"]=expired?"EXPIRED":verification.valid?"ACTIVE":existing.state==="ACTIVE"?"REVOKED":"INVALID";
+      const next={...existing,keyId:verification.keyId,keystoreAddress:verification.keystoreAddress,onchainValid:verification.valid,state,verifiedAt:now.toISOString(),verifiedBlockNumber:verification.blockNumber,revocationTransactionHash:input.revocationTransactionHash??existing.revocationTransactionHash,signerProvisioned:state==="ACTIVE"} satisfies BoundaryFinancialSessionObservation; await store.saveFinancialSession(next); return next;
+    },
+    async assessBoundaryFinancialReadiness(boundary, plan, sessionId, now = new Date()) {
+      if(!chain) throw new AuthorityError("BSC chain reader is required for financial balance/allowance readiness.","INVALID_STATE");
+      const session=await store.getFinancialSession(sessionId); if(!session||session.boundaryId!==boundary.boundaryId) throw new AuthorityError("The financial session does not belong to this boundary.","INVALID_INPUT");
+      const request=await store.getRequest(boundary.permissionRequestId); if(!request) throw new AuthorityError("PermissionRequest was not found for the execution boundary.","PERMISSION_REQUEST_NOT_FOUND");
+      if(boundary.planId!==plan.planId||plan.permissionRequestId!==request.permissionRequestId) throw new AuthorityError("Boundary, plan and permission request do not match.","INVALID_INPUT");
+      const block=await chain.getBlockNumber(); const amounts=readPlanAmounts(plan); const expected=[amounts.token0Inflow,amounts.token1Inflow], required=[amounts.token0Required,amounts.token1Required];
+      const assets=[] as BoundaryFinancialReadiness["assets"];
+      for(let i=0;i<2;i++){
+        const spend=request.spendCaps[i]; if(!spend) throw new AuthorityError("Both token spend caps are required for financial readiness.","INVALID_STATE");
+        const bal=await chain.getErc20Balance(spend.token,boundary.walletAddress,block); const allowance=await readAllowance(chain,spend.token,boundary.walletAddress,request.positionManager,block); const current=BigInt(bal.balanceRaw); const projected=current+expected[i]; const req=required[i];
+        assets.push({token:spend.token,symbol:spend.symbol,decimals:spend.decimals,requiredForMintRaw:req.toString(),currentBalanceRaw:current.toString(),expectedPlanInflowRaw:expected[i].toString(),projectedBalanceRaw:projected.toString(),allowanceToPositionManagerRaw:allowance.toString(),balanceState:current>=req?"CURRENT_SUFFICIENT":projected>=req?"PROJECTED_SUFFICIENT":"INSUFFICIENT",allowanceState:allowance>=req?"SUFFICIENT":"APPROVAL_REQUIRED"});
+      }
+      const stale=boundary.state!=="SEALED"||plan.expiresAt<=now.toISOString(); const sessionValid=session.state==="ACTIVE"&&session.onchainValid&&session.exactBoundaryScope&&session.expiryUnix>Math.floor(now.getTime()/1000);
+      const state:BoundaryFinancialReadiness["state"]=!sessionValid?"SESSION_INVALID":stale?"STALE":assets.some(a=>a.balanceState==="INSUFFICIENT")?"INSUFFICIENT_BALANCE":assets.some(a=>a.allowanceState==="APPROVAL_REQUIRED")?"APPROVAL_REQUIRED":"READY_FOR_CONTROLLED_EXECUTION_MILESTONE";
+      const readiness:BoundaryFinancialReadiness={readinessId:financialReadinessId(boundary.boundaryId,block),boundaryId:boundary.boundaryId,planId:plan.planId,financialSessionId:session.financialSessionId,walletAddress:boundary.walletAddress,positionManager:request.positionManager,state,assets,observedBlockNumber:block,checkedAt:now.toISOString(),sessionOnchainValid:sessionValid,exactBoundaryScope:session.exactBoundaryScope,freshBoundaryRequired:true,executionEligible:false,limitations:["Projected balances add the reviewed plan's independently simulated collect inflow to the wallet's current token balance. They are planning evidence, not a guarantee of final execution output.","ERC-20 allowance is read directly against the exact PancakeSwap V3 Position Manager. Spotriq does not create token approvals in v0.18.","READY_FOR_CONTROLLED_EXECUTION_MILESTONE still cannot submit transactions. A fresh v0.17 boundary preflight and v0.18 session re-verification remain mandatory before the later execution milestone."]}; await store.saveFinancialReadiness(readiness); return readiness;
+    },
+    async getBoundaryFinancialReadiness(boundaryIdValue){return store.getFinancialReadinessForBoundary(boundaryIdValue);},
     async observeTestnetProbe(jobIntent, proof, now = new Date()) {
       if (jobIntent.subject.network !== "testnet" || jobIntent.subject.version !== "V3" || jobIntent.executionState !== "NO_EXECUTION") {
         throw new AuthorityError("The live Altana probe is only available for a BSC Testnet V3 Job Intent with NO_EXECUTION.", "INVALID_STATE");

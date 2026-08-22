@@ -457,6 +457,85 @@ export interface AltanaTestnetProbeObservation {
   limitations: string[];
 }
 
+
+export interface BoundaryFinancialSessionProof {
+  walletAddress: string;
+  sessionPublicKey: string;
+  transactionHash?: string;
+  calls: Array<{ to: string; signature: string }>;
+  spend: Array<{ token: string; limitRaw: string; period: PermissionSpendPeriod }>;
+  expiryUnix: number;
+}
+
+export interface BoundaryFinancialSessionObservation {
+  financialSessionId: string;
+  boundaryId: string;
+  planId: string;
+  jobIntentId: string;
+  permissionRequestId: string;
+  serviceId: string;
+  walletAddress: string;
+  network: "testnet";
+  chainId: 97;
+  provider: "ALTANA";
+  state: "ACTIVE" | "REVOKED" | "EXPIRED" | "INVALID";
+  custody: "SPOTRIQ_BOUNDARY_EPHEMERAL_CLIENT_SIGNER";
+  sessionPublicKey: string;
+  keyId: string;
+  transactionHash?: string;
+  revocationTransactionHash?: string;
+  requestedCalls: PermissionCallScope[];
+  grantedCalls: Array<{ to: string; signature: string }>;
+  requestedSpendCaps: PermissionSpendScope[];
+  grantedSpendCaps: Array<{ token: string; limitRaw: string; period: PermissionSpendPeriod }>;
+  expiryUnix: number;
+  expiresAt: string;
+  reconciliation: PermissionGrantReconciliationState;
+  reconciliationReasons: string[];
+  keystoreAddress: string;
+  onchainValid: boolean;
+  verifiedAt: string;
+  verifiedBlockNumber?: string;
+  exactBoundaryScope: boolean;
+  distinctFromAgentProposalKey: boolean;
+  externalAgentHasFinancialSigner: false;
+  signerProvisioned: boolean;
+  executionEligible: false;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface FinancialAssetReadiness {
+  token: string;
+  symbol?: string;
+  decimals: number;
+  requiredForMintRaw: string;
+  currentBalanceRaw: string;
+  expectedPlanInflowRaw: string;
+  projectedBalanceRaw: string;
+  allowanceToPositionManagerRaw: string;
+  balanceState: "CURRENT_SUFFICIENT" | "PROJECTED_SUFFICIENT" | "INSUFFICIENT";
+  allowanceState: "SUFFICIENT" | "APPROVAL_REQUIRED";
+}
+
+export interface BoundaryFinancialReadiness {
+  readinessId: string;
+  boundaryId: string;
+  planId: string;
+  financialSessionId: string;
+  walletAddress: string;
+  positionManager: string;
+  state: "READY_FOR_CONTROLLED_EXECUTION_MILESTONE" | "APPROVAL_REQUIRED" | "INSUFFICIENT_BALANCE" | "SESSION_INVALID" | "STALE";
+  assets: FinancialAssetReadiness[];
+  observedBlockNumber: string;
+  checkedAt: string;
+  sessionOnchainValid: boolean;
+  exactBoundaryScope: boolean;
+  freshBoundaryRequired: true;
+  executionEligible: false;
+  limitations: string[];
+}
+
 export interface BoundedPermissionRequest {
   permissionRequestId: string;
   jobIntentId: string;
@@ -1640,7 +1719,9 @@ export interface FinancialExecutionBoundary {
   approvedStepCount: number;
   dispatchPolicy: "EXACT_PLAN_CALL_HASH_AND_ORDER";
   externalAgentRole: "AUTHENTICATED_PROPOSER_ONLY";
-  financialSignerCustody: "BOUNDARY_CONTROLLED_NOT_PROVISIONED";
+  financialSignerCustody: "BOUNDARY_CONTROLLED_NOT_PROVISIONED" | "BOUNDARY_CONTROLLED_ALTANA_TESTNET_SESSION";
+  financialSessionId?: string;
+  signerProvisioned: boolean;
   nonBypassable: true;
   executionEligible: false;
   sealedAt: string;
@@ -1660,12 +1741,13 @@ export interface ExecutionBoundaryPreflight {
   preflightId: string;
   boundaryId: string;
   planId: string;
-  state: "PASS_AUTHORITY_REQUIRED" | "BLOCKED" | "STALE";
+  state: "PASS_AUTHORITY_REQUIRED" | "PASS_EXECUTION_DISABLED" | "BLOCKED" | "STALE";
   checks: ExecutionBoundaryCheck[];
   observedBlockNumber?: string;
   checkedAt: string;
-  financialGrantRequired: true;
-  signerProvisioned: false;
+  financialGrantRequired: boolean;
+  financialSessionId?: string;
+  signerProvisioned: boolean;
   executionEligible: false;
   limitations: string[];
 }
@@ -1678,7 +1760,8 @@ export interface ExecutionBoundaryDecision {
   state: "APPROVED_FOR_BOUNDARY" | "BLOCKED";
   exactPlanCall: boolean;
   correctOrder: boolean;
-  signerProvisioned: false;
+  signerProvisioned: boolean;
+  financialSessionId?: string;
   executionEligible: false;
   checkedAt: string;
   detail: string;

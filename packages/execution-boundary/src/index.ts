@@ -1,6 +1,7 @@
 import { keccak256, toBytes } from "viem";
 import type {
   BoundedPermissionRequest,
+  BoundaryFinancialSessionObservation,
   ExecutionBoundaryDecision,
   ExecutionBoundaryPreflight,
   FinancialExecutionBoundary,
@@ -8,7 +9,7 @@ import type {
 } from "@spotriq/domain";
 import type { PancakeSwapReader } from "@spotriq/protocol-pancakeswap";
 
-export const FINANCIAL_EXECUTION_BOUNDARY_METHOD = "marketplace.financial-execution-boundary@1.0.0";
+export const FINANCIAL_EXECUTION_BOUNDARY_METHOD = "marketplace.financial-execution-boundary@1.1.0";
 
 export class ExecutionBoundaryError extends Error {
   constructor(message: string, public readonly code: "INVALID_INPUT" | "INVALID_STATE" | "BOUNDARY_NOT_FOUND" | "STALE_CONTEXT", public readonly retryable = false, public readonly details?: unknown) {
@@ -48,7 +49,8 @@ export interface ExecutionBoundaryEngine {
   get(boundaryId: string): Promise<FinancialExecutionBoundary>;
   getForPlan(planId: string): Promise<FinancialExecutionBoundary|undefined>;
   authorizeCall(boundaryId: string, stepIndex: number, call: {to:string;data:string;valueRaw?:string}, now?: Date): Promise<ExecutionBoundaryDecision>;
-  preflight(boundaryId: string, request: BoundedPermissionRequest, now?: Date): Promise<ExecutionBoundaryPreflight>;
+  linkFinancialSession(boundaryId: string, session: BoundaryFinancialSessionObservation, now?: Date): Promise<FinancialExecutionBoundary>;
+  preflight(boundaryId: string, request: BoundedPermissionRequest, session?: BoundaryFinancialSessionObservation, now?: Date): Promise<ExecutionBoundaryPreflight>;
 }
 
 function hashCall(to:string,data:string,valueRaw:string):string { return keccak256(toBytes(`${to.toLowerCase()}|${data.toLowerCase()}|${valueRaw}`)); }
@@ -67,7 +69,7 @@ export function createExecutionBoundaryEngine(options:{store?:ExecutionBoundaryS
       const trusted=request.safetyPrerequisites.find(x=>x.code==="TRUSTED_AGENT_SESSION_KEY");
       if (trusted?.state!=="SATISFIED" || request.trustedAgentBinding?.state!=="VERIFIED") throw new ExecutionBoundaryError("The selected AgentService must first prove its trusted proposal/session public key.","INVALID_STATE");
       const boundary:FinancialExecutionBoundary={
-        boundaryId:boundaryId(plan.planId),planId:plan.planId,jobIntentId:plan.jobIntentId,permissionRequestId:request.permissionRequestId,serviceId:plan.serviceId,walletAddress:plan.walletAddress,network:plan.network,state:"SEALED",planHash:plan.planHash,approvedCallHashes:plan.steps.map(s=>s.callHash),approvedStepCount:plan.steps.length,dispatchPolicy:"EXACT_PLAN_CALL_HASH_AND_ORDER",externalAgentRole:"AUTHENTICATED_PROPOSER_ONLY",financialSignerCustody:"BOUNDARY_CONTROLLED_NOT_PROVISIONED",nonBypassable:true,executionEligible:false,sealedAt:now.toISOString(),expiresAt:plan.expiresAt,methodVersion:FINANCIAL_EXECUTION_BOUNDARY_METHOD,
+        boundaryId:boundaryId(plan.planId),planId:plan.planId,jobIntentId:plan.jobIntentId,permissionRequestId:request.permissionRequestId,serviceId:plan.serviceId,walletAddress:plan.walletAddress,network:plan.network,state:"SEALED",planHash:plan.planHash,approvedCallHashes:plan.steps.map(s=>s.callHash),approvedStepCount:plan.steps.length,dispatchPolicy:"EXACT_PLAN_CALL_HASH_AND_ORDER",externalAgentRole:"AUTHENTICATED_PROPOSER_ONLY",financialSignerCustody:"BOUNDARY_CONTROLLED_NOT_PROVISIONED",signerProvisioned:false,nonBypassable:true,executionEligible:false,sealedAt:now.toISOString(),expiresAt:plan.expiresAt,methodVersion:FINANCIAL_EXECUTION_BOUNDARY_METHOD,
         limitations:["The external AgentService can authenticate proposals but cannot access the future financial signing key.","Only the exact reviewed plan call hashes, in order, can reach the boundary dispatch interface.","v0.17 deliberately does not provision a financial signer or submit transactions; v0.18 must bind an Altana BSC Testnet financial session to this boundary, not to the external service key directly."],
       };
       await store.save(boundary); return boundary;
@@ -83,9 +85,14 @@ export function createExecutionBoundaryEngine(options:{store?:ExecutionBoundaryS
       const correctOrder=stepIndex>=0&&stepIndex<b.approvedStepCount;
       const live=b.state==="SEALED"&&new Date(b.expiresAt).getTime()>now.getTime();
       const approved=live&&exact&&correctOrder;
-      return {boundaryId:b.boundaryId,planId:b.planId,stepIndex,callHash:actualHash,state:approved?"APPROVED_FOR_BOUNDARY":"BLOCKED",exactPlanCall:exact,correctOrder,signerProvisioned:false,executionEligible:false,checkedAt:now.toISOString(),detail:approved?"Call exactly matches the sealed plan at this step. No signer is provisioned in v0.17, so approval cannot submit a transaction.":"Call does not exactly match the live sealed execution plan or the boundary is stale."};
+      return {boundaryId:b.boundaryId,planId:b.planId,stepIndex,callHash:actualHash,state:approved?"APPROVED_FOR_BOUNDARY":"BLOCKED",exactPlanCall:exact,correctOrder,signerProvisioned:b.signerProvisioned,financialSessionId:b.financialSessionId,executionEligible:false,checkedAt:now.toISOString(),detail:approved?(b.signerProvisioned?"Call exactly matches the sealed plan. A boundary-controlled financial session is provisioned, but v0.18 still exposes no transaction submission endpoint.":"Call exactly matches the sealed plan at this step. No financial signer is provisioned."):"Call does not exactly match the live sealed execution plan or the boundary is stale."};
     },
-    async preflight(id,request,now=new Date()){
+    async linkFinancialSession(id,session,now=new Date()){
+      const b=await store.get(id);if(!b)throw new ExecutionBoundaryError(`Execution boundary ${id} was not found.`,"BOUNDARY_NOT_FOUND");
+      if(session.boundaryId!==b.boundaryId||session.planId!==b.planId||session.permissionRequestId!==b.permissionRequestId||session.state!=="ACTIVE"||!session.onchainValid||!session.exactBoundaryScope||!session.distinctFromAgentProposalKey) throw new ExecutionBoundaryError("Only an ACTIVE exact-scope boundary financial session can be linked to this execution boundary.","INVALID_INPUT");
+      const next:FinancialExecutionBoundary={...b,financialSignerCustody:"BOUNDARY_CONTROLLED_ALTANA_TESTNET_SESSION",financialSessionId:session.financialSessionId,signerProvisioned:true,executionEligible:false,methodVersion:FINANCIAL_EXECUTION_BOUNDARY_METHOD,limitations:[...b.limitations.filter(x=>!x.includes("does not provision a financial signer")&&!x.includes("v0.18 must bind")),"v0.18 linked a boundary-controlled Altana BSC Testnet financial session whose exact scope and Keystore validity were independently verified. No transaction submission endpoint exists yet."]}; await store.save(next); return next;
+    },
+    async preflight(id,request,session,now=new Date()){
       const b=await store.get(id);if(!b)throw new ExecutionBoundaryError(`Execution boundary ${id} was not found.`,"BOUNDARY_NOT_FOUND");
       const p=await plans.get(b.planId); const checks=[] as ExecutionBoundaryPreflight["checks"];
       const live=new Date(b.expiresAt).getTime()>now.getTime()&&new Date(request.expiresAt).getTime()>now.getTime();
@@ -106,9 +113,10 @@ export function createExecutionBoundaryEngine(options:{store?:ExecutionBoundaryS
           checks.push(BigInt(fresh.expectedAmount0Raw)>=min0&&BigInt(fresh.expectedAmount1Raw)>=min1?check("FRESH_QUOTE","Fresh expected outputs","PASS","A fresh owner-context eth_call simulation still clears the reviewed minimum output floors."):check("FRESH_QUOTE","Fresh expected outputs","FAIL","Fresh simulated outputs fell below the reviewed minimums; plan must be rebuilt."));
         }catch(cause){checks.push(check("FRESH_QUOTE","Fresh expected outputs","FAIL",`Fresh decrease-liquidity simulation failed: ${cause instanceof Error?cause.message:String(cause)}`));}
       }
-      checks.push(check("FINANCIAL_GRANT","Boundary financial signer","REQUIRED","v0.17 has not provisioned the boundary-controlled Altana financial session key. The external AgentService key is intentionally not used as the financial signer."));
+      const activeSession=Boolean(session&&session.financialSessionId===b.financialSessionId&&session.state==="ACTIVE"&&session.onchainValid&&session.exactBoundaryScope&&session.expiryUnix>Math.floor(now.getTime()/1000));
+      checks.push(activeSession?check("FINANCIAL_GRANT","Boundary financial signer","PASS","The linked Altana BSC Testnet boundary session is exact-scope, currently valid in Keystore, and distinct from the external AgentService proposal key."):check("FINANCIAL_GRANT","Boundary financial signer","REQUIRED","No currently valid exact-scope boundary-controlled Altana financial session is linked. The external AgentService key is intentionally never used as the financial signer."));
       const failed=checks.some(c=>c.state==="FAIL");
-      return {preflightId:`preflight:${b.boundaryId}:${now.getTime()}`,boundaryId:b.boundaryId,planId:b.planId,state:failed?"BLOCKED":live?"PASS_AUTHORITY_REQUIRED":"STALE",checks,observedBlockNumber:observedBlock,checkedAt:now.toISOString(),financialGrantRequired:true,signerProvisioned:false,executionEligible:false,limitations:["Preflight performs no transaction and cannot move assets.","A PASS_AUTHORITY_REQUIRED result means the sealed plan remains structurally enforceable and fresh, but no financial Altana signer/grant is provisioned yet."]};
+      return {preflightId:`preflight:${b.boundaryId}:${now.getTime()}`,boundaryId:b.boundaryId,planId:b.planId,state:failed?"BLOCKED":!live?"STALE":activeSession?"PASS_EXECUTION_DISABLED":"PASS_AUTHORITY_REQUIRED",checks,observedBlockNumber:observedBlock,checkedAt:now.toISOString(),financialGrantRequired:!activeSession,financialSessionId:activeSession?session!.financialSessionId:undefined,signerProvisioned:activeSession,executionEligible:false,limitations:["Preflight performs no transaction and cannot move assets.",activeSession?"PASS_EXECUTION_DISABLED means the sealed plan and boundary-controlled financial authority are currently valid, but v0.18 intentionally exposes no transaction-submission endpoint.":"PASS_AUTHORITY_REQUIRED means the sealed plan remains structurally enforceable and fresh, but a valid boundary financial session is still required."]};
     },
   };
 }

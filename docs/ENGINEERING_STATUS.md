@@ -19,9 +19,10 @@
 - Explicit Bounded Permission / Altana Authority Verification
 - Trusted Agent Session-Key Binding + V3 Calldata Guard + Altana BSC Testnet Integration Proof
 - Reviewed Rebalancing Execution Plan + Non-Bypassable Financial Execution Boundary
+- Boundary-Controlled Altana Financial Session + Plan-Specific Balance/Allowance Readiness
 
 ## Current source of truth
-Use Spotriq **v0.17.0**.
+Use Spotriq **v0.18.0**.
 
 ## Current live-data spine
 BSC JSON-RPC → protocol adapters → Evidence Engine → Smart Money Engine → Findings → Spotriq UI.
@@ -107,6 +108,17 @@ v0.16 also proves the Altana provider/onchain integration on **BSC Testnet only*
 
 Migration `0010_trusted_agent_binding_and_altana_probe.sql` persists service authority-binding evidence and Altana Testnet probe observations. `@altananetwork/sdk` is pinned exactly at `0.7.1` in the web app.
 
+## Boundary-controlled financial authority state in v0.18.0
+A sealed BSC Testnet execution boundary can now receive a distinct Altana financial session whose signer is generated inside the Spotriq client boundary. The external AgentService remains proposer-only and never receives that financial signer.
+
+Spotriq accepts the observed financial session only when provider-returned calls, spend caps and expiry exactly match the reviewed `PermissionRequest`, the session key is different from the verified AgentService proposal key, and the Altana Keystore currently reports the key valid. The session can be reverified and revocation evidence can be recorded.
+
+A linked financial signer changes boundary custody to `BOUNDARY_CONTROLLED_ALTANA_TESTNET_SESSION`, but `executionEligible` stays false. A fresh boundary preflight with current valid authority returns `PASS_EXECUTION_DISABLED`; v0.18 intentionally exposes no financial transaction-submission endpoint.
+
+Financial readiness reads the exact reviewed plan's token requirements, current wallet ERC-20 balances, projected post-collect balances, and current allowance to the exact V3 Position Manager. Projected balance can be sufficient while allowance remains `APPROVAL_REQUIRED`. Spotriq does not auto-create approvals or unlimited allowance.
+
+Migration `0012_boundary_financial_session_readiness.sql` persists the boundary financial session and financial-readiness observations. Automated tests verify the integration model but do not claim that the user's live Altana wallet broadcast a grant transaction during repository validation.
+
 ## Readiness state inherited from v0.12.0
 Deterministic gates now cover:
 1. BSC network
@@ -158,6 +170,19 @@ Marketplace supply/readiness:
 - `GET /v1/job-intents/:jobIntentId/altana-testnet-probe` — retrieve the latest persisted probe for the Job Intent
 - `GET /v1/altana-testnet-probes/:probeId` — retrieve one observed probe
 - `POST /v1/altana-testnet-probes/:probeId/reverify` — refresh Keystore validity and record revocation transaction evidence when supplied
+- `POST /v1/job-intents/:jobIntentId/execution-plans` — build/re-open the deterministic Rebalancing execution plan
+- `GET /v1/job-intents/:jobIntentId/execution-plan` — retrieve the current Job Intent plan
+- `GET /v1/execution-plans/:planId` — retrieve one reviewed plan
+- `POST /v1/execution-plans/:planId/review` — review replacement range and refresh independent quote evidence
+- `POST /v1/execution-plans/:planId/seal-boundary` — seal exact plan/call hashes behind the non-bypassable boundary
+- `GET /v1/execution-boundaries/:boundaryId` — retrieve one sealed boundary
+- `POST /v1/execution-boundaries/:boundaryId/preflight` — refresh LP state/quote/authority preflight without submitting a transaction
+- `POST /v1/execution-boundaries/:boundaryId/financial-sessions` — observe/reconcile a real boundary-controlled Altana BSC Testnet financial session
+- `GET /v1/execution-boundaries/:boundaryId/financial-session` — retrieve the latest boundary financial session
+- `GET /v1/financial-sessions/:financialSessionId` — retrieve one observed financial session
+- `POST /v1/financial-sessions/:financialSessionId/reverify` — refresh Keystore validity/revocation evidence
+- `POST /v1/execution-boundaries/:boundaryId/financial-readiness` — read plan-specific token balance/allowance readiness
+- `GET /v1/execution-boundaries/:boundaryId/financial-readiness` — retrieve latest persisted financial readiness
 
 ## Test Lab contract
 A Test Lab PASS means Spotriq observed a safe-to-probe public runtime that satisfied the relevant protocol discovery/contract checks and exposed category-relevant machine capability evidence. It does **not** mean:
@@ -177,10 +202,11 @@ A2A verification uses Agent Card discovery/validation. Modern MCP verification t
 - Migration 0009 stores immutable Marketplace Test Lab runs and coverage payloads.
 - Migration 0010 stores trusted AgentService authority bindings and Altana BSC Testnet probe observations.
 - Migration 0011 stores reviewed Rebalancing execution plans and sealed financial execution boundaries.
+- Migration 0012 stores boundary-controlled Altana financial-session evidence and plan-specific asset/allowance readiness.
 - Railway PostgreSQL can be attached when the API itself is deployed in Railway; local Railway tunnelling is not required.
 
 ## Next
-Build **v0.18.0 — Boundary-Controlled Altana Financial Session on BSC Testnet**. Provision real bounded financial authority to the Spotriq execution boundary, never directly to the external AgentService proposal key; reconcile and verify the session through Altana Keystore; add plan-specific token balance/allowance readiness; and preserve fresh execution-boundary preflight. Transaction submission remains disabled until that authority path is proven safe and revocable. After real execution evidence exists: Activity & Outcomes, then generalize the completed vertical across Grid, Yield and Health with equal depth.
+Build **v0.19.0 — First Controlled BSC Testnet Rebalancing Execution**. Dispatch only exact sealed plan calls through the boundary-controlled Altana financial session after fresh preflight, current Keystore verification and plan-specific balance/allowance readiness. Missing allowance must use a bounded user-controlled approval path rather than AgentService-controlled or unlimited approval. After real execution evidence exists: Activity & Outcomes, then generalize the completed vertical across Grid, Yield and Health with equal depth.
 
 ## Rule
 Every completed replacement ZIP becomes the new source of truth.

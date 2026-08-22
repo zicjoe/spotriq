@@ -298,7 +298,7 @@ Migration `0010_trusted_agent_binding_and_altana_probe.sql` persists trusted bin
 
 ## Next milestone
 
-Build **v0.18.0 — Boundary-Controlled Altana Financial Session on BSC Testnet**. Provision the real financial session to the Spotriq execution boundary rather than the external service proposal key, reconcile and verify it onchain, prove balance/allowance readiness for the exact reviewed V3 plan, and retain fresh boundary preflight. Financial transaction submission remains a later gate.
+Build **v0.19.0 — First Controlled BSC Testnet Rebalancing Execution**. Dispatch only exact sealed reviewed calls through the boundary-controlled Altana financial session after fresh preflight, current Keystore verification and plan-specific balance/allowance readiness. If allowance is missing, use a bounded user-controlled approval path rather than AgentService-controlled or unlimited approval.
 
 
 ## v0.9.2 registry visibility
@@ -329,4 +329,25 @@ GET  /v1/execution-boundaries/:boundaryId
 POST /v1/execution-boundaries/:boundaryId/preflight
 ```
 
-The next milestone is v0.18.0: provision a real bounded Altana BSC Testnet financial session to the Spotriq execution boundary—not to the external service proposal key—and verify that authority before any later financial submission path is considered.
+## v0.18.0 Boundary-Controlled Altana Financial Session + Financial Readiness
+
+A sealed BSC Testnet execution boundary can now receive a real Altana financial-session path whose signer is generated inside the Spotriq web-client boundary and is never given to the external AgentService. Provider-returned contract/function calls, token spend caps and expiry must exactly match the reviewed `PermissionRequest`; the financial key must differ from the verified AgentService proposal key; and current Altana Keystore validity is independently checked.
+
+A linked session changes boundary custody to `BOUNDARY_CONTROLLED_ALTANA_TESTNET_SESSION`, but there is still no transaction-submission endpoint. Fresh boundary preflight with valid authority becomes `PASS_EXECUTION_DISABLED`, not executable. Revocation/reverification can make a previously ACTIVE session unusable.
+
+Spotriq also reads current ERC-20 balances and allowance to the exact PancakeSwap V3 Position Manager. For the reviewed `decrease → collect → mint` plan it distinguishes current balance from projected post-collect balance. Missing allowance becomes `APPROVAL_REQUIRED`; Spotriq v0.18 does not auto-approve tokens or create unlimited allowance.
+
+New persistence migration: `0012_boundary_financial_session_readiness.sql`.
+
+Key APIs:
+
+```text
+POST /v1/execution-boundaries/:boundaryId/financial-sessions
+GET  /v1/execution-boundaries/:boundaryId/financial-session
+GET  /v1/financial-sessions/:financialSessionId
+POST /v1/financial-sessions/:financialSessionId/reverify
+POST /v1/execution-boundaries/:boundaryId/financial-readiness
+GET  /v1/execution-boundaries/:boundaryId/financial-readiness
+```
+
+The next milestone is v0.19.0: first controlled BSC Testnet Rebalancing execution through the exact sealed boundary, gated by fresh preflight, current Altana session verification and explicit balance/allowance readiness.

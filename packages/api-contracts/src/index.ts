@@ -64,6 +64,8 @@ export interface CapabilityResponse {
   altanaKeystoreVerificationEnabled: boolean;
   rebalancingExecutionPlanEnabled: boolean;
   nonBypassableExecutionBoundaryEnabled: boolean;
+  boundaryControlledAltanaFinancialSessionEnabled: boolean;
+  financialAssetReadinessEnabled: boolean;
   liveFinancialSignerEnabled: boolean;
   marketplaceActivationEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
@@ -288,6 +290,24 @@ export interface AltanaTestnetProbeResponse {
 
 export interface ReverifyAltanaTestnetProbeRequest {
   revocationTransactionHash?: string;
+}
+
+export interface ObserveBoundaryFinancialSessionRequest {
+  proof: import("@spotriq/domain").BoundaryFinancialSessionProof;
+}
+
+export interface BoundaryFinancialSessionResponse {
+  session: import("@spotriq/domain").BoundaryFinancialSessionObservation;
+  boundary?: import("@spotriq/domain").FinancialExecutionBoundary;
+  request?: import("@spotriq/domain").BoundedPermissionRequest;
+}
+
+export interface ReverifyBoundaryFinancialSessionRequest {
+  revocationTransactionHash?: string;
+}
+
+export interface BoundaryFinancialReadinessResponse {
+  readiness: import("@spotriq/domain").BoundaryFinancialReadiness;
 }
 
 

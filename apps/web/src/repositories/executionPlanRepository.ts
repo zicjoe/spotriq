@@ -1,5 +1,5 @@
-import type { ApiEnvelope, ExecutionBoundaryPreflightResponse, FinancialExecutionBoundaryResponse, PrepareRebalancingExecutionPlanRequest, RebalancingExecutionPlanResponse } from "@spotriq/api-contracts";
-import type { ExecutionBoundaryPreflight, FinancialExecutionBoundary, RebalancingExecutionPlan } from "../domain/types";
+import type { ApiEnvelope, BoundaryFinancialReadinessResponse, BoundaryFinancialSessionResponse, ExecutionBoundaryPreflightResponse, FinancialExecutionBoundaryResponse, ObserveBoundaryFinancialSessionRequest, PrepareRebalancingExecutionPlanRequest, RebalancingExecutionPlanResponse, ReverifyBoundaryFinancialSessionRequest } from "@spotriq/api-contracts";
+import type { BoundaryFinancialReadiness, BoundaryFinancialSessionObservation, BoundaryFinancialSessionProof, ExecutionBoundaryPreflight, FinancialExecutionBoundary, RebalancingExecutionPlan } from "../domain/types";
 import { ApiError, apiRequest } from "../api/client";
 function unwrap<T>(v:ApiEnvelope<T>):T{return v.data;}
 export interface ExecutionPlanRepository {
@@ -10,6 +10,11 @@ export interface ExecutionPlanRepository {
   sealBoundary(planId:string):Promise<FinancialExecutionBoundary>;
   getBoundary(boundaryId:string):Promise<FinancialExecutionBoundary>;
   preflight(boundaryId:string):Promise<ExecutionBoundaryPreflight>;
+  observeFinancialSession(boundaryId:string,proof:BoundaryFinancialSessionProof):Promise<{session:BoundaryFinancialSessionObservation;boundary?:FinancialExecutionBoundary}>;
+  getFinancialSession(boundaryId:string):Promise<BoundaryFinancialSessionObservation|undefined>;
+  reverifyFinancialSession(financialSessionId:string,revocationTransactionHash?:string):Promise<BoundaryFinancialSessionObservation>;
+  financialReadiness(boundaryId:string):Promise<BoundaryFinancialReadiness>;
+  getFinancialReadiness(boundaryId:string):Promise<BoundaryFinancialReadiness|undefined>;
 }
 export class ApiExecutionPlanRepository implements ExecutionPlanRepository {
   async prepare(jobIntentId:string,input:PrepareRebalancingExecutionPlanRequest){return unwrap(await apiRequest<ApiEnvelope<RebalancingExecutionPlanResponse>>(`/v1/job-intents/${encodeURIComponent(jobIntentId)}/execution-plans`,{method:"POST",body:JSON.stringify(input)})).plan;}

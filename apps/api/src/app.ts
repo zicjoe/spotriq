@@ -110,6 +110,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const authority = options.authority ?? createAuthorityEngine({
     store: authorityStore,
     verifier: createAltanaKeystoreVerifier({ mainnet: registryMainnetChain, testnet: registryTestnetChain }),
+    chain,
   });
   const executionPlanStore = database
     ? new PostgresExecutionPlanStore({ query: (text, values) => database.query(text, values) })
@@ -139,7 +140,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.17.0",
+      version: "0.18.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -189,7 +190,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       altanaKeystoreVerificationEnabled: true,
       rebalancingExecutionPlanEnabled: true,
       nonBypassableExecutionBoundaryEnabled: true,
-      liveFinancialSignerEnabled: false,
+      boundaryControlledAltanaFinancialSessionEnabled: true,
+      financialAssetReadinessEnabled: true,
+      liveFinancialSignerEnabled: true,
       marketplaceActivationEnabled: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
@@ -211,8 +214,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "v0.16 can verify service-owned Altana-compatible session-key control through a Spotriq A2A extension and fresh runtime challenge; browser-entered keys never satisfy the binding.",
         "A deterministic V3 calldata guard decodes proposed calls and checks target, LP token ID, recipients, token caps, slippage/deadline bounds, fee tier, and tick alignment against reviewed evidence.",
         "v0.17 builds a user-reviewed three-step decrease → collect → mint execution plan from a fresh V3 position plus independent owner-context eth_call simulation, and seals exact call hashes/order behind a non-bypassable execution boundary.",
-        "The external AgentService is now an authenticated proposer only. Spotriq v0.17 intentionally provisions no financial signer; v0.18 must grant a boundary-controlled Altana BSC Testnet session rather than financial authority directly to the service key.",
-        "A real BSC Testnet Altana passkey/grant/revoke probe is supported for the read-only positions(uint256) selector; it proves the provider/onchain integration without granting financial selector authority or pretending to activate the selected service.",
+        "The external AgentService is an authenticated proposer only. v0.18 can provision a distinct boundary-controlled Altana BSC Testnet financial session whose exact scope and Keystore validity are independently reconciled; the financial signer is never handed to the external service.",
+        "A real BSC Testnet Altana passkey/grant/revoke probe remains available for read-only provider testing, and v0.18 adds a separate real financial session bound to the sealed execution boundary. Transaction submission remains disabled.",
+        "v0.18 reads current token balances and ERC-20 allowances to the exact V3 Position Manager, distinguishes current balance from projected post-collect balance, and never auto-creates unlimited approvals.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
       ],
