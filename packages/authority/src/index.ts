@@ -9,6 +9,8 @@ import type {
   PermissionCallScope,
   PermissionSpendScope,
   RebalancingExecutionGuardReport,
+  RebalancingExecutionPlan,
+  FinancialExecutionBoundary,
   RebalancingJobIntent,
 } from "@spotriq/domain";
 
@@ -169,6 +171,8 @@ export interface AuthorityEngine {
   reverify(permissionGrantId: string, now?: Date): Promise<BoundedPermissionGrant>;
   applyTrustedAgentBinding(permissionRequestId: string, binding: AgentAuthorityBinding, now?: Date): Promise<BoundedPermissionRequest>;
   applyExecutionGuard(permissionRequestId: string, report: RebalancingExecutionGuardReport, now?: Date): Promise<BoundedPermissionRequest>;
+  applyExecutionPlan(permissionRequestId: string, plan: RebalancingExecutionPlan, now?: Date): Promise<BoundedPermissionRequest>;
+  applyExecutionBoundary(permissionRequestId: string, boundary: FinancialExecutionBoundary, now?: Date): Promise<BoundedPermissionRequest>;
   observeTestnetProbe(jobIntent: RebalancingJobIntent, proof: AltanaTestnetProbeProof, now?: Date): Promise<AltanaTestnetProbeObservation>;
   getTestnetProbe(probeId: string): Promise<AltanaTestnetProbeObservation>;
   getTestnetProbeForJob(jobIntentId: string): Promise<AltanaTestnetProbeObservation | undefined>;
@@ -290,7 +294,7 @@ function buildRequest(job: RebalancingJobIntent, input: PrepareBoundedAuthorityI
       state: "REQUIRED",
       blocking: true,
       label: "Trusted agent session key",
-      detail: "The selected AgentService does not yet bind a service-owned Altana delegate/session public key that Spotriq can authenticate. Spotriq will not invent or browser-store an external agent's session secret.",
+      detail: "The selected AgentService must bind a service-owned proposal/authentication public key that Spotriq can authenticate. This key proves who proposed the plan; v0.17 no longer intends to use it as the financial signing key.",
       provenance: "marketplace-derived",
     },
     {
@@ -306,7 +310,7 @@ function buildRequest(job: RebalancingJobIntent, input: PrepareBoundedAuthorityI
       state: "REQUIRED",
       blocking: true,
       label: "Non-bypassable financial execution boundary",
-      detail: "The external service would hold the session key. A Spotriq off-chain calldata checker cannot prevent that key from calling an allowed selector directly, so financial selector grants remain blocked until enforcement sits on a path the session key cannot bypass.",
+      detail: "Financial signing authority must be held behind a Spotriq execution boundary that accepts only exact reviewed plan call hashes/order. The external AgentService proposal key must never receive direct financial selector authority.",
       provenance: "marketplace-derived",
     },
   ];
@@ -504,6 +508,34 @@ export function createAuthorityEngine(options: { store?: AuthorityStore; verifie
         : item);
       const submissionBlockers = safetyPrerequisites.filter((item) => item.blocking && item.state !== "SATISFIED").map((item) => item.detail);
       const next: BoundedPermissionRequest = { ...request, latestExecutionGuard: report, safetyPrerequisites, submissionBlockers, providerSubmissionState: submissionBlockers.length ? "SAFETY_PREREQUISITES_REQUIRED" : "READY_FOR_WALLET", updatedAt: now.toISOString() };
+      await store.saveRequest(next);
+      return next;
+    },
+    async applyExecutionPlan(permissionRequestId, plan, now = new Date()) {
+      const request = await store.getRequest(permissionRequestId);
+      if (!request) throw new AuthorityError(`Permission request ${permissionRequestId} was not found.`, "PERMISSION_REQUEST_NOT_FOUND");
+      if (plan.permissionRequestId !== request.permissionRequestId || plan.jobIntentId !== request.jobIntentId || plan.serviceId !== request.serviceId || plan.state !== "REVIEWED" || plan.guardState !== "PASS") {
+        throw new AuthorityError("Only a REVIEWED execution plan whose complete step set passed the argument guard can satisfy the plan-level guard prerequisite.", "INVALID_INPUT");
+      }
+      const safetyPrerequisites = request.safetyPrerequisites.map((item) => item.code === "ARGUMENT_LEVEL_EXECUTION_GUARD"
+        ? { ...item, state: "SATISFIED" as const, blocking: false, detail: `Execution plan ${plan.planId} contains ${plan.steps.length} exact reviewed calls and every step passed deterministic calldata validation.` }
+        : item);
+      const submissionBlockers = safetyPrerequisites.filter((item) => item.blocking && item.state !== "SATISFIED").map((item) => item.detail);
+      const next: BoundedPermissionRequest = { ...request, executionPlanId: plan.planId, safetyPrerequisites, submissionBlockers, providerSubmissionState: submissionBlockers.length ? "SAFETY_PREREQUISITES_REQUIRED" : "BOUNDARY_SIGNER_REQUIRED", updatedAt: now.toISOString() };
+      await store.saveRequest(next);
+      return next;
+    },
+    async applyExecutionBoundary(permissionRequestId, boundary, now = new Date()) {
+      const request = await store.getRequest(permissionRequestId);
+      if (!request) throw new AuthorityError(`Permission request ${permissionRequestId} was not found.`, "PERMISSION_REQUEST_NOT_FOUND");
+      if (boundary.permissionRequestId !== request.permissionRequestId || boundary.jobIntentId !== request.jobIntentId || boundary.serviceId !== request.serviceId || boundary.state !== "SEALED" || !boundary.nonBypassable || request.executionPlanId !== boundary.planId) {
+        throw new AuthorityError("Execution boundary does not seal the exact reviewed plan for this PermissionRequest.", "INVALID_INPUT");
+      }
+      const safetyPrerequisites = request.safetyPrerequisites.map((item) => item.code === "NON_BYPASSABLE_FINANCIAL_EXECUTION_BOUNDARY"
+        ? { ...item, state: "SATISFIED" as const, blocking: false, detail: `Boundary ${boundary.boundaryId} seals exact call hashes/order and keeps the future financial signer inaccessible to the external AgentService.` }
+        : item);
+      const submissionBlockers = safetyPrerequisites.filter((item) => item.blocking && item.state !== "SATISFIED").map((item) => item.detail);
+      const next: BoundedPermissionRequest = { ...request, executionBoundaryId: boundary.boundaryId, financialDelegateMode: "SPOTRIQ_EXECUTION_BOUNDARY", safetyPrerequisites, submissionBlockers, providerSubmissionState: submissionBlockers.length ? "SAFETY_PREREQUISITES_REQUIRED" : "BOUNDARY_SIGNER_REQUIRED", updatedAt: now.toISOString(), limitations: [...request.limitations.filter((x) => !x.includes("non-bypassable financial execution boundary is still required")), "v0.17 has a non-bypassable exact-plan enforcement boundary, but no financial Altana session signer is provisioned. v0.18 must grant authority to the boundary-controlled executor, never directly to the external AgentService proposal key."] };
       await store.saveRequest(next);
       return next;
     },

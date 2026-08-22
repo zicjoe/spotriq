@@ -11,6 +11,7 @@ import type {
   PancakeSwapProtocolVersion,
   PancakeSwapWalletPositionsSnapshot,
   ProtocolTokenMetadata,
+  PancakeSwapV3DecreaseQuote,
 } from "@spotriq/domain";
 import { createEvidenceEnvelope, DATA_SOURCES, EVIDENCE_METHODS } from "@spotriq/evidence";
 import {
@@ -98,6 +99,7 @@ export interface PancakeSwapReader {
   getInfinityClPosition(tokenId: string | number | bigint, blockNumber?: string): Promise<PancakeSwapClPositionSnapshot>;
   getPosition(version: PancakeSwapProtocolVersion, tokenId: string | number | bigint, blockNumber?: string): Promise<PancakeSwapClPositionSnapshot>;
   getWalletPositions(walletAddress: string, maxPositions?: number): Promise<PancakeSwapWalletPositionsSnapshot>;
+  quoteV3DecreaseLiquidity(input: { tokenId: string | number | bigint; owner: string; liquidityRaw?: string; blockNumber?: string; deadlineUnix?: number }): Promise<PancakeSwapV3DecreaseQuote>;
 }
 
 export interface PancakeSwapAdapterOptions {
@@ -546,6 +548,54 @@ export class PancakeSwapAdapter {
         valuation: "NOT_SUPPORTED",
       },
     };
+  }
+
+  async quoteV3DecreaseLiquidity(input: { tokenId: string | number | bigint; owner: string; liquidityRaw?: string; blockNumber?: string; deadlineUnix?: number }): Promise<PancakeSwapV3DecreaseQuote> {
+    const tokenId = assertTokenId(input.tokenId);
+    const observedBlock = input.blockNumber ?? await this.chain.getBlockNumber();
+    const position = await this.getV3Position(tokenId, observedBlock);
+    const owner = normalizeAddress(input.owner);
+    if (position.owner !== owner) {
+      throw new PancakeSwapAdapterError(`Wallet ${owner} is not the owner of PancakeSwap V3 position ${tokenId.toString()} at block ${observedBlock}.`, "POSITION_NOT_FOUND");
+    }
+    const liquidity = input.liquidityRaw === undefined ? BigInt(position.liquidityRaw) : BigInt(input.liquidityRaw);
+    if (liquidity <= 0n || liquidity > BigInt(position.liquidityRaw)) {
+      throw new PancakeSwapAdapterError("Requested decrease-liquidity quote must be positive and no greater than the current position liquidity.", "CONTRACT_READ_FAILED");
+    }
+    const deadlineUnix = input.deadlineUnix ?? Math.floor(Date.now() / 1000) + 600;
+    const data = encodeFunctionData({
+      abi: pancakeV3PositionManagerAbi,
+      functionName: "decreaseLiquidity",
+      args: [{ tokenId, liquidity, amount0Min: 0n, amount1Min: 0n, deadline: BigInt(deadlineUnix) }],
+    } as never);
+    try {
+      const call = await this.chain.callContractFrom(this.contracts.v3PositionManager, data, owner, observedBlock);
+      const decoded = decodeFunctionResult({ abi: pancakeV3PositionManagerAbi, functionName: "decreaseLiquidity", data: call.data as Hex } as never) as readonly [bigint, bigint];
+      return {
+        protocol: "PancakeSwap",
+        version: "V3",
+        network: this.network,
+        chainId: this.chain.definition.chainId,
+        positionManager: normalizeAddress(this.contracts.v3PositionManager),
+        tokenId: tokenId.toString(),
+        owner,
+        liquidityRaw: liquidity.toString(),
+        expectedAmount0Raw: decoded[0].toString(),
+        expectedAmount1Raw: decoded[1].toString(),
+        recordedTokensOwed0Raw: position.recordedTokensOwed0Raw ?? "0",
+        recordedTokensOwed1Raw: position.recordedTokensOwed1Raw ?? "0",
+        blockNumber: call.blockNumber,
+        observedAt: new Date().toISOString(),
+        quoteMethod: "ETH_CALL_SIMULATION",
+        limitations: [
+          "This quote is an eth_call simulation of decreaseLiquidity at one observed BSC block. It does not submit a transaction or mutate chain state.",
+          "The quote covers principal returned by decreaseLiquidity. Existing recorded tokensOwed values are captured separately and may change as fees accrue.",
+          "A later execution boundary must refresh position ownership/state and quote freshness before financial signing.",
+        ],
+      };
+    } catch (error) {
+      throw new PancakeSwapAdapterError("PancakeSwap V3 decreaseLiquidity simulation failed; Spotriq will not fabricate expected outputs.", "CONTRACT_READ_FAILED", true, error instanceof Error ? error.message : String(error));
+    }
   }
 
   async getInfinityClPosition(tokenIdInput: string | number | bigint, blockNumber?: string): Promise<PancakeSwapClPositionSnapshot> {

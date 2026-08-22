@@ -1,5 +1,5 @@
 {
-  "name": "@spotriq/market-context",
+  "name": "@spotriq/execution-boundary",
   "private": true,
   "version": "0.17.0",
   "type": "module",
@@ -7,10 +7,9 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@spotriq/chain": "workspace:*",
     "@spotriq/domain": "workspace:*",
-    "@spotriq/evidence": "workspace:*",
-    "@spotriq/protocol-pancakeswap": "workspace:*"
+    "@spotriq/protocol-pancakeswap": "workspace:*",
+    "viem": "2.55.11"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

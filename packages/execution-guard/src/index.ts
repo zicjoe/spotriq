@@ -4,6 +4,7 @@ import type {
   ExecutionGuardCheck,
   RebalancingExecutionGuardReport,
   RebalancingExecutionProposal,
+  RebalancingExecutionPlan,
   RebalancingGuardCallKind,
   RebalancingJobIntent,
 } from "@spotriq/domain";
@@ -88,9 +89,10 @@ export function guardRebalancingProposal(args: {
   intent: RebalancingJobIntent;
   request: BoundedPermissionRequest;
   proposal: RebalancingExecutionProposal;
+  executionPlan?: RebalancingExecutionPlan;
   now?: Date;
 }): RebalancingExecutionGuardReport {
-  const { intent, request, proposal } = args;
+  const { intent, request, proposal, executionPlan } = args;
   const now = args.now ?? new Date();
   if (intent.category !== "rebalancing" || intent.subject.version !== "V3" || intent.executionState !== "NO_EXECUTION") throw new ExecutionGuardError("Only a V3 Rebalancing Job Intent with NO_EXECUTION can be checked.", "INVALID_STATE");
   if (request.jobIntentId !== intent.jobIntentId || request.permissionRequestId !== proposal.permissionRequestId || proposal.jobIntentId !== intent.jobIntentId || proposal.serviceId !== intent.selectedService.serviceId) {
@@ -137,7 +139,25 @@ export function guardRebalancingProposal(args: {
         ? check("LIQUIDITY", "Liquidity amount", "PASS", "Decrease-liquidity requests a positive liquidity amount.")
         : check("LIQUIDITY", "Liquidity amount", "FAIL", "Decrease-liquidity amount must be positive."));
       checks.push(deadlineCheck(BigInt(params.deadline), intent, request));
-      checks.push(check("DECREASE_QUOTE", "Decrease-liquidity quote", "INCONCLUSIVE", "The Job Intent does not yet contain an independent expected token-out quote, so Spotriq cannot prove amount0Min/amount1Min represent the reviewed slippage ceiling."));
+      const quote = executionPlan?.quote;
+      const quoteMatches = executionPlan?.jobIntentId === intent.jobIntentId
+        && quote
+        && quote.blockNumber === executionPlan.positionSnapshot.blockNumber
+        && BigInt(quote.liquidityRaw) === BigInt(params.liquidity);
+      if (quoteMatches) {
+        const expected0 = BigInt(quote.expectedDecreaseAmount0Raw);
+        const expected1 = BigInt(quote.expectedDecreaseAmount1Raw);
+        const floor0 = slippageFloor(expected0, intent.constraints.maxSlippageBps);
+        const floor1 = slippageFloor(expected1, intent.constraints.maxSlippageBps);
+        checks.push(BigInt(params.amount0Min) >= floor0 && BigInt(params.amount0Min) <= expected0
+          ? check("DECREASE_QUOTE_0", "Quoted token0 minimum", "PASS", `amount0Min ${params.amount0Min} is consistent with independent simulated output ${expected0}.`)
+          : check("DECREASE_QUOTE_0", "Quoted token0 minimum", "FAIL", `amount0Min ${params.amount0Min} does not respect the reviewed quote floor ${floor0}..${expected0}.`));
+        checks.push(BigInt(params.amount1Min) >= floor1 && BigInt(params.amount1Min) <= expected1
+          ? check("DECREASE_QUOTE_1", "Quoted token1 minimum", "PASS", `amount1Min ${params.amount1Min} is consistent with independent simulated output ${expected1}.`)
+          : check("DECREASE_QUOTE_1", "Quoted token1 minimum", "FAIL", `amount1Min ${params.amount1Min} does not respect the reviewed quote floor ${floor1}..${expected1}.`));
+      } else {
+        checks.push(check("DECREASE_QUOTE", "Decrease-liquidity quote", "INCONCLUSIVE", "No matching reviewed execution-plan quote was supplied, so Spotriq cannot prove amount0Min/amount1Min represent the reviewed slippage ceiling."));
+      }
     } else if (decoded.functionName === "mint") {
       callKind = "MINT";
       checks.push(lower(String(params.token0)) === lower(intent.subject.token0?.address ?? "") && lower(String(params.token1)) === lower(intent.subject.token1?.address ?? "")
@@ -155,7 +175,10 @@ export function guardRebalancingProposal(args: {
         : check("TICK_ALIGNMENT", "Target tick alignment", "FAIL", "Proposed ticks are invalid or cannot be verified against observed tick spacing."));
       checks.push(...amountChecks(BigInt(params.amount0Desired), BigInt(params.amount1Desired), BigInt(params.amount0Min), BigInt(params.amount1Min), intent, request));
       checks.push(deadlineCheck(BigInt(params.deadline), intent, request));
-      checks.push(check("TARGET_RANGE_REVIEW", "Target range review", "INCONCLUSIVE", "The v0.14 Job Intent captured the current range but not a user-reviewed replacement range. Spotriq therefore refuses to treat mint calldata as fully approved even when its structural arguments are otherwise valid."));
+      const reviewedRange = executionPlan?.targetRange;
+      checks.push(reviewedRange?.state === "USER_REVIEWED" && Number(params.tickLower) === reviewedRange.tickLower && Number(params.tickUpper) === reviewedRange.tickUpper
+        ? check("TARGET_RANGE_REVIEW", "Target range review", "PASS", `Mint uses the user-reviewed replacement range [${reviewedRange.tickLower}, ${reviewedRange.tickUpper}).`)
+        : check("TARGET_RANGE_REVIEW", "Target range review", "INCONCLUSIVE", "Mint target ticks are not backed by the user-reviewed replacement range from the execution plan."));
     } else {
       throw new ExecutionGuardError(`Unsupported V3 function ${decoded.functionName}.`, "UNSUPPORTED_CALL");
     }
@@ -185,7 +208,7 @@ export function guardRebalancingProposal(args: {
     limitations: [
       "This report validates one proposed calldata payload against the reviewed Job Intent and PermissionRequest. It does not submit or simulate a transaction.",
       "The external AgentService would hold the Altana session key. An off-chain Spotriq checker cannot stop that key from bypassing Spotriq and calling an allowed selector directly, so financial execution remains blocked until a non-bypassable execution boundary is introduced.",
-      "A full range rebalance is normally a multi-step plan. v0.16 validates individual V3 calls and deliberately does not reinterpret the v0.14 PREPARE_ONLY maxActionCount as financial execution authority.",
+      "A full range rebalance is a multi-step plan. v0.17 can attach a reviewed quote/range to validate exact plan calls, but this report alone still cannot sign or submit them.",
     ],
   };
 }

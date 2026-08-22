@@ -23,7 +23,7 @@ function intent(): RebalancingJobIntent {
     jobIntentId: "job-1", state: "AWAITING_AUTHORITY", executionState: "NO_EXECUTION", category: "rebalancing", checkSessionId: "check-1", findingId: "finding-1", walletAddress: wallet, walletControl: "VERIFIED_CONTROL",
     requestedAction: { code: "PREPARE_RANGE_REBALANCE", label: "Prepare rebalance", description: "test" },
     subject: { protocol: "PancakeSwap", version: "V3", network: "testnet", tokenId: "42", positionManager, token0: { address: token0, symbol: "WBNB", decimals: 18, isNative: false }, token1: { address: token1, symbol: "USDT", decimals: 18, isNative: false }, poolAddress: "0x5555555555555555555555555555555555555555", pair: "WBNB/USDT", feePips: 500, tickSpacing: 10, tickLower: -100, tickUpper: 100, currentTick: 150, rangeState: "OUT_OF_RANGE_ABOVE", blockNumber: "123" },
-    constraints: { executionMode: "PREPARE_ONLY", maxSlippageBps: 50, maxActionCount: 1, validForMinutes: 30, allowSwapPreparation: true },
+    constraints: { executionMode: "PREPARE_ONLY", maxSlippageBps: 50, maxActionCount: 4, validForMinutes: 30, allowSwapPreparation: true },
     selectedService: { serviceId: "service-1", agentId: "agent-1", name: "Range Agent", operator: "operator", matchId: "match-1", matchRank: 1, matchTier: "EXACT_CONTEXT", readiness: "LIMITED", activationEligible: false, supportedProtocols: ["PancakeSwap"], runtimeEndpoints: [] },
     evidenceReferences: { findingEvidenceIds: [], serviceEvidenceIds: [], readinessEvidenceIds: [] },
     authority: { state: "REQUEST_PREPARED", requiredBeforeExecution: true, permissionProfileId: "perm-1", permissionRequestId: "permission-1", declarationState: "UNDECLARED", walletControl: "VERIFIED_CONTROL", blockers: [] },

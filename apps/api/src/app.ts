@@ -22,6 +22,8 @@ import { createMarketplaceSupply, createMarketplaceTestLab, MemoryMarketplaceSup
 import { createJobIntentEngine, JobIntentError, MemoryJobIntentStore, PostgresJobIntentStore, type JobIntentEngine } from "@spotriq/job-intents";
 import { AuthorityError, createAuthorityEngine, MemoryAuthorityStore, PostgresAuthorityStore, type AuthorityEngine } from "@spotriq/authority";
 import { createAltanaKeystoreVerifier } from "@spotriq/authority/altana";
+import { createExecutionPlanEngine, ExecutionPlanError, MemoryExecutionPlanStore, PostgresExecutionPlanStore, type ExecutionPlanEngine } from "@spotriq/execution-plans";
+import { createExecutionBoundaryEngine, ExecutionBoundaryError, MemoryExecutionBoundaryStore, PostgresExecutionBoundaryStore, type ExecutionBoundaryEngine } from "@spotriq/execution-boundary";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
@@ -34,6 +36,7 @@ import { registerAgentRoutes } from "./routes/agents.js";
 import { registerMarketplaceRoutes } from "./routes/marketplace.js";
 import { registerJobIntentRoutes } from "./routes/job-intents.js";
 import { registerAuthorityRoutes } from "./routes/authority.js";
+import { registerExecutionPlanRoutes } from "./routes/execution-plans.js";
 
 export interface BuildServerOptions {
   config?: ServerConfig;
@@ -47,6 +50,8 @@ export interface BuildServerOptions {
   marketplaceSupply?: MarketplaceSupplyReader;
   jobIntents?: JobIntentEngine;
   authority?: AuthorityEngine;
+  executionPlans?: ExecutionPlanEngine;
+  executionBoundary?: ExecutionBoundaryEngine;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -106,6 +111,14 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     store: authorityStore,
     verifier: createAltanaKeystoreVerifier({ mainnet: registryMainnetChain, testnet: registryTestnetChain }),
   });
+  const executionPlanStore = database
+    ? new PostgresExecutionPlanStore({ query: (text, values) => database.query(text, values) })
+    : new MemoryExecutionPlanStore();
+  const executionPlans = options.executionPlans ?? createExecutionPlanEngine({ store: executionPlanStore, pancakeSwap });
+  const executionBoundaryStore = database
+    ? new PostgresExecutionBoundaryStore({ query: (text, values) => database.query(text, values) })
+    : new MemoryExecutionBoundaryStore();
+  const executionBoundary = options.executionBoundary ?? createExecutionBoundaryEngine({ store: executionBoundaryStore, plans: executionPlans, pancakeSwap });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
@@ -126,7 +139,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.16.0",
+      version: "0.17.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -174,6 +187,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       argumentLevelExecutionGuardEnabled: true,
       altanaTestnetProbeGrantEnabled: true,
       altanaKeystoreVerificationEnabled: true,
+      rebalancingExecutionPlanEnabled: true,
+      nonBypassableExecutionBoundaryEnabled: true,
+      liveFinancialSignerEnabled: false,
       marketplaceActivationEnabled: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
@@ -193,7 +209,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "Smart Money Findings now support deterministic AgentService compatibility ranking using explicit category/protocol/context rules plus evidence quality and operational readiness; no opaque trust or profitability score is produced.",
         "A selected compatible Rebalancing service can become an idempotent, reviewable PREPARE_ONLY Job Intent carrying exact LP contract/token context and user bounds.",
         "v0.16 can verify service-owned Altana-compatible session-key control through a Spotriq A2A extension and fresh runtime challenge; browser-entered keys never satisfy the binding.",
-        "A deterministic V3 calldata guard now decodes individual proposed calls and checks target, LP token ID, recipients, token caps, slippage/deadline bounds, fee tier, and tick alignment where the Job Intent has enough evidence.",
+        "A deterministic V3 calldata guard decodes proposed calls and checks target, LP token ID, recipients, token caps, slippage/deadline bounds, fee tier, and tick alignment against reviewed evidence.",
+        "v0.17 builds a user-reviewed three-step decrease → collect → mint execution plan from a fresh V3 position plus independent owner-context eth_call simulation, and seals exact call hashes/order behind a non-bypassable execution boundary.",
+        "The external AgentService is now an authenticated proposer only. Spotriq v0.17 intentionally provisions no financial signer; v0.18 must grant a boundary-controlled Altana BSC Testnet session rather than financial authority directly to the service key.",
         "A real BSC Testnet Altana passkey/grant/revoke probe is supported for the read-only positions(uint256) selector; it proves the provider/onchain integration without granting financial selector authority or pretending to activate the selected service.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
@@ -213,6 +231,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerMarketplaceRoutes(app, marketplaceSupply, config.agentDiscoveryChainId);
   await registerJobIntentRoutes(app, smartMoney, marketplaceSupply, jobIntents);
   await registerAuthorityRoutes(app, authority, jobIntents, marketplaceSupply);
+  await registerExecutionPlanRoutes(app, executionPlans, executionBoundary, authority, jobIntents);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {
@@ -264,6 +283,17 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
 
     if (error instanceof JobIntentError) {
       const statusCode = error.code === "JOB_INTENT_NOT_FOUND" ? 404 : error.code === "MATCH_REQUIRED" || error.code === "UNSUPPORTED_FINDING" || error.code === "INVALID_STATE" ? 422 : 400;
+      const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
+      return reply.code(statusCode).send(body);
+    }
+
+    if (error instanceof ExecutionPlanError) {
+      const statusCode = error.code === "PLAN_NOT_FOUND" ? 404 : error.code === "QUOTE_FAILED" ? 502 : error.code === "STALE_CONTEXT" || error.code === "INVALID_STATE" ? 422 : 400;
+      const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
+      return reply.code(statusCode).send(body);
+    }
+    if (error instanceof ExecutionBoundaryError) {
+      const statusCode = error.code === "BOUNDARY_NOT_FOUND" ? 404 : error.code === "STALE_CONTEXT" || error.code === "INVALID_STATE" ? 422 : 400;
       const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
       return reply.code(statusCode).send(body);
     }

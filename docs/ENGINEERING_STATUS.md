@@ -18,9 +18,10 @@
 - Rebalancing Vertical Handoff / Reviewable Job Intent
 - Explicit Bounded Permission / Altana Authority Verification
 - Trusted Agent Session-Key Binding + V3 Calldata Guard + Altana BSC Testnet Integration Proof
+- Reviewed Rebalancing Execution Plan + Non-Bypassable Financial Execution Boundary
 
 ## Current source of truth
-Use Spotriq **v0.16.0**.
+Use Spotriq **v0.17.0**.
 
 ## Current live-data spine
 BSC JSON-RPC → protocol adapters → Evidence Engine → Smart Money Engine → Findings → Spotriq UI.
@@ -84,6 +85,16 @@ Consumer financial grant submission remains deliberately blocked as `SAFETY_PRER
 
 Persistence uses the original `permission_requests` and `permission_grants` tables from migration 0001. No new migration was added.
 
+
+
+## Reviewed execution-plan / enforcement-boundary state in v0.17.0
+A confirmed PancakeSwap V3 Rebalancing Job Intent can now produce one deterministic reviewed execution plan. The user must explicitly review a replacement tick range. Spotriq refreshes the LP position and obtains independent expected-token output evidence via an owner-context, block-specific `eth_call` simulation before constructing the exact `decreaseLiquidity → collect → mint` calldata sequence.
+
+Every step is decoded and checked against the Job Intent, bounded token caps, slippage/deadline limits and reviewed target range. A plan reaches `REVIEWED/PASS` only when the complete step set passes. The plan can then be sealed into a `FinancialExecutionBoundary` containing the exact plan hash and call hashes. The selected AgentService is an authenticated proposer only; it never receives the future financial signing key.
+
+A fresh boundary preflight rechecks LP ownership, Position Manager/pair identity, old range/liquidity, current tick versus the reviewed replacement range, and independently simulated expected outputs. The financial signer is intentionally `BOUNDARY_CONTROLLED_NOT_PROVISIONED`, so even a sealed/fresh plan remains `executionEligible = false`. Authority can satisfy all three safety prerequisites but ends at `BOUNDARY_SIGNER_REQUIRED`. There is no financial execution endpoint in v0.17.
+
+Migration `0011_rebalancing_execution_plan_boundary.sql` persists reviewed execution plans and sealed execution boundaries.
 
 ## Trusted service-key binding + execution-guard state in v0.16.0
 A2A services can now expose Spotriq's explicit `urn:spotriq:authority-binding:v1` Agent Card extension. The extension declares a SEC1 secp256k1 session public key, a same-origin challenge endpoint and the EIP-191 verification scheme. Spotriq creates a fresh challenge, reaches the challenge endpoint through the existing SSRF-safe runtime fetcher, and marks the binding `VERIFIED` only when the exact declared key signs the challenge successfully. Missing extension evidence remains `UNAVAILABLE`; malformed/cross-origin/bad-signature evidence becomes `FAILED`. The browser cannot type a key into existence, and Spotriq never generates or stores the external service's private key.
@@ -165,10 +176,11 @@ A2A verification uses Agent Card discovery/validation. Modern MCP verification t
 - Migration 0008 stores distinct service offers, permission profiles, readiness snapshots, capability claims and normalized service cache.
 - Migration 0009 stores immutable Marketplace Test Lab runs and coverage payloads.
 - Migration 0010 stores trusted AgentService authority bindings and Altana BSC Testnet probe observations.
+- Migration 0011 stores reviewed Rebalancing execution plans and sealed financial execution boundaries.
 - Railway PostgreSQL can be attached when the API itself is deployed in Railway; local Railway tunnelling is not required.
 
 ## Next
-Build **v0.17.0 — Reviewed Rebalancing Execution Plan + Non-Bypassable Financial Execution Boundary**. Add a user-reviewed replacement range and independent expected-output/quote evidence, construct a deterministic multi-step Rebalancing execution plan, revalidate LP ownership/current state and grant validity immediately before execution, and route signing/execution through an enforcement boundary that the external AgentService session key cannot bypass. Only after that boundary can constrain the exact target, selector and calldata arguments should Spotriq expose selected-agent financial Altana authority or any BSC Testnet financial execution. After real execution evidence exists: Activity & Outcomes, then generalize the completed vertical across Grid, Yield and Health with equal depth.
+Build **v0.18.0 — Boundary-Controlled Altana Financial Session on BSC Testnet**. Provision real bounded financial authority to the Spotriq execution boundary, never directly to the external AgentService proposal key; reconcile and verify the session through Altana Keystore; add plan-specific token balance/allowance readiness; and preserve fresh execution-boundary preflight. Transaction submission remains disabled until that authority path is proven safe and revocable. After real execution evidence exists: Activity & Outcomes, then generalize the completed vertical across Grid, Yield and Health with equal depth.
 
 ## Rule
 Every completed replacement ZIP becomes the new source of truth.

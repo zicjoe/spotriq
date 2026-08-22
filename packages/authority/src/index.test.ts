@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { AgentAuthorityBinding, AltanaGrantProof, BoundedPermissionRequest, RebalancingExecutionGuardReport, RebalancingJobIntent } from "@spotriq/domain";
+import type { AgentAuthorityBinding, AltanaGrantProof, BoundedPermissionRequest, FinancialExecutionBoundary, RebalancingExecutionGuardReport, RebalancingExecutionPlan, RebalancingJobIntent } from "@spotriq/domain";
 import { createAuthorityEngine, type AltanaKeystoreVerifier } from "./index.js";
 
 const wallet = "0x1111111111111111111111111111111111111111";
@@ -37,7 +37,7 @@ function job(overrides: Partial<RebalancingJobIntent> = {}): RebalancingJobInten
       rangeState: "OUT_OF_RANGE_ABOVE",
       blockNumber: "123",
     },
-    constraints: { executionMode: "PREPARE_ONLY", maxSlippageBps: 50, maxActionCount: 1, validForMinutes: 30, allowSwapPreparation: true },
+    constraints: { executionMode: "PREPARE_ONLY", maxSlippageBps: 50, maxActionCount: 4, validForMinutes: 30, allowSwapPreparation: true },
     selectedService: {
       serviceId: "service-1",
       agentId: "agent-1",
@@ -223,4 +223,51 @@ test("real-testnet probe model verifies read-only scope and observes later revoc
   assert.equal(revoked.state, "REVOKED");
   assert.equal(revoked.onchainValid, false);
   assert.equal(revoked.revocationTransactionHash, `0x${"ff".repeat(32)}`);
+});
+
+
+test("reviewed execution plan satisfies the plan-level argument guard but keeps the boundary prerequisite", async () => {
+  const engine = createAuthorityEngine({ verifier: verifier(true) });
+  const prepared = await engine.prepare(job(), { token0Limit: "1", token1Limit: "2", validForMinutes: 30 }, now);
+  const binding: AgentAuthorityBinding = {
+    bindingId: "binding-plan", serviceId: prepared.serviceId, agentId: "agent-1", state: "VERIFIED", interactionKind: "A2A",
+    runtimeEndpoint: "https://agent.example/a2a", agentCardUrl: "https://agent.example/.well-known/agent-card.json", extensionUri: "urn:spotriq:authority-binding:v1",
+    signatureScheme: "EIP191_SECP256K1", sessionPublicKey: publicKey, sessionKeyAddress: "0x9999999999999999999999999999999999999999",
+    observedAt: now.toISOString(), evidenceIds: [], methodVersion: "test", detail: "verified", limitations: [],
+  };
+  const withBinding = await engine.applyTrustedAgentBinding(prepared.permissionRequestId, binding, now);
+  const plan = {
+    planId: "plan-1", jobIntentId: withBinding.jobIntentId, permissionRequestId: withBinding.permissionRequestId, serviceId: withBinding.serviceId,
+    state: "REVIEWED", guardState: "PASS", steps: [{ index: 0 }],
+  } as unknown as RebalancingExecutionPlan;
+  const withPlan = await engine.applyExecutionPlan(withBinding.permissionRequestId, plan, now);
+  assert.equal(withPlan.executionPlanId, "plan-1");
+  assert.equal(withPlan.safetyPrerequisites.find((x) => x.code === "ARGUMENT_LEVEL_EXECUTION_GUARD")?.state, "SATISFIED");
+  assert.equal(withPlan.safetyPrerequisites.find((x) => x.code === "NON_BYPASSABLE_FINANCIAL_EXECUTION_BOUNDARY")?.state, "REQUIRED");
+  assert.equal(withPlan.providerSubmissionState, "SAFETY_PREREQUISITES_REQUIRED");
+  assert.equal(withPlan.activationEligible, false);
+});
+
+test("sealed boundary satisfies the final safety prerequisite but still requires a boundary financial signer", async () => {
+  const engine = createAuthorityEngine({ verifier: verifier(true) });
+  const prepared = await engine.prepare(job(), { token0Limit: "1", token1Limit: "2", validForMinutes: 30 }, now);
+  const binding: AgentAuthorityBinding = {
+    bindingId: "binding-boundary", serviceId: prepared.serviceId, agentId: "agent-1", state: "VERIFIED", interactionKind: "A2A",
+    runtimeEndpoint: "https://agent.example/a2a", agentCardUrl: "https://agent.example/.well-known/agent-card.json", extensionUri: "urn:spotriq:authority-binding:v1",
+    signatureScheme: "EIP191_SECP256K1", sessionPublicKey: publicKey, sessionKeyAddress: "0x9999999999999999999999999999999999999999",
+    observedAt: now.toISOString(), evidenceIds: [], methodVersion: "test", detail: "verified", limitations: [],
+  };
+  const withBinding = await engine.applyTrustedAgentBinding(prepared.permissionRequestId, binding, now);
+  const plan = { planId: "plan-2", jobIntentId: withBinding.jobIntentId, permissionRequestId: withBinding.permissionRequestId, serviceId: withBinding.serviceId, state: "REVIEWED", guardState: "PASS", steps: [{ index: 0 }] } as unknown as RebalancingExecutionPlan;
+  const withPlan = await engine.applyExecutionPlan(withBinding.permissionRequestId, plan, now);
+  const boundary = {
+    boundaryId: "boundary-2", planId: "plan-2", jobIntentId: withPlan.jobIntentId, permissionRequestId: withPlan.permissionRequestId, serviceId: withPlan.serviceId,
+    state: "SEALED", nonBypassable: true,
+  } as unknown as FinancialExecutionBoundary;
+  const withBoundary = await engine.applyExecutionBoundary(withPlan.permissionRequestId, boundary, now);
+  assert.equal(withBoundary.executionBoundaryId, "boundary-2");
+  assert.equal(withBoundary.financialDelegateMode, "SPOTRIQ_EXECUTION_BOUNDARY");
+  assert.equal(withBoundary.safetyPrerequisites.every((x) => x.state === "SATISFIED"), true);
+  assert.equal(withBoundary.providerSubmissionState, "BOUNDARY_SIGNER_REQUIRED");
+  assert.equal(withBoundary.activationEligible, false);
 });

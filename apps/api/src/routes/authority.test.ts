@@ -29,7 +29,7 @@ const job: RebalancingJobIntent = {
     token1: { address: "0x4444444444444444444444444444444444444444", symbol: "USDT", decimals: 18, isNative: false },
     poolAddress: "0x5555555555555555555555555555555555555555", pair: "WBNB/USDT", tickLower: -100, tickUpper: 100, currentTick: 150, rangeState: "OUT_OF_RANGE_ABOVE", blockNumber: "999",
   },
-  constraints: { executionMode: "PREPARE_ONLY", maxSlippageBps: 50, maxActionCount: 1, validForMinutes: 30, allowSwapPreparation: false },
+  constraints: { executionMode: "PREPARE_ONLY", maxSlippageBps: 50, maxActionCount: 4, validForMinutes: 30, allowSwapPreparation: false },
   selectedService: { serviceId: "svc-api", agentId: "agent-api", name: "Range Agent", operator: "operator", matchId: "match-api", matchRank: 1, matchTier: "EXACT_CONTEXT", readiness: "LIMITED", activationEligible: false, supportedProtocols: ["PancakeSwap"], runtimeEndpoints: [] },
   evidenceReferences: { findingEvidenceIds: [], serviceEvidenceIds: [], readinessEvidenceIds: [] },
   authority: { state: "UNRESOLVED", requiredBeforeExecution: true, permissionProfileId: "perm-api", declarationState: "UNDECLARED", walletControl: "WATCH_ONLY", blockers: [] },

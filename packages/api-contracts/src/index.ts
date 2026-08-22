@@ -62,6 +62,9 @@ export interface CapabilityResponse {
   argumentLevelExecutionGuardEnabled: boolean;
   altanaTestnetProbeGrantEnabled: boolean;
   altanaKeystoreVerificationEnabled: boolean;
+  rebalancingExecutionPlanEnabled: boolean;
+  nonBypassableExecutionBoundaryEnabled: boolean;
+  liveFinancialSignerEnabled: boolean;
   marketplaceActivationEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
@@ -287,3 +290,20 @@ export interface ReverifyAltanaTestnetProbeRequest {
   revocationTransactionHash?: string;
 }
 
+
+
+export interface PrepareRebalancingExecutionPlanRequest {
+  targetTickLower: number;
+  targetTickUpper: number;
+}
+export interface RebalancingExecutionPlanResponse {
+  plan: import("@spotriq/domain").RebalancingExecutionPlan;
+  request?: import("@spotriq/domain").BoundedPermissionRequest;
+}
+export interface FinancialExecutionBoundaryResponse {
+  boundary: import("@spotriq/domain").FinancialExecutionBoundary;
+  request?: import("@spotriq/domain").BoundedPermissionRequest;
+}
+export interface ExecutionBoundaryPreflightResponse {
+  preflight: import("@spotriq/domain").ExecutionBoundaryPreflight;
+}

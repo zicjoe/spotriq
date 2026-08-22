@@ -192,6 +192,7 @@ test("Smart Money Check keeps partial financial coverage explicit while enabling
       tokens: [], coverage: { nativeBalance: "AVAILABLE" as const, tokenBalances: "NOT_REQUESTED" as const, failedTokenAddresses: [] },
     }),
     callContract: async () => { throw new Error("not used"); },
+    callContractFrom: async () => { throw new Error("not used"); },
   } satisfies BscChainReader;
 
   const pancake = {
@@ -203,6 +204,7 @@ test("Smart Money Check keeps partial financial coverage explicit while enabling
     getInfinityClPosition: async () => makePosition("IN_RANGE"),
     getPosition: async () => makePosition("OUT_OF_RANGE_ABOVE"),
     getWalletPositions: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt, positions: [makePosition("OUT_OF_RANGE_ABOVE")], coverage: { v3Discovery: "AVAILABLE" as const, infinityClDiscovery: "TOKEN_ID_REQUIRED" as const, failedV3PositionRefs: [], truncated: false, maxPositions: 50 } }),
+    quoteV3DecreaseLiquidity: async () => { throw new Error("not used"); },
   } satisfies PancakeSwapReader;
 
   const venus = {

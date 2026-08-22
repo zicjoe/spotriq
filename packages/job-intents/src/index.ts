@@ -147,7 +147,7 @@ function normalizedConstraints(
   return {
     executionMode: "PREPARE_ONLY",
     maxSlippageBps,
-    maxActionCount: 1,
+    maxActionCount: 4,
     validForMinutes,
     allowSwapPreparation,
   };
@@ -162,7 +162,7 @@ function authorityBlockers(session: CheckSession, match: FindingServiceMatch): s
   if (session.walletControl !== "VERIFIED_CONTROL") blockers.add("Wallet control has not been verified for this Smart Money Check.");
   if (match.service.permissionProfile.declarationState !== "DECLARED") blockers.add("The selected service does not yet publish an explicit permission profile.");
   if (!match.activationEligible) blockers.add(`The selected service is ${match.service.readiness.state} and is not activation-eligible.`);
-  blockers.add("This reviewable PREPARE_ONLY Job Intent does not authorize or perform financial execution.");
+  blockers.add("This reviewable PREPARE_ONLY Job Intent allows at most four reviewed plan steps but does not authorize or perform financial execution.");
   return [...blockers];
 }
 

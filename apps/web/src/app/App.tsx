@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, FindingServiceMatch, FindingServiceMatchPage, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -34,6 +34,7 @@ import { marketplaceSupplyRepository } from "../repositories/marketplaceSupplyRe
 import { jobIntentRepository } from "../repositories/jobIntentRepository";
 import { authorityRepository } from "../repositories/authorityRepository";
 import { altanaHandlers } from "../services/altanaHandlers";
+import { executionPlanRepository } from "../repositories/executionPlanRepository";
 
 const {
   services: SERVICES,
@@ -2348,6 +2349,12 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
   const [altanaWalletBusy, setAltanaWalletBusy] = useState(false);
   const [probe, setProbe] = useState<AltanaTestnetProbeObservation>();
   const [probeBusy, setProbeBusy] = useState(false);
+  const [executionPlan, setExecutionPlan] = useState<RebalancingExecutionPlan>();
+  const [executionBoundary, setExecutionBoundary] = useState<FinancialExecutionBoundary>();
+  const [boundaryPreflight, setBoundaryPreflight] = useState<ExecutionBoundaryPreflight>();
+  const [targetTickLower, setTargetTickLower] = useState("");
+  const [targetTickUpper, setTargetTickUpper] = useState("");
+  const [executionPlanBusy, setExecutionPlanBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -2374,6 +2381,13 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
         void authorityRepository.getGrant(value.authority.permissionGrantId).then((grant) => { if (active) setPermissionGrant(grant); }).catch(() => undefined);
       }
       void authorityRepository.getTestnetProbeForJob(value.jobIntentId).then((savedProbe) => { if (active && savedProbe) setProbe(savedProbe); }).catch(() => undefined);
+      void executionPlanRepository.getForJob(value.jobIntentId).then((savedPlan) => {
+        if (!active || !savedPlan) return;
+        setExecutionPlan(savedPlan);
+        setTargetTickLower(String(savedPlan.targetRange.tickLower));
+        setTargetTickUpper(String(savedPlan.targetRange.tickUpper));
+        if (savedPlan.enforcementBoundaryId) void executionPlanRepository.getBoundary(savedPlan.enforcementBoundaryId).then((savedBoundary) => { if (active) setExecutionBoundary(savedBoundary); }).catch(() => undefined);
+      }).catch(() => undefined);
     }).catch((cause) => {
       if (active) setError(cause instanceof Error ? cause.message : "Spotriq could not load this job intent.");
     }).finally(() => { if (active) setLoading(false); });
@@ -2536,6 +2550,31 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
     } finally {
       setProbeBusy(false);
     }
+  };
+
+  const prepareExecutionPlan = async () => {
+    if (!intent || !permissionRequest) return;
+    setExecutionPlanBusy(true); setError(undefined);
+    try {
+      const lower = Number(targetTickLower), upper = Number(targetTickUpper);
+      const plan = await executionPlanRepository.prepare(intent.jobIntentId, { targetTickLower: lower, targetTickUpper: upper });
+      setExecutionPlan(plan); setExecutionBoundary(undefined); setBoundaryPreflight(undefined);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Spotriq could not prepare the reviewed Rebalancing execution plan."); } finally { setExecutionPlanBusy(false); }
+  };
+  const reviewExecutionPlan = async () => {
+    if (!executionPlan) return; setExecutionPlanBusy(true); setError(undefined);
+    try { const plan = await executionPlanRepository.review(executionPlan.planId); setExecutionPlan(plan); if (permissionRequest) setPermissionRequest(await authorityRepository.getRequest(permissionRequest.permissionRequestId)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Spotriq could not confirm the execution plan against fresh onchain state."); } finally { setExecutionPlanBusy(false); }
+  };
+  const sealExecutionBoundary = async () => {
+    if (!executionPlan) return; setExecutionPlanBusy(true); setError(undefined);
+    try { const boundary = await executionPlanRepository.sealBoundary(executionPlan.planId); setExecutionBoundary(boundary); setExecutionPlan(await executionPlanRepository.get(executionPlan.planId)); if (permissionRequest) setPermissionRequest(await authorityRepository.getRequest(permissionRequest.permissionRequestId)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Spotriq could not seal the non-bypassable execution boundary."); } finally { setExecutionPlanBusy(false); }
+  };
+  const runBoundaryPreflight = async () => {
+    if (!executionBoundary) return; setExecutionPlanBusy(true); setError(undefined);
+    try { setBoundaryPreflight(await executionPlanRepository.preflight(executionBoundary.boundaryId)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Spotriq could not refresh execution-boundary preflight state."); } finally { setExecutionPlanBusy(false); }
   };
 
   const reverifyBoundedGrant = async () => {
@@ -2749,6 +2788,16 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
             </div>
           )}
 
+          {permissionRequest && subject.version === "V3" && (
+            <div className="space-y-4 pt-4 border-t border-white/7">
+              <div className="flex items-start justify-between gap-3"><div><div className="text-xs font-medium text-[#dde3ef]">Reviewed Rebalancing execution plan</div><p className="text-[10px] text-[#6b7d99] mt-1 max-w-2xl">v0.17 refreshes the exact LP position, simulates <span className="font-mono">decreaseLiquidity</span> with read-only <span className="font-mono">eth_call</span>, builds exact decrease → collect → mint calldata, and requires explicit replacement-range review. Nothing is signed or submitted.</p></div><Badge variant="purple">v0.17</Badge></div>
+              <div className="grid sm:grid-cols-2 gap-3"><label className="space-y-1.5"><span className="text-[10px] text-[#6b7d99]">Replacement lower tick</span><input value={targetTickLower} onChange={(event)=>setTargetTickLower(event.target.value)} placeholder={String(subject.currentTick - (subject.tickSpacing ?? 1) * 10)} className="w-full bg-[#151d2a] border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-[#dde3ef] focus:outline-none focus:border-[#2dd4bf]/40" /></label><label className="space-y-1.5"><span className="text-[10px] text-[#6b7d99]">Replacement upper tick</span><input value={targetTickUpper} onChange={(event)=>setTargetTickUpper(event.target.value)} placeholder={String(subject.currentTick + (subject.tickSpacing ?? 1) * 10)} className="w-full bg-[#151d2a] border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-[#dde3ef] focus:outline-none focus:border-[#2dd4bf]/40" /></label></div>
+              <div className="flex flex-wrap gap-2"><Btn variant="secondary" onClick={()=>void prepareExecutionPlan()} disabled={executionPlanBusy||!targetTickLower||!targetTickUpper}>{executionPlanBusy?<><RefreshCw className="w-4 h-4 animate-spin"/>Refreshing plan</>:<><FileText className="w-4 h-4"/>Prepare exact plan</>}</Btn>{executionPlan?.state==="REVIEWABLE"&&<Btn variant="teal-outline" onClick={()=>void reviewExecutionPlan()} disabled={executionPlanBusy}><CheckCircle2 className="w-4 h-4"/>Review range + refresh quote</Btn>}{executionPlan?.state==="REVIEWED"&&executionPlan.guardState==="PASS"&&!executionBoundary&&<Btn variant="teal-outline" onClick={()=>void sealExecutionBoundary()} disabled={executionPlanBusy}><Lock className="w-4 h-4"/>Seal execution boundary</Btn>}{executionBoundary&&<Btn variant="secondary" onClick={()=>void runBoundaryPreflight()} disabled={executionPlanBusy}><RefreshCw className="w-4 h-4"/>Fresh preflight</Btn>}</div>
+              {executionPlan&&<div className="rounded-lg border border-white/7 bg-black/10 p-4 space-y-3"><div className="flex items-center justify-between"><div><div className="text-[11px] text-[#9aacc4]">{executionPlan.targetRange.state==="USER_REVIEWED"?"User-reviewed plan":"Reviewable draft"}</div><div className="text-[10px] font-mono text-[#52637b] mt-0.5 break-all">{executionPlan.planId}</div></div><div className="flex gap-2"><Badge variant={executionPlan.guardState==="PASS"?"green":executionPlan.guardState==="BLOCKED"?"red":"amber"}>{executionPlan.guardState}</Badge><Badge variant="muted">{executionPlan.state}</Badge></div></div><div className="grid sm:grid-cols-3 gap-3 text-[10px]"><div><span className="text-[#6b7d99]">Target range</span><div className="font-mono text-[#dde3ef] mt-0.5">[{executionPlan.targetRange.tickLower}, {executionPlan.targetRange.tickUpper})</div></div><div><span className="text-[#6b7d99]">Quote block</span><div className="font-mono text-[#dde3ef] mt-0.5">{executionPlan.quote.blockNumber}</div></div><div><span className="text-[#6b7d99]">Plan hash</span><div className="font-mono text-[#9aacc4] truncate mt-0.5" title={executionPlan.planHash}>{executionPlan.planHash}</div></div></div><div className="space-y-2">{executionPlan.steps.map((step)=><div key={step.index} className="rounded-md border border-white/6 p-3 flex items-start justify-between gap-3"><div><div className="text-[11px] text-[#dde3ef]">{step.index+1}. {step.label}</div><div className="text-[10px] text-[#52637b] font-mono mt-1 break-all">{step.callHash}</div></div><Badge variant={step.guard.state==="PASS"?"green":step.guard.state==="BLOCKED"?"red":"amber"}>{step.guard.state}</Badge></div>)}</div><p className="text-[10px] text-[#7f725f]">Independent expected decrease outputs: {executionPlan.quote.expectedDecreaseAmount0Raw} / {executionPlan.quote.expectedDecreaseAmount1Raw} raw units. Quote expiry: {new Date(executionPlan.quote.expiresAt).toLocaleTimeString()}.</p></div>}
+              {executionBoundary&&<div className="rounded-lg border border-[#2dd4bf]/15 bg-[#2dd4bf]/[0.025] p-4 space-y-2"><div className="flex items-center justify-between"><div><div className="text-[11px] font-medium text-[#dde3ef]">Non-bypassable execution boundary sealed</div><div className="text-[10px] text-[#6b7d99] mt-1">External agent role: authenticated proposer only. Future financial signer: boundary-controlled and not provisioned.</div></div><Badge variant="green">SEALED</Badge></div><div className="text-[10px] font-mono text-[#52637b] break-all">{executionBoundary.boundaryId}</div>{boundaryPreflight&&<div className="pt-2 border-t border-white/6"><div className="flex items-center justify-between"><span className="text-[10px] text-[#9aacc4]">Latest preflight</span><Badge variant={boundaryPreflight.state==="PASS_AUTHORITY_REQUIRED"?"green":"amber"}>{boundaryPreflight.state.replaceAll("_"," ")}</Badge></div>{boundaryPreflight.checks.map((check)=><div key={check.code} className="flex items-start justify-between gap-3 mt-2 text-[10px]"><span className="text-[#8090a8]">{check.label}<span className="block text-[#52637b]">{check.detail}</span></span><span className={check.state==="PASS"?"text-[#4ade80]":check.state==="FAIL"?"text-[#f87171]":"text-[#f59e0b]"}>{check.state}</span></div>)}</div>}<p className="text-[10px] text-[#7f725f]">No financial signer exists in v0.17. Sealing proves the future signer can be constrained to these exact call hashes/order; v0.18 will provision the bounded Altana BSC Testnet financial session to this boundary, not directly to the external service.</p></div>}
+            </div>
+          )}
+
           {subject.network === "testnet" && subject.version === "V3" && subject.positionManager && (
             <div className="space-y-4 pt-4 border-t border-white/7">
               <div className="flex items-start justify-between gap-3"><div><div className="text-xs font-medium text-[#dde3ef]">Altana BSC Testnet integration proof</div><p className="text-[10px] text-[#6b7d99] mt-1 max-w-2xl">This creates or recovers an Altana passkey smart wallet and can register a real session restricted to the read-only <span className="font-mono">positions(uint256)</span> selector on this exact Position Manager. It proves grant, Keystore verification and revoke plumbing only — it is not the selected agent's financial authority.</p></div><Badge variant="purple">TESTNET PROBE</Badge></div>
@@ -2784,7 +2833,7 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
       {isConfirmed ? (
         <div className="rounded-xl border border-[#2dd4bf]/20 bg-[#2dd4bf]/[0.03] p-5 flex items-start gap-3">
           <CheckCircle2 className="w-5 h-5 text-[#2dd4bf] shrink-0 mt-0.5" />
-          <div><div className="font-medium text-[#dde3ef]">{intent.authority.state === "GRANT_VERIFIED" ? "Bounded grant verified — execution still disabled" : intent.authority.state === "REQUEST_PREPARED" ? "Job confirmed — bounded authority scope prepared" : "Job confirmed — define bounded authority below"}</div><p className="text-xs text-[#8090a8] mt-1">Spotriq has recorded the job and can now derive an explicit permission scope. Nothing is financially executed in v0.16. Spotriq can now verify a service-owned key, inspect individual calldata proposals, and prove the Altana BSC Testnet grant/revoke plumbing with a harmless read-only probe, while direct financial selector authority remains blocked until a non-bypassable execution boundary exists.</p></div>
+          <div><div className="font-medium text-[#dde3ef]">{intent.authority.state === "GRANT_VERIFIED" ? "Bounded grant verified — execution still disabled" : intent.authority.state === "REQUEST_PREPARED" ? "Job confirmed — bounded authority scope prepared" : "Job confirmed — define bounded authority below"}</div><p className="text-xs text-[#8090a8] mt-1">Spotriq has recorded the job and can now derive an explicit permission scope. Nothing is financially executed in v0.17. Spotriq can now verify a service-owned key, inspect individual calldata proposals, and prove the Altana BSC Testnet grant/revoke plumbing with a harmless read-only probe, while direct financial selector authority remains blocked until a reviewed execution plan is sealed. v0.17 can now seal that boundary, but the financial signer remains intentionally unprovisioned until v0.18.</p></div>
         </div>
       ) : (
         <div className="flex flex-col sm:flex-row gap-3">

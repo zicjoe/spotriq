@@ -473,10 +473,13 @@ export interface BoundedPermissionRequest {
   expiresAt: string;
   expiryUnix: number;
   status: "READY" | "SUBMITTED" | "CONFIRMED" | "REJECTED" | "FAILED" | "EXPIRED";
-  providerSubmissionState: "SAFETY_PREREQUISITES_REQUIRED" | "SESSION_KEY_REQUIRED" | "READY_FOR_WALLET" | "SUBMITTED" | "RECONCILED";
+  providerSubmissionState: "SAFETY_PREREQUISITES_REQUIRED" | "SESSION_KEY_REQUIRED" | "READY_FOR_WALLET" | "BOUNDARY_SIGNER_REQUIRED" | "SUBMITTED" | "RECONCILED";
   safetyPrerequisites: AuthoritySafetyPrerequisite[];
   trustedAgentBinding?: AgentAuthorityBinding;
   latestExecutionGuard?: RebalancingExecutionGuardReport;
+  executionPlanId?: string;
+  executionBoundaryId?: string;
+  financialDelegateMode?: "SPOTRIQ_EXECUTION_BOUNDARY";
   submissionBlockers: string[];
   walletControl: WalletControlState;
   scopeProvenance: "marketplace-derived";
@@ -1432,7 +1435,7 @@ export type JobIntentExecutionState = "NO_EXECUTION";
 export interface RebalancingJobConstraints {
   executionMode: "PREPARE_ONLY";
   maxSlippageBps: number;
-  maxActionCount: 1;
+  maxActionCount: 4;
   validForMinutes: number;
   allowSwapPreparation: boolean;
 }
@@ -1515,4 +1518,168 @@ export interface RebalancingJobIntent {
   updatedAt: string;
   expiresAt: string;
   limitations: string[];
+}
+
+
+// ─── Reviewed Rebalancing execution plan + enforcement boundary (v0.17) ─────
+
+export interface PancakeSwapV3DecreaseQuote {
+  protocol: "PancakeSwap";
+  version: "V3";
+  network: BscNetwork;
+  chainId: number;
+  positionManager: string;
+  tokenId: string;
+  owner: string;
+  liquidityRaw: string;
+  expectedAmount0Raw: string;
+  expectedAmount1Raw: string;
+  recordedTokensOwed0Raw: string;
+  recordedTokensOwed1Raw: string;
+  blockNumber: string;
+  observedAt: string;
+  quoteMethod: "ETH_CALL_SIMULATION";
+  limitations: string[];
+}
+
+export interface RebalancingTargetRangeReview {
+  tickLower: number;
+  tickUpper: number;
+  tickSpacing: number;
+  currentTickAtReview: number;
+  state: "PROPOSED" | "USER_REVIEWED";
+  proposedBy: "USER" | "SPOTRIQ_DETERMINISTIC_DRAFT";
+  reviewedAt?: string;
+  detail: string;
+}
+
+export interface RebalancingExecutionQuote {
+  quoteId: string;
+  jobIntentId: string;
+  blockNumber: string;
+  observedAt: string;
+  expiresAt: string;
+  method: "PANCAKESWAP_V3_ETH_CALL_SIMULATION";
+  liquidityRaw: string;
+  expectedDecreaseAmount0Raw: string;
+  expectedDecreaseAmount1Raw: string;
+  recordedTokensOwed0Raw: string;
+  recordedTokensOwed1Raw: string;
+  expectedCollectAmount0Raw: string;
+  expectedCollectAmount1Raw: string;
+  evidenceState: "OBSERVED";
+  limitations: string[];
+}
+
+export type RebalancingExecutionStepKind = "DECREASE_LIQUIDITY" | "COLLECT" | "MINT";
+
+export interface RebalancingExecutionPlanStep {
+  index: number;
+  kind: RebalancingExecutionStepKind;
+  label: string;
+  call: { to: string; data: string; valueRaw: string };
+  callHash: string;
+  decodedSummary: Record<string, string | number | boolean>;
+  guard: RebalancingExecutionGuardReport;
+}
+
+export interface RebalancingExecutionPlanPositionSnapshot {
+  tokenId: string;
+  owner: string;
+  positionManager: string;
+  poolAddress?: string;
+  token0: ProtocolTokenMetadata;
+  token1: ProtocolTokenMetadata;
+  feePips: number;
+  tickLower: number;
+  tickUpper: number;
+  currentTick: number;
+  tickSpacing: number;
+  liquidityRaw: string;
+  recordedTokensOwed0Raw: string;
+  recordedTokensOwed1Raw: string;
+  blockNumber: string;
+  observedAt: string;
+}
+
+export interface RebalancingExecutionPlan {
+  planId: string;
+  jobIntentId: string;
+  permissionRequestId: string;
+  serviceId: string;
+  walletAddress: string;
+  network: BscNetwork;
+  chainId: 56 | 97;
+  state: "REVIEWABLE" | "REVIEWED" | "STALE" | "BLOCKED";
+  targetRange: RebalancingTargetRangeReview;
+  positionSnapshot: RebalancingExecutionPlanPositionSnapshot;
+  quote: RebalancingExecutionQuote;
+  steps: RebalancingExecutionPlanStep[];
+  planHash: string;
+  guardState: "PASS" | "BLOCKED" | "INCONCLUSIVE";
+  enforcementBoundaryId?: string;
+  executionEligible: false;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface FinancialExecutionBoundary {
+  boundaryId: string;
+  planId: string;
+  jobIntentId: string;
+  permissionRequestId: string;
+  serviceId: string;
+  walletAddress: string;
+  network: BscNetwork;
+  state: "SEALED" | "STALE" | "BLOCKED" | "CONSUMED";
+  planHash: string;
+  approvedCallHashes: string[];
+  approvedStepCount: number;
+  dispatchPolicy: "EXACT_PLAN_CALL_HASH_AND_ORDER";
+  externalAgentRole: "AUTHENTICATED_PROPOSER_ONLY";
+  financialSignerCustody: "BOUNDARY_CONTROLLED_NOT_PROVISIONED";
+  nonBypassable: true;
+  executionEligible: false;
+  sealedAt: string;
+  expiresAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface ExecutionBoundaryCheck {
+  code: string;
+  label: string;
+  state: "PASS" | "FAIL" | "REQUIRED";
+  detail: string;
+}
+
+export interface ExecutionBoundaryPreflight {
+  preflightId: string;
+  boundaryId: string;
+  planId: string;
+  state: "PASS_AUTHORITY_REQUIRED" | "BLOCKED" | "STALE";
+  checks: ExecutionBoundaryCheck[];
+  observedBlockNumber?: string;
+  checkedAt: string;
+  financialGrantRequired: true;
+  signerProvisioned: false;
+  executionEligible: false;
+  limitations: string[];
+}
+
+export interface ExecutionBoundaryDecision {
+  boundaryId: string;
+  planId: string;
+  stepIndex: number;
+  callHash: string;
+  state: "APPROVED_FOR_BOUNDARY" | "BLOCKED";
+  exactPlanCall: boolean;
+  correctOrder: boolean;
+  signerProvisioned: false;
+  executionEligible: false;
+  checkedAt: string;
+  detail: string;
 }

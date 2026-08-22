@@ -85,6 +85,7 @@ export interface BscChainReader {
   getErc20Balance(tokenAddress: string, walletAddress: string, blockNumber?: string): Promise<Erc20BalanceSnapshot>;
   getWalletBalances(walletAddress: string, tokenAddresses?: string[]): Promise<WalletBalanceSnapshot>;
   callContract(contractAddress: string, data: string, blockNumber?: string): Promise<{ data: string; blockNumber: string }>;
+  callContractFrom(contractAddress: string, data: string, fromAddress: string, blockNumber?: string): Promise<{ data: string; blockNumber: string }>;
 }
 
 export interface BscChainAdapterOptions {
@@ -428,6 +429,17 @@ export class BscChainAdapter implements BscChainReader {
     }
     const observedBlock = blockNumber ?? await this.getBlockNumber();
     const { result } = await this.ethCall(contract, data, observedBlock);
+    return { data: result, blockNumber: observedBlock };
+  }
+
+  async callContractFrom(contractAddress: string, data: string, fromAddress: string, blockNumber?: string): Promise<{ data: string; blockNumber: string }> {
+    const contract = assertAddress(contractAddress);
+    const from = assertAddress(fromAddress);
+    if (!/^0x[0-9a-fA-F]*$/.test(data) || data.length % 2 !== 0) {
+      throw new BscChainError("Contract calldata must be a 0x-prefixed even-length hexadecimal string.", "RPC_RESPONSE_INVALID");
+    }
+    const observedBlock = blockNumber ?? await this.getBlockNumber();
+    const { result } = await this.request<string>("eth_call", [{ to: contract, from, data }, blockTagFromNumber(observedBlock)]);
     return { data: result, blockNumber: observedBlock };
   }
 

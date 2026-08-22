@@ -24,6 +24,12 @@ packages/
   market-context/ PancakeSwap V3 onchain TWAP context + deterministic Grid regime
   smart-money/    live check orchestration + deterministic findings + persistence adapters
   agent-registry/  ERC-8004 canonical identity + 8004scan indexed discovery
+  marketplace-supply/ financial service normalization, Test Lab, matching, trusted runtime evidence
+  job-intents/      reviewable Rebalancing job intent lifecycle
+  authority/        bounded permission requests, Altana verification and safety prerequisites
+  execution-guard/  deterministic PancakeSwap V3 calldata validation
+  execution-plans/  reviewed deterministic Rebalancing execution plans
+  execution-boundary/ exact-plan non-bypassable financial enforcement boundary
 ```
 
 ## Windows PowerShell setup
@@ -292,7 +298,7 @@ Migration `0010_trusted_agent_binding_and_altana_probe.sql` persists trusted bin
 
 ## Next milestone
 
-Build **v0.17.0 — Reviewed Rebalancing Execution Plan + Non-Bypassable Financial Execution Boundary**. Add a user-reviewed replacement range and independent expected-output/quote evidence, build a deterministic multi-step Rebalancing plan, immediately revalidate LP ownership/current state and grant validity, and enforce exact target/selector/calldata through a path the external AgentService session key cannot bypass. Only after that enforcement boundary exists should Spotriq expose selected-agent financial Altana authority or BSC Testnet financial execution.
+Build **v0.18.0 — Boundary-Controlled Altana Financial Session on BSC Testnet**. Provision the real financial session to the Spotriq execution boundary rather than the external service proposal key, reconcile and verify it onchain, prove balance/allowance readiness for the exact reviewed V3 plan, and retain fresh boundary preflight. Financial transaction submission remains a later gate.
 
 
 ## v0.9.2 registry visibility
@@ -302,3 +308,25 @@ Explore now renders all live ERC-8004 identities in the All view. Recognized fin
 ## v0.10.0 marketplace supply/readiness
 
 Spotriq now preserves the full supply sequence `AgentIdentity → AgentListing → AgentService → Offer/PermissionProfile → ReadinessSnapshot`. Supported-category ERC-8004 identities can appear as normalized service candidates in Explore, but capability remains operator-claimed until Marketplace Test Lab evidence exists. Pricing and authority remain undeclared unless explicitly supplied, canonical mismatches suspend candidates, testnet candidates remain testnet-only, and all registry-derived candidates have activation blocked in this release.
+
+## v0.17.0 Reviewed Rebalancing Execution Plan + Non-Bypassable Financial Execution Boundary
+
+A confirmed V3 Rebalancing Job Intent can now become an exact three-step `decreaseLiquidity → collect → mint` execution plan after the user reviews a replacement range. Spotriq refreshes the LP state and obtains independent expected-output evidence using a read-only owner-context `eth_call` simulation; failed simulation stops the plan instead of producing synthetic values.
+
+A reviewed/PASS plan can be sealed behind an exact-plan boundary. The external AgentService remains an authenticated proposer only, while the future financial signer is boundary-controlled and intentionally unprovisioned. Fresh preflight revalidates LP ownership/state, target-range relevance and expected outputs. There is no transaction-submission endpoint and `executionEligible` remains false in v0.17.
+
+New persistence migration: `0011_rebalancing_execution_plan_boundary.sql`.
+
+Key APIs:
+
+```text
+POST /v1/job-intents/:jobIntentId/execution-plans
+GET  /v1/job-intents/:jobIntentId/execution-plan
+GET  /v1/execution-plans/:planId
+POST /v1/execution-plans/:planId/review
+POST /v1/execution-plans/:planId/seal-boundary
+GET  /v1/execution-boundaries/:boundaryId
+POST /v1/execution-boundaries/:boundaryId/preflight
+```
+
+The next milestone is v0.18.0: provision a real bounded Altana BSC Testnet financial session to the Spotriq execution boundary—not to the external service proposal key—and verify that authority before any later financial submission path is considered.

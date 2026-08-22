@@ -73,6 +73,15 @@ const required = [
   "apps/web/src/services/altanaHandlers.ts",
   "docs/TRUSTED_BINDING_AND_EXECUTION_GUARD.md",
   "docs/IMPLEMENTATION_REPORT_TRUSTED_BINDING_EXECUTION_GUARD_v0.16.0.md",
+  "packages/execution-plans/package.json",
+  "packages/execution-plans/src/index.ts",
+  "packages/execution-boundary/package.json",
+  "packages/execution-boundary/src/index.ts",
+  "packages/db/migrations/0011_rebalancing_execution_plan_boundary.sql",
+  "apps/api/src/routes/execution-plans.ts",
+  "apps/web/src/repositories/executionPlanRepository.ts",
+  "docs/REBALANCING_EXECUTION_PLAN_BOUNDARY.md",
+  "docs/IMPLEMENTATION_REPORT_REBALANCING_EXECUTION_PLAN_BOUNDARY_v0.17.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -240,7 +249,7 @@ if (!jobIntentRoutes.includes("marketplaceSupply.matchFinding") || !jobIntentRou
 for (const marker of ["RebalancingJobIntent", "RebalancingJobConstraints", "JobIntentAuthorityRequirement", "jobIntentId?: string"]) {
   if (!domain.includes(marker)) throw new Error(`Job Intent domain model is missing ${marker}.`);
 }
-if (!appUi.includes("Prepare job") || !appUi.includes("Review the job before authority") || !appUi.includes("Confirm job intent") || !appUi.includes("Nothing is financially executed in v0.16")) {
+if (!appUi.includes("Prepare job") || !appUi.includes("Review the job before authority") || !appUi.includes("Confirm job intent") || !appUi.includes("Nothing is financially executed in v0.17")) {
   throw new Error("The live Rebalancing handoff UI must expose reviewable Job Intent preparation without pretending authority or execution exists.");
 }
 if (!appUi.includes("jobIntentRepository.prepare") || !appUi.includes("jobIntentId={nav.jobIntentId}")) {
@@ -315,5 +324,37 @@ if (!apiApp.includes("trustedAgentSessionKeyBindingEnabled: true") || !apiApp.in
   throw new Error("API capabilities must expose v0.16 binding/guard/testnet probe support while keeping marketplace activation disabled.");
 }
 
-console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + bounded Altana authority + trusted service-key binding + calldata guard + Altana BSC Testnet probe verification passed.");
+
+const executionPlans = await readFile(path.join(root, "packages/execution-plans/src/index.ts"), "utf8");
+for (const marker of ["REBALANCING_EXECUTION_PLAN_METHOD", "quoteV3DecreaseLiquidity", "DECREASE_LIQUIDITY", "COLLECT", "MINT", "USER_REVIEWED", "guardState", "executionEligible:false"]) {
+  if (!executionPlans.replaceAll(" ", "").includes(marker.replaceAll(" ", ""))) throw new Error(`v0.17 execution-plan engine is missing ${marker}.`);
+}
+const executionBoundary = await readFile(path.join(root, "packages/execution-boundary/src/index.ts"), "utf8");
+for (const marker of ["FINANCIAL_EXECUTION_BOUNDARY_METHOD", "EXACT_PLAN_CALL_HASH_AND_ORDER", "AUTHENTICATED_PROPOSER_ONLY", "BOUNDARY_CONTROLLED_NOT_PROVISIONED", "PASS_AUTHORITY_REQUIRED", "executionEligible:false"]) {
+  if (!executionBoundary.replaceAll(" ", "").includes(marker.replaceAll(" ", ""))) throw new Error(`v0.17 execution boundary is missing ${marker}.`);
+}
+if (!authority.includes("applyExecutionPlan") || !authority.includes("applyExecutionBoundary") || !authority.includes("BOUNDARY_SIGNER_REQUIRED") || !authority.includes("SPOTRIQ_EXECUTION_BOUNDARY")) {
+  throw new Error("v0.17 authority must consume reviewed plans/boundaries and stop at BOUNDARY_SIGNER_REQUIRED.");
+}
+const executionPlanRoutes = await readFile(path.join(root, "apps/api/src/routes/execution-plans.ts"), "utf8");
+for (const route of ["/v1/job-intents/:jobIntentId/execution-plans", "/v1/job-intents/:jobIntentId/execution-plan", "/v1/execution-plans/:planId", "/v1/execution-plans/:planId/review", "/v1/execution-plans/:planId/seal-boundary", "/v1/execution-boundaries/:boundaryId", "/v1/execution-boundaries/:boundaryId/preflight"]) {
+  if (!executionPlanRoutes.includes(route)) throw new Error(`Missing v0.17 execution-plan/boundary route ${route}.`);
+}
+const migration0011 = await readFile(path.join(root, "packages/db/migrations/0011_rebalancing_execution_plan_boundary.sql"), "utf8");
+for (const table of ["rebalancing_execution_plans", "financial_execution_boundaries"]) {
+  if (!migration0011.includes(table)) throw new Error(`v0.17 migration is missing ${table}.`);
+}
+for (const marker of ["Prepare exact plan", "Review range + refresh quote", "Seal execution boundary", "Fresh preflight", "Future financial signer: boundary-controlled and not provisioned.", "Nothing is financially executed in v0.17"]) {
+  if (!appUi.includes(marker)) throw new Error(`v0.17 live execution-plan UI is missing ${marker}.`);
+}
+if (!apiApp.includes("rebalancingExecutionPlanEnabled: true") || !apiApp.includes("nonBypassableExecutionBoundaryEnabled: true") || !apiApp.includes("liveFinancialSignerEnabled: false") || !apiApp.includes("marketplaceActivationEnabled: false")) {
+  throw new Error("API capabilities must expose v0.17 plan/boundary support while keeping the financial signer and activation disabled.");
+}
+const pancakeSwapAdapter = await readFile(path.join(root, "packages/protocol-pancakeswap/src/index.ts"), "utf8");
+const chainAdapter = await readFile(path.join(root, "packages/chain/src/index.ts"), "utf8");
+if (!pancakeSwapAdapter.includes("quoteV3DecreaseLiquidity") || !pancakeSwapAdapter.includes("ETH_CALL_SIMULATION") || !chainAdapter.includes("callContractFrom")) {
+  throw new Error("v0.17 must obtain independent owner-context expected-output evidence through read-only eth_call simulation.");
+}
+
+console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + bounded Altana authority + trusted service-key binding + calldata guard + Altana BSC Testnet probe + reviewed Rebalancing execution plan + non-bypassable financial execution boundary verification passed.");
 
