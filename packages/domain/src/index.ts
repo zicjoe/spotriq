@@ -821,6 +821,14 @@ export interface BscTransactionSummary {
   transactionIndex?: number;
 }
 
+export interface BscLogSummary {
+  address: string;
+  topics: string[];
+  data: string;
+  logIndex?: number;
+  transactionIndex?: number;
+}
+
 export interface BscTransactionReceiptSummary {
   network: BscNetwork;
   chainId: number;
@@ -830,6 +838,7 @@ export interface BscTransactionReceiptSummary {
   status: "SUCCESS" | "REVERTED";
   gasUsedRaw: string;
   effectiveGasPriceRaw?: string;
+  logs?: BscLogSummary[];
 }
 
 export interface NativeBalanceSnapshot {
@@ -1508,8 +1517,8 @@ export interface AgentRegistryStatus {
 }
 
 // ─── Rebalancing vertical handoff / reviewable job intent ────────────────────
-export type JobIntentState = "REVIEWABLE" | "AWAITING_AUTHORITY" | "CANCELLED" | "EXPIRED";
-export type JobIntentExecutionState = "NO_EXECUTION";
+export type JobIntentState = "REVIEWABLE" | "AWAITING_AUTHORITY" | "COMPLETED" | "CANCELLED" | "EXPIRED";
+export type JobIntentExecutionState = "NO_EXECUTION" | "CONTROLLED_TESTNET_EXECUTED";
 
 export interface RebalancingJobConstraints {
   executionMode: "PREPARE_ONLY";
@@ -1765,4 +1774,112 @@ export interface ExecutionBoundaryDecision {
   executionEligible: false;
   checkedAt: string;
   detail: string;
+}
+
+
+// ─── Controlled BSC Testnet execution / bounded approval flow ───────────────
+export interface BoundaryApprovalPlanCall {
+  index: number;
+  token: string;
+  symbol?: string;
+  spender: string;
+  phase: "RESET" | "SET_EXACT";
+  currentAllowanceRaw: string;
+  requiredAllowanceRaw: string;
+  approvalAmountRaw: string;
+  call: { to: string; data: string; valueRaw: "0" };
+  callHash: string;
+}
+
+export interface BoundaryApprovalPlan {
+  approvalPlanId: string;
+  boundaryId: string;
+  planId: string;
+  financialSessionId: string;
+  readinessId: string;
+  walletAddress: string;
+  network: "testnet";
+  chainId: 97;
+  positionManager: string;
+  state: "NOT_REQUIRED" | "REVIEW_REQUIRED" | "REVIEWED" | "CONFIRMED" | "FAILED" | "STALE";
+  calls: BoundaryApprovalPlanCall[];
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  executionEligible: false;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface BoundaryApprovalExecutionProof {
+  callsId: string;
+  status: "CONFIRMED" | "FAILED" | "PENDING";
+  transactionHash?: string;
+}
+
+export interface BoundaryApprovalObservation {
+  approvalObservationId: string;
+  approvalPlanId: string;
+  boundaryId: string;
+  walletAddress: string;
+  provider: "ALTANA";
+  providerStatus: "CONFIRMED" | "FAILED" | "PENDING";
+  callsId: string;
+  transactionHash?: string;
+  receipt?: BscTransactionReceiptSummary;
+  state: "PENDING" | "CONFIRMED" | "FAILED" | "UNVERIFIED";
+  refreshedReadinessId?: string;
+  allowancesSatisfied: boolean;
+  observedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface ControlledExecutionCall {
+  index: number;
+  kind: RebalancingExecutionStepKind;
+  to: string;
+  data: string;
+  valueRaw: string;
+  callHash: string;
+}
+
+export interface ControlledExecutionProof {
+  callsId: string;
+  status: "CONFIRMED" | "FAILED" | "PENDING";
+  transactionHash?: string;
+}
+
+export interface ControlledRebalancingExecution {
+  executionId: string;
+  boundaryId: string;
+  planId: string;
+  planHash: string;
+  jobIntentId: string;
+  permissionRequestId: string;
+  financialSessionId: string;
+  serviceId: string;
+  walletAddress: string;
+  network: "testnet";
+  chainId: 97;
+  state: "READY_TO_DISPATCH" | "SUBMITTED" | "CONFIRMED" | "FAILED" | "BLOCKED" | "STALE";
+  calls: ControlledExecutionCall[];
+  preflightId: string;
+  readinessId: string;
+  sessionVerifiedAt: string;
+  providerCallsId?: string;
+  providerStatus?: "CONFIRMED" | "FAILED" | "PENDING";
+  transactionHash?: string;
+  receipt?: BscTransactionReceiptSummary;
+  mintedPositionTokenId?: string;
+  oldPositionLiquidityRawAfter?: string;
+  mintedPositionVerified?: boolean;
+  postStateDetail?: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  executionEligible: boolean;
+  methodVersion: string;
+  limitations: string[];
 }

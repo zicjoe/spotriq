@@ -252,7 +252,7 @@ if (!jobIntentRoutes.includes("marketplaceSupply.matchFinding") || !jobIntentRou
 for (const marker of ["RebalancingJobIntent", "RebalancingJobConstraints", "JobIntentAuthorityRequirement", "jobIntentId?: string"]) {
   if (!domain.includes(marker)) throw new Error(`Job Intent domain model is missing ${marker}.`);
 }
-if (!appUi.includes("Prepare job") || !appUi.includes("Review the job before authority") || !appUi.includes("Confirm job intent") || !appUi.includes("Nothing is financially executed in v0.18")) {
+if (!appUi.includes("Prepare job") || !appUi.includes("Review the job before authority") || !appUi.includes("Confirm job intent") || !appUi.includes("Nothing is signed or submitted.")) {
   throw new Error("The live Rebalancing handoff UI must expose reviewable Job Intent preparation without pretending authority or execution exists.");
 }
 if (!appUi.includes("jobIntentRepository.prepare") || !appUi.includes("jobIntentId={nav.jobIntentId}")) {
@@ -347,7 +347,7 @@ const migration0011 = await readFile(path.join(root, "packages/db/migrations/001
 for (const table of ["rebalancing_execution_plans", "financial_execution_boundaries"]) {
   if (!migration0011.includes(table)) throw new Error(`v0.17 migration is missing ${table}.`);
 }
-for (const marker of ["Prepare exact plan", "Review range + refresh quote", "Seal execution boundary", "Fresh preflight", "Future financial signer: boundary-controlled and not provisioned.", "Nothing is financially executed in v0.18"]) {
+for (const marker of ["Prepare exact plan", "Review range + refresh quote", "Seal execution boundary", "Fresh preflight", "Nothing is signed or submitted."]) {
   if (!appUi.includes(marker)) throw new Error(`v0.17 live execution-plan UI is missing ${marker}.`);
 }
 if (!apiApp.includes("rebalancingExecutionPlanEnabled: true") || !apiApp.includes("nonBypassableExecutionBoundaryEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
@@ -377,12 +377,57 @@ for (const route of ["/v1/execution-boundaries/:boundaryId/financial-sessions", 
 for (const marker of ["grantBoundaryFinancialSession", "revokeBoundaryFinancialSession", "sessionSigner", "register: true"]) {
   if (!altanaHandlers.includes(marker)) throw new Error(`v0.18 Altana financial-session handler is missing ${marker}.`);
 }
-for (const marker of ["Boundary-controlled Altana financial session", "Grant boundary financial session", "Check balances & allowances", "APPROVAL REQUIRED", "No transaction submission exists in v0.18"]) {
+for (const marker of ["Boundary-controlled Altana financial session", "Grant boundary financial session", "Check balances & allowances", "Prepare exact approvals", "v0.19 can dispatch only the exact sealed plan"]) {
   if (!appUi.includes(marker)) throw new Error(`v0.18 Job Intent financial-authority UI is missing ${marker}.`);
 }
 if (!apiApp.includes("boundaryControlledAltanaFinancialSessionEnabled: true") || !apiApp.includes("financialAssetReadinessEnabled: true") || !apiApp.includes("liveFinancialSignerEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
   throw new Error("API capabilities must expose v0.18 boundary financial-session/readiness support while keeping marketplace activation disabled.");
 }
 
-console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + bounded Altana authority + trusted service-key binding + calldata guard + Altana BSC Testnet probe + reviewed Rebalancing execution plan + non-bypassable financial execution boundary + boundary-controlled Altana financial session + plan-specific balance/allowance readiness verification passed.");
+
+
+const controlledExecution = await readFile(path.join(root, "packages/controlled-execution/src/index.ts"), "utf8");
+for (const marker of ["CONTROLLED_EXECUTION_METHOD", "BOUNDED_APPROVAL_METHOD", "READY_TO_DISPATCH", "READY_FOR_CONTROLLED_EXECUTION_MILESTONE", "PASS_EXECUTION_DISABLED", "authorizeCall", "consume", "getTransactionReceipt", "DECREASE_LIQUIDITY_TOPIC", "COLLECT_TOPIC", "effectsReconciled", "APPROVAL_REQUIRED"]) {
+  if (!controlledExecution.includes(marker)) throw new Error(`v0.19 controlled execution engine is missing ${marker}.`);
+}
+if (controlledExecution.includes("maxUint256") || controlledExecution.includes("MaxUint256") || controlledExecution.includes("approveMax")) {
+  throw new Error("v0.19 controlled approval path must not request unlimited ERC-20 allowance.");
+}
+const controlledRoutes = await readFile(path.join(root, "apps/api/src/routes/controlled-execution.ts"), "utf8");
+for (const route of [
+  "/v1/execution-boundaries/:boundaryId/approval-plans",
+  "/v1/approval-plans/:approvalPlanId/review",
+  "/v1/approval-plans/:approvalPlanId/observe",
+  "/v1/execution-boundaries/:boundaryId/controlled-executions",
+  "/v1/execution-boundaries/:boundaryId/controlled-execution",
+  "/v1/controlled-executions/:executionId",
+  "/v1/controlled-executions/:executionId/observe",
+  "/v1/controlled-executions/:executionId/reconcile",
+]) {
+  if (!controlledRoutes.includes(route)) throw new Error(`Missing v0.19 controlled-execution route ${route}.`);
+}
+if (controlledRoutes.includes("request.body.calls")) {
+  throw new Error("Controlled dispatch preparation must not trust client-supplied arbitrary calls.");
+}
+const migration0013 = await readFile(path.join(root, "packages/db/migrations/0013_controlled_rebalancing_execution.sql"), "utf8");
+for (const table of ["boundary_approval_plans", "boundary_approval_observations", "controlled_rebalancing_executions"]) {
+  if (!migration0013.includes(table)) throw new Error(`v0.19 migration is missing ${table}.`);
+}
+if (!executionBoundary.includes("async consume") || !executionBoundary.includes('state:"CONSUMED"')) {
+  throw new Error("v0.19 must consume the sealed execution boundary after a confirmed dispatch to prevent replay.");
+}
+if (!jobIntents.includes("linkControlledExecution") || !jobIntents.includes('executionState: "CONTROLLED_TESTNET_EXECUTED"') || !jobIntents.includes('state: "COMPLETED"')) {
+  throw new Error("v0.19 Job Intent lifecycle must complete only from independently confirmed controlled execution evidence.");
+}
+for (const marker of ["executeExactApprovalPlan", "executeControlledBoundaryPlan", "client.execute", "chainId: 97"]) {
+  if (!altanaHandlers.includes(marker)) throw new Error(`v0.19 Altana controlled-dispatch handler is missing ${marker}.`);
+}
+for (const marker of ["Prepare exact approvals", "Execute exact reviewed plan on BSC Testnet", "Reconcile BSC receipt"]) {
+  if (!appUi.includes(marker)) throw new Error(`v0.19 controlled-execution UI is missing ${marker}.`);
+}
+if (!apiApp.includes("boundedTokenApprovalFlowEnabled: true") || !apiApp.includes("controlledBscTestnetExecutionEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
+  throw new Error("API capabilities must expose v0.19 controlled execution while keeping marketplace agent activation explicitly separate/unproven.");
+}
+
+console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + bounded Altana authority + trusted service-key binding + calldata guard + Altana BSC Testnet probe + reviewed Rebalancing execution plan + non-bypassable boundary + boundary-controlled financial session + exact bounded approvals + controlled BSC Testnet Rebalancing dispatch/receipt/replay protection verification passed.");
 

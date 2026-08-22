@@ -1,6 +1,7 @@
 import type {
   BoundedPermissionGrant,
   BoundedPermissionRequest,
+  ControlledRebalancingExecution,
   CheckSession,
   Finding,
   FindingServiceMatch,
@@ -101,6 +102,7 @@ export interface JobIntentEngine {
   confirm(jobIntentId: string): Promise<RebalancingJobIntent>;
   linkPermissionRequest(jobIntentId: string, request: BoundedPermissionRequest): Promise<RebalancingJobIntent>;
   linkPermissionGrant(jobIntentId: string, grant: BoundedPermissionGrant): Promise<RebalancingJobIntent>;
+  linkControlledExecution(jobIntentId: string, execution: ControlledRebalancingExecution): Promise<RebalancingJobIntent>;
 }
 
 function asString(subject: Record<string, unknown> | undefined, key: string): string | undefined {
@@ -376,6 +378,26 @@ export function createJobIntentEngine(store: JobIntentStore = new MemoryJobInten
               ]
             : [...grant.reconciliationReasons, ...grant.executionSafetyPrerequisites.filter((item) => item.blocking && item.state !== "SATISFIED").map((item) => item.detail), "The observed grant is not sufficient for activation."],
         },
+      };
+      await store.save(next);
+      return next;
+    },
+
+    async linkControlledExecution(jobIntentId, execution) {
+      const intent = await store.get(jobIntentId);
+      if (!intent) throw new JobIntentError(`Job intent ${jobIntentId} was not found.`, "JOB_INTENT_NOT_FOUND");
+      if (execution.jobIntentId !== intent.jobIntentId || execution.serviceId !== intent.selectedService.serviceId || execution.walletAddress.toLowerCase() !== intent.walletAddress.toLowerCase()) {
+        throw new JobIntentError("Controlled execution does not belong to this Job Intent.", "INVALID_INPUT");
+      }
+      if (execution.state !== "CONFIRMED" || !execution.transactionHash || execution.receipt?.status !== "SUCCESS") {
+        throw new JobIntentError("Only an independently receipt-confirmed BSC Testnet controlled execution can complete a Job Intent.", "INVALID_STATE");
+      }
+      const next: RebalancingJobIntent = {
+        ...intent,
+        state: "COMPLETED",
+        executionState: "CONTROLLED_TESTNET_EXECUTED",
+        updatedAt: new Date().toISOString(),
+        limitations: [...intent.limitations.filter((item) => !item.includes("not an execution instruction")), `Controlled BSC Testnet execution ${execution.executionId} was confirmed in transaction ${execution.transactionHash}. Realised performance and complete outcome accounting remain separate Activity & Outcomes evidence.`],
       };
       await store.save(next);
       return next;

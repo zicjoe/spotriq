@@ -361,6 +361,7 @@ export class BscChainAdapter implements BscChainReader {
     const normalized = assertHash(hash);
     const { result } = await this.request<null | {
       transactionHash: string; blockNumber: string; blockHash: string; status: string; gasUsed: string; effectiveGasPrice?: string;
+      logs?: Array<{ address: string; topics: string[]; data: string; logIndex?: string | null; transactionIndex?: string | null }>;
     }>("eth_getTransactionReceipt", [normalized]);
     if (!result) return null;
     return {
@@ -372,6 +373,13 @@ export class BscChainAdapter implements BscChainReader {
       status: hexToBigInt(result.status) === 1n ? "SUCCESS" : "REVERTED",
       gasUsedRaw: hexToBigInt(result.gasUsed).toString(),
       effectiveGasPriceRaw: result.effectiveGasPrice ? hexToBigInt(result.effectiveGasPrice).toString() : undefined,
+      logs: result.logs?.map((log) => ({
+        address: assertAddress(log.address),
+        topics: log.topics.map((topic) => assertHash(topic)),
+        data: log.data,
+        logIndex: log.logIndex ? hexToNumber(log.logIndex) : undefined,
+        transactionIndex: log.transactionIndex ? hexToNumber(log.transactionIndex) : undefined,
+      })),
     };
   }
 

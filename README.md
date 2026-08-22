@@ -30,6 +30,7 @@ packages/
   execution-guard/  deterministic PancakeSwap V3 calldata validation
   execution-plans/  reviewed deterministic Rebalancing execution plans
   execution-boundary/ exact-plan non-bypassable financial enforcement boundary
+  controlled-execution/ exact wallet-admin approvals + one-shot BSC Testnet dispatch/receipt reconciliation
 ```
 
 ## Windows PowerShell setup
@@ -296,9 +297,6 @@ Spotriq additionally proves the real Altana integration on BSC Testnet with a de
 
 Migration `0010_trusted_agent_binding_and_altana_probe.sql` persists trusted binding and Altana Testnet probe evidence. The web integration pins `@altananetwork/sdk` at `0.7.1`.
 
-## Next milestone
-
-Build **v0.19.0 — First Controlled BSC Testnet Rebalancing Execution**. Dispatch only exact sealed reviewed calls through the boundary-controlled Altana financial session after fresh preflight, current Keystore verification and plan-specific balance/allowance readiness. If allowance is missing, use a bounded user-controlled approval path rather than AgentService-controlled or unlimited approval.
 
 
 ## v0.9.2 registry visibility
@@ -350,4 +348,28 @@ POST /v1/execution-boundaries/:boundaryId/financial-readiness
 GET  /v1/execution-boundaries/:boundaryId/financial-readiness
 ```
 
-The next milestone is v0.19.0: first controlled BSC Testnet Rebalancing execution through the exact sealed boundary, gated by fresh preflight, current Altana session verification and explicit balance/allowance readiness.
+## v0.19.0 First Controlled BSC Testnet Rebalancing Execution
+
+Spotriq now has a controlled dispatch path for the exact reviewed `decreaseLiquidity → collect → mint` BSC Testnet plan. Before a dispatch attempt is issued, the backend independently re-verifies the boundary Altana session, refreshes token balance/allowance readiness, reruns the v0.17 LP/quote preflight, and re-authorizes every sealed call hash in order. The browser can submit only the server-prepared exact batch through the boundary-controlled session; arbitrary financial calldata is never accepted from the client.
+
+Missing ERC-20 allowance uses a separate passkey/wallet-admin approval plan with exact amounts only. Insufficient non-zero allowances are reset to zero before setting the reviewed amount; unlimited approval and AgentService-controlled approval remain prohibited. After provider execution, Spotriq independently reads the BSC Testnet receipt before confirming success, consumes the boundary to prevent replay, refreshes the old LP NFT, and can identify/verify a replacement V3 NFT from Position Manager mint logs when those logs are present.
+
+New migration: `0013_controlled_rebalancing_execution.sql`.
+
+Key APIs:
+
+```text
+POST /v1/execution-boundaries/:boundaryId/approval-plans
+GET  /v1/execution-boundaries/:boundaryId/approval-plan
+POST /v1/approval-plans/:approvalPlanId/review
+POST /v1/approval-plans/:approvalPlanId/observe
+POST /v1/execution-boundaries/:boundaryId/controlled-executions
+GET  /v1/execution-boundaries/:boundaryId/controlled-execution
+GET  /v1/controlled-executions/:executionId
+POST /v1/controlled-executions/:executionId/observe
+POST /v1/controlled-executions/:executionId/reconcile
+```
+
+A real transaction is produced only when the user runs the flow with the matching Altana/passkey wallet. Repository tests do not fabricate that onchain evidence.
+
+The next milestone is **v0.20.0 — Activity & Outcomes**, with a separate remaining requirement to prove actual AgentService task invocation/hiring before final submission.

@@ -46,3 +46,18 @@ test("linking an exact active Altana financial session provisions the boundary s
   assert.equal(preflight.signerProvisioned, true);
   assert.equal(preflight.executionEligible, false);
 });
+
+test("a consumed financial execution boundary is terminal and blocks replay", async () => {
+  const p = plan();
+  const store = new MemoryExecutionBoundaryStore();
+  const engine = createExecutionBoundaryEngine({ store, plans: { get: async () => p }, pancakeSwap: reader() });
+  const sealed = await engine.seal(p, request());
+  const consumed = await engine.consume(sealed.boundaryId);
+  assert.equal(consumed.state, "CONSUMED");
+  const again = await engine.consume(sealed.boundaryId);
+  assert.equal(again.state, "CONSUMED");
+  const exactStep = p.steps[0]!;
+  const decision = await engine.authorizeCall(sealed.boundaryId, 0, exactStep.call);
+  assert.equal(decision.state, "BLOCKED");
+  assert.equal(decision.executionEligible, false);
+});

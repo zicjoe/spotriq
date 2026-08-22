@@ -24,6 +24,7 @@ import { AuthorityError, createAuthorityEngine, MemoryAuthorityStore, PostgresAu
 import { createAltanaKeystoreVerifier } from "@spotriq/authority/altana";
 import { createExecutionPlanEngine, ExecutionPlanError, MemoryExecutionPlanStore, PostgresExecutionPlanStore, type ExecutionPlanEngine } from "@spotriq/execution-plans";
 import { createExecutionBoundaryEngine, ExecutionBoundaryError, MemoryExecutionBoundaryStore, PostgresExecutionBoundaryStore, type ExecutionBoundaryEngine } from "@spotriq/execution-boundary";
+import { ControlledExecutionError, createControlledExecutionEngine, MemoryControlledExecutionStore, PostgresControlledExecutionStore, type ControlledExecutionEngine } from "@spotriq/controlled-execution";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
@@ -37,6 +38,7 @@ import { registerMarketplaceRoutes } from "./routes/marketplace.js";
 import { registerJobIntentRoutes } from "./routes/job-intents.js";
 import { registerAuthorityRoutes } from "./routes/authority.js";
 import { registerExecutionPlanRoutes } from "./routes/execution-plans.js";
+import { registerControlledExecutionRoutes } from "./routes/controlled-execution.js";
 
 export interface BuildServerOptions {
   config?: ServerConfig;
@@ -52,6 +54,7 @@ export interface BuildServerOptions {
   authority?: AuthorityEngine;
   executionPlans?: ExecutionPlanEngine;
   executionBoundary?: ExecutionBoundaryEngine;
+  controlledExecution?: ControlledExecutionEngine;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -120,6 +123,10 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     ? new PostgresExecutionBoundaryStore({ query: (text, values) => database.query(text, values) })
     : new MemoryExecutionBoundaryStore();
   const executionBoundary = options.executionBoundary ?? createExecutionBoundaryEngine({ store: executionBoundaryStore, plans: executionPlans, pancakeSwap });
+  const controlledExecutionStore = database
+    ? new PostgresControlledExecutionStore({ query: (text, values) => database.query(text, values) })
+    : new MemoryControlledExecutionStore();
+  const controlledExecution = options.controlledExecution ?? createControlledExecutionEngine({ store: controlledExecutionStore, boundaries: executionBoundary, plans: executionPlans, authority, chain, pancakeSwap });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
@@ -140,7 +147,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.18.0",
+      version: "0.19.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -193,6 +200,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       boundaryControlledAltanaFinancialSessionEnabled: true,
       financialAssetReadinessEnabled: true,
       liveFinancialSignerEnabled: true,
+      boundedTokenApprovalFlowEnabled: true,
+      controlledBscTestnetExecutionEnabled: true,
       marketplaceActivationEnabled: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
@@ -217,6 +226,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "The external AgentService is an authenticated proposer only. v0.18 can provision a distinct boundary-controlled Altana BSC Testnet financial session whose exact scope and Keystore validity are independently reconciled; the financial signer is never handed to the external service.",
         "A real BSC Testnet Altana passkey/grant/revoke probe remains available for read-only provider testing, and v0.18 adds a separate real financial session bound to the sealed execution boundary. Transaction submission remains disabled.",
         "v0.18 reads current token balances and ERC-20 allowances to the exact V3 Position Manager, distinguishes current balance from projected post-collect balance, and never auto-creates unlimited approvals.",
+        "v0.19 can prepare explicitly reviewed exact ERC-20 allowance calls through the wallet-admin/passkey path and independently re-read allowances after the action; the external AgentService and financial session never receive approve authority.",
+        "v0.19 can prepare a short-lived one-shot controlled BSC Testnet dispatch only after fresh Altana Keystore verification, financial readiness, LP/quote preflight, and exact call-hash/order authorization. Confirmed receipt evidence consumes the sealed boundary to prevent replay.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
       ],
@@ -236,6 +247,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerJobIntentRoutes(app, smartMoney, marketplaceSupply, jobIntents);
   await registerAuthorityRoutes(app, authority, jobIntents, marketplaceSupply);
   await registerExecutionPlanRoutes(app, executionPlans, executionBoundary, authority, jobIntents);
+  await registerControlledExecutionRoutes(app, controlledExecution, jobIntents);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {
@@ -298,6 +310,15 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     }
     if (error instanceof ExecutionBoundaryError) {
       const statusCode = error.code === "BOUNDARY_NOT_FOUND" ? 404 : error.code === "STALE_CONTEXT" || error.code === "INVALID_STATE" ? 422 : 400;
+      const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
+      return reply.code(statusCode).send(body);
+    }
+
+    if (error instanceof ControlledExecutionError) {
+      const statusCode = error.code === "EXECUTION_NOT_FOUND" || error.code === "APPROVAL_PLAN_NOT_FOUND" ? 404
+        : error.code === "CHAIN_EVIDENCE_UNAVAILABLE" ? 502
+          : error.code === "INVALID_STATE" || error.code === "APPROVAL_REQUIRED" || error.code === "INSUFFICIENT_BALANCE" || error.code === "SESSION_INVALID" || error.code === "STALE_CONTEXT" ? 422
+            : 400;
       const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
       return reply.code(statusCode).send(body);
     }

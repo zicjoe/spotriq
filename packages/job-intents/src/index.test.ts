@@ -275,3 +275,42 @@ test("linking a bounded request and verified grant never enables execution", asy
   assert.ok(withGrant.authority.blockers.some((blocker) => /calldata|execution guard/i.test(blocker)));
   assert.ok(withGrant.authority.blockers.some((blocker) => /execution disabled/i.test(blocker)));
 });
+
+test("a receipt-confirmed controlled BSC Testnet execution completes the Job Intent", async () => {
+  const engine = createJobIntentEngine();
+  const liveNow = new Date();
+  const prepared = await engine.prepare({ session: session("VERIFIED_CONTROL"), finding: finding(), match: match(), now: liveNow });
+  const confirmed = await engine.confirm(prepared.jobIntentId);
+  const execution = {
+    executionId: "execution:rebalancing:test",
+    boundaryId: "boundary:test",
+    planId: "plan:test",
+    planHash: `0x${"ab".repeat(32)}`,
+    jobIntentId: confirmed.jobIntentId,
+    permissionRequestId: "permission:test",
+    financialSessionId: "financial-session:test",
+    serviceId: confirmed.selectedService.serviceId,
+    walletAddress: confirmed.walletAddress,
+    network: "testnet",
+    chainId: 97,
+    state: "CONFIRMED",
+    calls: [],
+    preflightId: "preflight:test",
+    readinessId: "readiness:test",
+    sessionVerifiedAt: liveNow.toISOString(),
+    providerCallsId: "0x12",
+    providerStatus: "CONFIRMED",
+    transactionHash: `0x${"99".repeat(32)}`,
+    receipt: { network: "testnet", chainId: 97, transactionHash: `0x${"99".repeat(32)}`, blockNumber: "123", blockHash: `0x${"11".repeat(32)}`, status: "SUCCESS", gasUsedRaw: "100" },
+    executionEligible: false,
+    createdAt: liveNow.toISOString(),
+    updatedAt: liveNow.toISOString(),
+    expiresAt: new Date(liveNow.getTime() + 60_000).toISOString(),
+    methodVersion: "marketplace.controlled-rebalancing-execution@1.0.0",
+    limitations: [],
+  } as any;
+  const completed = await engine.linkControlledExecution(confirmed.jobIntentId, execution);
+  assert.equal(completed.state, "COMPLETED");
+  assert.equal(completed.executionState, "CONTROLLED_TESTNET_EXECUTED");
+  await assert.rejects(() => engine.linkControlledExecution(confirmed.jobIntentId, { ...execution, state: "FAILED" } as any), /receipt-confirmed/);
+});

@@ -67,6 +67,8 @@ export interface CapabilityResponse {
   boundaryControlledAltanaFinancialSessionEnabled: boolean;
   financialAssetReadinessEnabled: boolean;
   liveFinancialSignerEnabled: boolean;
+  boundedTokenApprovalFlowEnabled: boolean;
+  controlledBscTestnetExecutionEnabled: boolean;
   marketplaceActivationEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
@@ -326,4 +328,24 @@ export interface FinancialExecutionBoundaryResponse {
 }
 export interface ExecutionBoundaryPreflightResponse {
   preflight: import("@spotriq/domain").ExecutionBoundaryPreflight;
+}
+
+// ─── Controlled BSC Testnet Rebalancing execution ───────────────────────────
+export interface BoundaryApprovalPlanResponse {
+  plan: import("@spotriq/domain").BoundaryApprovalPlan;
+  readiness?: import("@spotriq/domain").BoundaryFinancialReadiness;
+  observation?: import("@spotriq/domain").BoundaryApprovalObservation;
+}
+export interface ObserveBoundaryApprovalRequest {
+  proof: import("@spotriq/domain").BoundaryApprovalExecutionProof;
+}
+export interface ControlledExecutionResponse {
+  execution: import("@spotriq/domain").ControlledRebalancingExecution;
+  readiness?: import("@spotriq/domain").BoundaryFinancialReadiness;
+  preflight?: import("@spotriq/domain").ExecutionBoundaryPreflight;
+  session?: import("@spotriq/domain").BoundaryFinancialSessionObservation;
+  intent?: import("@spotriq/domain").RebalancingJobIntent;
+}
+export interface ObserveControlledExecutionRequest {
+  proof: import("@spotriq/domain").ControlledExecutionProof;
 }

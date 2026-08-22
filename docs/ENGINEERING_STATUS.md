@@ -20,9 +20,10 @@
 - Trusted Agent Session-Key Binding + V3 Calldata Guard + Altana BSC Testnet Integration Proof
 - Reviewed Rebalancing Execution Plan + Non-Bypassable Financial Execution Boundary
 - Boundary-Controlled Altana Financial Session + Plan-Specific Balance/Allowance Readiness
+- First Controlled BSC Testnet Rebalancing Execution + Exact User-Controlled Approval Flow
 
 ## Current source of truth
-Use Spotriq **v0.18.0**.
+Use Spotriq **v0.19.0**.
 
 ## Current live-data spine
 BSC JSON-RPC → protocol adapters → Evidence Engine → Smart Money Engine → Findings → Spotriq UI.
@@ -183,6 +184,15 @@ Marketplace supply/readiness:
 - `POST /v1/financial-sessions/:financialSessionId/reverify` — refresh Keystore validity/revocation evidence
 - `POST /v1/execution-boundaries/:boundaryId/financial-readiness` — read plan-specific token balance/allowance readiness
 - `GET /v1/execution-boundaries/:boundaryId/financial-readiness` — retrieve latest persisted financial readiness
+- `POST /v1/execution-boundaries/:boundaryId/approval-plans` — prepare/re-open exact non-unlimited wallet-admin ERC-20 approvals when needed
+- `GET /v1/execution-boundaries/:boundaryId/approval-plan` — retrieve current exact approval plan
+- `POST /v1/approval-plans/:approvalPlanId/review` — explicitly review the bounded approval calls
+- `POST /v1/approval-plans/:approvalPlanId/observe` — record Altana wallet-admin execution proof then re-read allowances independently
+- `POST /v1/execution-boundaries/:boundaryId/controlled-executions` — prepare a short-lived exact controlled dispatch after all fresh checks
+- `GET /v1/execution-boundaries/:boundaryId/controlled-execution` — retrieve the current boundary execution attempt
+- `GET /v1/controlled-executions/:executionId` — retrieve one controlled execution
+- `POST /v1/controlled-executions/:executionId/observe` — record provider execution proof and independently verify BSC receipt
+- `POST /v1/controlled-executions/:executionId/reconcile` — retry independent receipt/post-state reconciliation
 
 ## Test Lab contract
 A Test Lab PASS means Spotriq observed a safe-to-probe public runtime that satisfied the relevant protocol discovery/contract checks and exposed category-relevant machine capability evidence. It does **not** mean:
@@ -203,10 +213,20 @@ A2A verification uses Agent Card discovery/validation. Modern MCP verification t
 - Migration 0010 stores trusted AgentService authority bindings and Altana BSC Testnet probe observations.
 - Migration 0011 stores reviewed Rebalancing execution plans and sealed financial execution boundaries.
 - Migration 0012 stores boundary-controlled Altana financial-session evidence and plan-specific asset/allowance readiness.
+- Migration 0013 stores exact bounded approval plans/observations and controlled BSC Testnet Rebalancing execution attempts/results.
 - Railway PostgreSQL can be attached when the API itself is deployed in Railway; local Railway tunnelling is not required.
 
+## Controlled execution state in v0.19.0
+Spotriq can now prepare and dispatch the exact reviewed BSC Testnet Rebalancing call batch through the boundary-controlled Altana financial Session held in the current browser process. The API never accepts arbitrary dispatch calldata: it reloads the sealed plan and boundary, independently re-verifies the session, refreshes balance/allowance readiness, reruns fresh LP/quote preflight and re-authorizes every exact call hash/order before returning a five-minute `READY_TO_DISPATCH` attempt.
+
+If ERC-20 allowance is missing, Spotriq creates a separate wallet-admin approval plan containing only the exact reviewed amount. Existing non-zero insufficient allowance is reset to zero first for token compatibility. Unlimited approval is never requested, and the external AgentService never receives approval authority. Provider confirmation is followed by an independent allowance re-read.
+
+Financial dispatch uses Altana `execute({ session, calls, chainId: 97 })` only with the exact server-prepared calls. The ephemeral boundary session signer is deliberately not persisted; losing it on reload requires a fresh financial session rather than private-key reconstruction. Provider `CONFIRMED` is not treated as final truth: Spotriq independently checks the BSC receipt, records success/revert/pending state, consumes the sealed boundary after one successful confirmation, refreshes the old LP position, and attempts to verify the newly minted V3 NFT from Position Manager ERC-721 Transfer logs.
+
+Only an independently successful receipt can mark the linked Job Intent `COMPLETED / CONTROLLED_TESTNET_EXECUTED`. This architecture is live-execution capable, but repository validation itself does not claim that the user’s passkey wallet broadcast a live BSC Testnet transaction. `marketplaceActivationEnabled` remains false because the selected external AgentService is still not yet invoked/hired as the actual proposal origin in this path.
+
 ## Next
-Build **v0.19.0 — First Controlled BSC Testnet Rebalancing Execution**. Dispatch only exact sealed plan calls through the boundary-controlled Altana financial session after fresh preflight, current Keystore verification and plan-specific balance/allowance readiness. Missing allowance must use a bounded user-controlled approval path rather than AgentService-controlled or unlimited approval. After real execution evidence exists: Activity & Outcomes, then generalize the completed vertical across Grid, Yield and Health with equal depth.
+Build **v0.20.0 — Activity & Outcomes**. Persist and surface the controlled execution lifecycle as marketplace evidence: exact actions, provider/BSC transaction status, replacement-position state, gas/cost evidence, failure/retry detail, permission/revocation state and measurable results. Also schedule the remaining real AgentService task-invocation/hiring gap before final hackathon submission so Spotriq can prove not only controlled execution but actual marketplace agent activation.
 
 ## Rule
 Every completed replacement ZIP becomes the new source of truth.

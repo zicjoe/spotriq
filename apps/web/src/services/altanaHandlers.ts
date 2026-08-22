@@ -1,4 +1,4 @@
-import type { AltanaTestnetProbeProof, BoundaryFinancialSessionProof, PermissionCallScope, PermissionSpendScope } from "../domain/types";
+import type { AltanaTestnetProbeProof, BoundaryApprovalExecutionProof, BoundaryFinancialSessionProof, ControlledExecutionProof, PermissionCallScope, PermissionSpendScope } from "../domain/types";
 
 let client: any;
 let wallet: any;
@@ -76,6 +76,39 @@ export const altanaHandlers = {
     const grantedCalls = Array.isArray(result.permissions?.calls) ? result.permissions.calls.map((call: any) => ({ to: String(call.to), signature: String(call.signature ?? "") })) : input.calls.map((call) => ({ to: call.to, signature: call.signature }));
     const grantedSpend = Array.isArray(result.permissions?.spend) ? result.permissions.spend.map((cap: any) => ({ token: String(cap.token), limitRaw: String(cap.limit), period: cap.period })) : input.spendCaps.map((cap) => ({ token: cap.token, limitRaw: cap.limitRaw, period: cap.period }));
     return { walletAddress: normalizeAddress(result.walletAddress), sessionPublicKey: result.publicKey, transactionHash: result.transactionHash, calls: grantedCalls, spend: grantedSpend, expiryUnix: result.expiry };
+  },
+
+
+  hasBoundaryFinancialSessionSigner(sessionPublicKey: string): boolean {
+    return boundaryFinancialSessions.has(sessionPublicKey.toLowerCase());
+  },
+
+  async executeExactApprovalPlan(input: { expectedWalletAddress: string; calls: Array<{ to: string; data: string; valueRaw: string }> }): Promise<BoundaryApprovalExecutionProof> {
+    const { client } = await sdk();
+    if (!wallet) throw new Error("Create or recover the matching Altana BSC Testnet passkey wallet before approving tokens.");
+    if (normalizeAddress(wallet.address) !== normalizeAddress(input.expectedWalletAddress)) throw new Error("Recovered Altana wallet does not match the approval-plan wallet.");
+    if (!input.calls.length) throw new Error("The bounded approval plan has no calls to submit.");
+    const result = await client.execute({
+      wallet,
+      signer: wallet.signer,
+      calls: input.calls.map((call) => ({ to: call.to, data: call.data, value: BigInt(call.valueRaw) })),
+      chainId: 97,
+    });
+    return { callsId: result.callsId, status: result.status, transactionHash: result.transactionHash };
+  },
+
+  async executeControlledBoundaryPlan(input: { expectedWalletAddress: string; sessionPublicKey: string; calls: Array<{ to: string; data: string; valueRaw: string }> }): Promise<ControlledExecutionProof> {
+    const { client } = await sdk();
+    const session = boundaryFinancialSessions.get(input.sessionPublicKey.toLowerCase());
+    if (!session) throw new Error("The exact boundary financial session signer is not available in this browser process. Spotriq does not reconstruct or download session private keys. Revoke the old grant if necessary and create a fresh boundary financial session.");
+    if (normalizeAddress(session.walletAddress) !== normalizeAddress(input.expectedWalletAddress)) throw new Error("Boundary financial session wallet does not match the controlled execution wallet.");
+    if (!input.calls.length) throw new Error("Controlled execution contains no calls.");
+    const result = await client.execute({
+      session,
+      calls: input.calls.map((call) => ({ to: call.to, data: call.data, value: BigInt(call.valueRaw) })),
+      chainId: 97,
+    });
+    return { callsId: result.callsId, status: result.status, transactionHash: result.transactionHash };
   },
 
   async revokeBoundaryFinancialSession(input: { expectedWalletAddress: string; sessionPublicKey: string }): Promise<{ transactionHash?: string }> {

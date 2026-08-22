@@ -1,8 +1,8 @@
 # Spotriq Source of Truth
 
-Current release: **v0.18.0**
+Current release: **v0.19.0**
 
-This ZIP supersedes Spotriq v0.17.0.
+This ZIP supersedes Spotriq v0.18.0.
 
 Implemented live financial-data categories:
 1. Rebalancing — PancakeSwap V3/Infinity CL current-state foundation and V3 wallet discovery.
@@ -97,7 +97,18 @@ Persistence:
 - Migration `0009_marketplace_test_lab.sql` persists immutable marketplace test runs.
 - Migration `0010_trusted_agent_binding_and_altana_probe.sql` persists authority bindings and Altana testnet probe observations.
 - Migration `0011_rebalancing_execution_plan_boundary.sql` persists reviewed execution plans plus sealed execution boundaries.
-- Migration `0012_boundary_financial_session_readiness.sql` is now the latest migration and persists boundary financial-session evidence plus asset/allowance readiness observations.
+- Migration `0012_boundary_financial_session_readiness.sql` persists boundary financial-session evidence plus asset/allowance readiness observations.
+- Migration `0013_controlled_rebalancing_execution.sql` is now the latest migration and persists exact bounded approval plans/observations plus controlled BSC Testnet execution attempts and receipt evidence.
 - Railway PostgreSQL remains a deployment-time integration rather than a local-development requirement.
 
-Next engineering milestone: **v0.19.0 First Controlled BSC Testnet Rebalancing Execution** — dispatch only the exact sealed reviewed calls through the boundary-controlled Altana financial session after fresh boundary preflight, current Keystore re-verification and plan-specific balance/allowance readiness. If ERC-20 allowance is insufficient, add a bounded user-controlled approval path; never give the AgentService approval authority or create unlimited allowance.
+Controlled BSC Testnet Rebalancing execution implemented in v0.19.0:
+- Missing ERC-20 allowance is handled through a separate user-admin/passkey approval plan. Spotriq requests only the exact allowance required by the reviewed replacement mint; when an existing non-zero allowance is insufficient, it uses a zero-first reset followed by the exact reviewed amount. Unlimited uint256 allowance and AgentService-controlled approvals are forbidden.
+- Controlled execution preparation is server-authoritative and one-shot. The API reloads the sealed boundary/plan/request/session, re-verifies the Altana financial session, refreshes balance/allowance readiness, runs a fresh v0.17 boundary preflight, and re-authorizes every exact call hash in the sealed order. The client never supplies arbitrary financial calls.
+- The browser dispatches only the server-prepared exact call batch through the in-memory boundary-controlled Altana Session object. If the ephemeral signer was lost on reload, Spotriq refuses to reconstruct private key material and requires a fresh bounded financial session.
+- A provider `CONFIRMED` result is not enough. When a transaction hash exists, Spotriq independently reads the BSC Testnet receipt; only a successful receipt can mark the controlled execution `CONFIRMED`. A reverted receipt becomes `FAILED`; pending/unavailable receipt evidence remains reconcilable.
+- A successful receipt is not sufficient by itself. Spotriq requires transaction-local Position Manager `DecreaseLiquidity` and `Collect` evidence for the exact old NFT, zero remaining old-NFT liquidity at the receipt block, and a replacement ERC-721 mint to the reviewed wallet whose NFT re-reads to the exact reviewed pair/fee/range. Only then is the sealed boundary consumed exactly once.
+- Only an independently receipt-confirmed execution can advance the linked Job Intent to `COMPLETED / CONTROLLED_TESTNET_EXECUTED`. Activity/performance accounting remains a separate next milestone.
+- Migration `0013_controlled_rebalancing_execution.sql` persists exact approval plans/observations and controlled execution attempts/results.
+- Repository tests validate the execution architecture, but this sandbox does not control the user’s Altana passkey and therefore does not claim that a live BSC Testnet transaction has already been broadcast.
+
+Next engineering milestone: **v0.20.0 Activity & Outcomes** — turn confirmed onchain execution into durable marketplace evidence: action timeline, transaction/receipt state, replacement-position tracking, costs, errors/retries, permission lifecycle, and outcome evidence suitable for comparison/Agent Advantage benchmarking. Before final hackathon submission, also close any remaining gap between selecting a real AgentService and actually invoking/hiring that service to originate the proposal rather than relying on user-entered target ticks.

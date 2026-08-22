@@ -50,6 +50,7 @@ export interface ExecutionBoundaryEngine {
   getForPlan(planId: string): Promise<FinancialExecutionBoundary|undefined>;
   authorizeCall(boundaryId: string, stepIndex: number, call: {to:string;data:string;valueRaw?:string}, now?: Date): Promise<ExecutionBoundaryDecision>;
   linkFinancialSession(boundaryId: string, session: BoundaryFinancialSessionObservation, now?: Date): Promise<FinancialExecutionBoundary>;
+  consume(boundaryId: string, now?: Date): Promise<FinancialExecutionBoundary>;
   preflight(boundaryId: string, request: BoundedPermissionRequest, session?: BoundaryFinancialSessionObservation, now?: Date): Promise<ExecutionBoundaryPreflight>;
 }
 
@@ -91,6 +92,13 @@ export function createExecutionBoundaryEngine(options:{store?:ExecutionBoundaryS
       const b=await store.get(id);if(!b)throw new ExecutionBoundaryError(`Execution boundary ${id} was not found.`,"BOUNDARY_NOT_FOUND");
       if(session.boundaryId!==b.boundaryId||session.planId!==b.planId||session.permissionRequestId!==b.permissionRequestId||session.state!=="ACTIVE"||!session.onchainValid||!session.exactBoundaryScope||!session.distinctFromAgentProposalKey) throw new ExecutionBoundaryError("Only an ACTIVE exact-scope boundary financial session can be linked to this execution boundary.","INVALID_INPUT");
       const next:FinancialExecutionBoundary={...b,financialSignerCustody:"BOUNDARY_CONTROLLED_ALTANA_TESTNET_SESSION",financialSessionId:session.financialSessionId,signerProvisioned:true,executionEligible:false,methodVersion:FINANCIAL_EXECUTION_BOUNDARY_METHOD,limitations:[...b.limitations.filter(x=>!x.includes("does not provision a financial signer")&&!x.includes("v0.18 must bind")),"v0.18 linked a boundary-controlled Altana BSC Testnet financial session whose exact scope and Keystore validity were independently verified. No transaction submission endpoint exists yet."]}; await store.save(next); return next;
+    },
+    async consume(id,now=new Date()){
+      const b=await store.get(id);if(!b)throw new ExecutionBoundaryError(`Execution boundary ${id} was not found.`,"BOUNDARY_NOT_FOUND");
+      if(b.state==="CONSUMED") return b;
+      if(b.state!=="SEALED") throw new ExecutionBoundaryError(`Only a SEALED execution boundary can be consumed, not ${b.state}.`,"INVALID_STATE");
+      const next:FinancialExecutionBoundary={...b,state:"CONSUMED",executionEligible:false,limitations:[...b.limitations,`The sealed boundary was consumed after one confirmed controlled execution at ${now.toISOString()}; the reviewed plan cannot be replayed through Spotriq.`]};
+      await store.save(next);return next;
     },
     async preflight(id,request,session,now=new Date()){
       const b=await store.get(id);if(!b)throw new ExecutionBoundaryError(`Execution boundary ${id} was not found.`,"BOUNDARY_NOT_FOUND");
