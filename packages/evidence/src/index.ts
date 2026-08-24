@@ -187,6 +187,13 @@ export const EVIDENCE_METHODS = {
     description: "Performs bounded, non-financial runtime checks against declared A2A or MCP endpoints: endpoint safety policy, reachability, protocol discovery/contract validation, and category-relevant machine capability observation. It does not execute financial actions or infer performance.",
     inputMetrics: ["service.runtime_endpoint", "service.category", "runtime.protocol_discovery", "runtime.capability_catalog"],
   },
+  SERVICE_TASK_ORIGIN: {
+    methodId: "marketplace.service-task-origin",
+    version: "1.0.0",
+    name: "AgentService task invocation origin proof",
+    description: "Records server-originated A2A task/message exchange evidence bound to the selected AgentService, a fresh service-owned authority binding, and the exact Job Intent request-context hash. It proves invocation/proposal origin only; it does not prove hiring, payment, financial authority, or performance.",
+    inputMetrics: ["service.authority_session_key_control", "service.protocol_contract", "service.task_request_context", "service.task_response"],
+  },
 } satisfies Record<string, EvidenceMethodDefinition>;
 
 const DEFAULT_FRESHNESS_POLICY: FreshnessPolicy = {
@@ -219,6 +226,8 @@ const FRESHNESS_POLICIES: Record<string, FreshnessPolicy> = {
   "service.runtime_reachability": { metric: "service.runtime_reachability", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
   "service.protocol_contract": { metric: "service.protocol_contract", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
   "service.category_capability": { metric: "service.category_capability", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
+  "service.task_origin": { metric: "service.task_origin", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
+  "service.task_proposal": { metric: "service.task_proposal", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
 };
 
 export function listDataSources(): DataSourceDefinition[] {

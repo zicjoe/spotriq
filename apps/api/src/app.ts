@@ -26,6 +26,7 @@ import { createExecutionPlanEngine, ExecutionPlanError, MemoryExecutionPlanStore
 import { createExecutionBoundaryEngine, ExecutionBoundaryError, MemoryExecutionBoundaryStore, PostgresExecutionBoundaryStore, type ExecutionBoundaryEngine } from "@spotriq/execution-boundary";
 import { ControlledExecutionError, createControlledExecutionEngine, MemoryControlledExecutionStore, PostgresControlledExecutionStore, type ControlledExecutionEngine } from "@spotriq/controlled-execution";
 import { ActivityOutcomesError, createActivityOutcomesEngine, MemoryActivityOutcomesStore, PostgresActivityOutcomesStore, type ActivityOutcomesEngine } from "@spotriq/activity-outcomes";
+import { createServiceTaskEngine, MemoryServiceTaskStore, PostgresServiceTaskStore, ServiceTaskError, type ServiceTaskEngine } from "@spotriq/service-tasks";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
@@ -41,6 +42,7 @@ import { registerAuthorityRoutes } from "./routes/authority.js";
 import { registerExecutionPlanRoutes } from "./routes/execution-plans.js";
 import { registerControlledExecutionRoutes } from "./routes/controlled-execution.js";
 import { registerActivityOutcomeRoutes } from "./routes/activity-outcomes.js";
+import { registerServiceTaskRoutes } from "./routes/service-tasks.js";
 
 export interface BuildServerOptions {
   config?: ServerConfig;
@@ -58,6 +60,7 @@ export interface BuildServerOptions {
   executionBoundary?: ExecutionBoundaryEngine;
   controlledExecution?: ControlledExecutionEngine;
   activityOutcomes?: ActivityOutcomesEngine;
+  serviceTasks?: ServiceTaskEngine;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -110,6 +113,18 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     ? new PostgresJobIntentStore({ query: (text, values) => database.query(text, values) })
     : new MemoryJobIntentStore();
   const jobIntents = options.jobIntents ?? createJobIntentEngine(jobIntentStore);
+  const serviceTaskStore = database
+    ? new PostgresServiceTaskStore({ query: (text, values) => database.query(text, values) })
+    : new MemoryServiceTaskStore();
+  const serviceTasks = options.serviceTasks ?? createServiceTaskEngine({
+    store: serviceTaskStore,
+    marketplace: marketplaceSupply,
+    http: {
+      timeoutMs: config.serviceTaskTimeoutMs,
+      maxResponseBytes: config.serviceTaskMaxResponseBytes,
+      maxRedirects: config.serviceTaskMaxRedirects,
+    },
+  });
   const authorityStore = database
     ? new PostgresAuthorityStore({ query: (text, values) => database.query(text, values) })
     : new MemoryAuthorityStore();
@@ -154,7 +169,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.20.0",
+      version: "0.21.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -210,6 +225,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       boundedTokenApprovalFlowEnabled: true,
       controlledBscTestnetExecutionEnabled: true,
       executionActivityOutcomesEnabled: true,
+      serviceTaskOriginProofEnabled: true,
       marketplaceActivationEnabled: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
@@ -237,6 +253,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "v0.19 can prepare explicitly reviewed exact ERC-20 allowance calls through the wallet-admin/passkey path and independently re-read allowances after the action; the external AgentService and financial session never receive approve authority.",
         "v0.19 can prepare a short-lived one-shot controlled BSC Testnet dispatch only after fresh Altana Keystore verification, financial readiness, LP/quote preflight, and exact call-hash/order authorization. Confirmed receipt evidence consumes the sealed boundary to prevent replay.",
         "v0.20 persists execution-scoped Activity & Outcomes evidence from the confirmed controlled dispatch: lifecycle events, BSC receipt/gas evidence, replacement LP state, boundary consumption, Job Intent completion and current Altana revocation state. It does not fabricate PnL, fees earned or marketplace agent activation.",
+        "v0.21 invokes a selected, tested AgentService through its supported A2A task/message interface, binds the exact server-derived Job Intent context to the request, requires a fresh service-owned key proof, persists the remote task/message and structured proposal, and blocks Job confirmation until proposal origin is verified. Invocation remains distinct from hiring, payment and activation.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
       ],
@@ -254,6 +271,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerAgentRoutes(app, agentRegistry, config.agentDiscoveryChainId);
   await registerMarketplaceRoutes(app, marketplaceSupply, config.agentDiscoveryChainId);
   await registerJobIntentRoutes(app, smartMoney, marketplaceSupply, jobIntents);
+  await registerServiceTaskRoutes(app, serviceTasks, jobIntents);
   await registerAuthorityRoutes(app, authority, jobIntents, marketplaceSupply);
   await registerExecutionPlanRoutes(app, executionPlans, executionBoundary, authority, jobIntents);
   await registerControlledExecutionRoutes(app, controlledExecution, jobIntents, activityOutcomes);
@@ -309,6 +327,15 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
 
     if (error instanceof JobIntentError) {
       const statusCode = error.code === "JOB_INTENT_NOT_FOUND" ? 404 : error.code === "MATCH_REQUIRED" || error.code === "UNSUPPORTED_FINDING" || error.code === "INVALID_STATE" ? 422 : 400;
+      const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
+      return reply.code(statusCode).send(body);
+    }
+
+    if (error instanceof ServiceTaskError) {
+      const statusCode = error.code === "TASK_NOT_FOUND" ? 404
+        : error.code === "REMOTE_ERROR" ? 502
+          : error.code === "AUTH_REQUIRED" || error.code === "SERVICE_NOT_READY" || error.code === "UNSUPPORTED_INTERFACE" || error.code === "ORIGIN_PROOF_FAILED" || error.code === "INVALID_STATE" ? 422
+            : 400;
       const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
       return reply.code(statusCode).send(body);
     }

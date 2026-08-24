@@ -8,6 +8,7 @@ import type {
   ProtocolTokenMetadata,
   RebalancingJobConstraints,
   RebalancingJobIntent,
+  ServiceTask,
 } from "@spotriq/domain";
 
 export const REBALANCING_JOB_INTENT_METHOD = "marketplace.rebalancing-job-intent@1.0.0";
@@ -100,6 +101,7 @@ export interface JobIntentEngine {
   get(jobIntentId: string): Promise<RebalancingJobIntent>;
   revise(jobIntentId: string, constraints: Partial<Omit<RebalancingJobConstraints, "executionMode" | "maxActionCount">>): Promise<RebalancingJobIntent>;
   confirm(jobIntentId: string): Promise<RebalancingJobIntent>;
+  linkServiceTask(jobIntentId: string, task: ServiceTask): Promise<RebalancingJobIntent>;
   linkPermissionRequest(jobIntentId: string, request: BoundedPermissionRequest): Promise<RebalancingJobIntent>;
   linkPermissionGrant(jobIntentId: string, grant: BoundedPermissionGrant): Promise<RebalancingJobIntent>;
   linkControlledExecution(jobIntentId: string, execution: ControlledRebalancingExecution): Promise<RebalancingJobIntent>;
@@ -263,6 +265,7 @@ function buildIntent(input: PrepareRebalancingJobIntentInput, existing?: Rebalan
       readinessEvidenceIds: [...new Set(readinessEvidenceIds)],
     },
     authority,
+    serviceTask: existing?.serviceTask,
     methodVersion: REBALANCING_JOB_INTENT_METHOD,
     createdAt,
     updatedAt: now.toISOString(),
@@ -284,7 +287,7 @@ export function createJobIntentEngine(store: JobIntentStore = new MemoryJobInten
       if (existing?.state === "CANCELLED" || existing?.state === "EXPIRED") {
         throw new JobIntentError(`Job intent ${id} cannot be revised from ${existing.state}.`, "INVALID_STATE");
       }
-      if (existing?.state === "AWAITING_AUTHORITY") return existing;
+      if (existing?.state === "AWAITING_AUTHORITY" || existing?.serviceTask) return existing;
       const intent = buildIntent(input, existing);
       await store.save(intent);
       return intent;
@@ -305,8 +308,12 @@ export function createJobIntentEngine(store: JobIntentStore = new MemoryJobInten
       const next: RebalancingJobIntent = {
         ...intent,
         constraints: merged,
+        serviceTask: undefined,
         updatedAt: now.toISOString(),
         expiresAt: new Date(now.getTime() + merged.validForMinutes * 60_000).toISOString(),
+        limitations: intent.serviceTask
+          ? [...intent.limitations, "The previously linked AgentService task was invalidated because the Job Intent constraints/expiry changed. Invoke the selected service again before confirmation."]
+          : intent.limitations,
       };
       await store.save(next);
       return next;
@@ -317,6 +324,9 @@ export function createJobIntentEngine(store: JobIntentStore = new MemoryJobInten
       if (!intent) throw new JobIntentError(`Job intent ${jobIntentId} was not found.`, "JOB_INTENT_NOT_FOUND");
       if (intent.state === "AWAITING_AUTHORITY") return intent;
       if (intent.state !== "REVIEWABLE") throw new JobIntentError("Only a REVIEWABLE job intent can be confirmed.", "INVALID_STATE");
+      if (!intent.serviceTask || intent.serviceTask.state !== "COMPLETED" || intent.serviceTask.originProofState !== "VERIFIED" || intent.serviceTask.proposalState !== "STRUCTURED" || !intent.serviceTask.proposalId || !intent.serviceTask.proposalHash) {
+        throw new JobIntentError("The selected AgentService must complete a real server-originated task with verified origin and a structured proposal before this Job Intent can be confirmed.", "INVALID_STATE");
+      }
       if (new Date(intent.expiresAt).getTime() <= Date.now()) {
         const expired: RebalancingJobIntent = { ...intent, state: "EXPIRED", updatedAt: new Date().toISOString() };
         await store.save(expired);
@@ -327,6 +337,40 @@ export function createJobIntentEngine(store: JobIntentStore = new MemoryJobInten
         state: "AWAITING_AUTHORITY",
         executionState: "NO_EXECUTION",
         updatedAt: new Date().toISOString(),
+      };
+      await store.save(next);
+      return next;
+    },
+
+    async linkServiceTask(jobIntentId, task) {
+      const intent = await store.get(jobIntentId);
+      if (!intent) throw new JobIntentError(`Job intent ${jobIntentId} was not found.`, "JOB_INTENT_NOT_FOUND");
+      if (intent.state !== "REVIEWABLE" || intent.executionState !== "NO_EXECUTION") throw new JobIntentError("Service task evidence can only be linked while the Job Intent remains REVIEWABLE with NO_EXECUTION.", "INVALID_STATE");
+      if (task.jobIntentId !== intent.jobIntentId || task.findingId !== intent.findingId || task.serviceId !== intent.selectedService.serviceId || task.agentId !== intent.selectedService.agentId) {
+        throw new JobIntentError("Service task origin evidence does not belong to this Job Intent and selected AgentService.", "INVALID_INPUT");
+      }
+      const next: RebalancingJobIntent = {
+        ...intent,
+        serviceTask: {
+          serviceTaskId: task.serviceTaskId,
+          state: task.state,
+          originProofState: task.originProof.state,
+          proposalState: task.proposalState,
+          requestContextHash: task.requestContextHash,
+          proposalId: task.proposal?.proposalId,
+          proposalHash: task.proposal?.proposalHash,
+          proposedTickLower: task.proposal?.targetTickLower,
+          proposedTickUpper: task.proposal?.targetTickUpper,
+          commercialState: task.commercialState,
+          linkedAt: new Date().toISOString(),
+        },
+        updatedAt: new Date().toISOString(),
+        limitations: [
+          ...intent.limitations.filter((item) => !item.includes("selected service match is compatibility evidence only")),
+          task.originProof.state === "VERIFIED" && task.proposalState === "STRUCTURED"
+            ? "Spotriq observed a real selected AgentService task/proposal origin. Invocation is proven, but commercial hiring/payment/marketplace activation remain separate and unproven."
+            : "The selected AgentService task exists, but verified proposal origin is not yet sufficient for Job Intent confirmation.",
+        ],
       };
       await store.save(next);
       return next;

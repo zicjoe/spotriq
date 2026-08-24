@@ -1517,6 +1517,134 @@ export interface AgentRegistryStatus {
   limitations: string[];
 }
 
+// ─── Real AgentService task invocation / origin proof (v0.21) ────────────────
+export type ServiceTaskState =
+  | "READY_TO_INVOKE" | "SUBMITTED" | "WORKING" | "INPUT_REQUIRED"
+  | "COMPLETED" | "FAILED" | "CANCELLED" | "REJECTED" | "TIMED_OUT"
+  | "UNSUPPORTED" | "AUTH_REQUIRED" | "READINESS_BLOCKED" | "ORIGIN_PROOF_FAILED";
+export type ServiceTaskOriginProofState = "UNVERIFIED" | "VERIFIED" | "FAILED";
+export type ServiceTaskProposalState = "NONE" | "STRUCTURED" | "MISMATCH" | "INVALID";
+export type ServiceTaskCommercialState = "NOT_PROVEN" | "FREE_INVOCATION_DECLARED" | "HIRING_PROVEN" | "PAYMENT_PROVEN";
+
+export interface RebalancingServiceProposal {
+  proposalId: string;
+  proposalHash: string;
+  requestContextHash: string;
+  action: "PREPARE_RANGE_REBALANCE";
+  targetTickLower: number;
+  targetTickUpper: number;
+  summary?: string;
+  rationale?: string;
+  receivedAt: string;
+  provenance: "marketplace-observed";
+}
+
+export interface ServiceTaskAttempt {
+  attempt: number;
+  requestId: string;
+  messageId: string;
+  idempotencyKey: string;
+  requestedAt: string;
+  respondedAt?: string;
+  state: ServiceTaskState;
+  remoteTaskId?: string;
+  remoteMessageId?: string;
+  remoteStatus?: string;
+  detail?: string;
+}
+
+export interface ServiceTaskOriginProof {
+  state: ServiceTaskOriginProofState;
+  serviceId: string;
+  agentId: string;
+  runtimeEndpoint: string;
+  agentCardUrl: string;
+  protocol: "A2A";
+  protocolBinding: "JSONRPC" | "HTTP+JSON";
+  protocolVersion: string;
+  tenant?: string;
+  authorityBindingId?: string;
+  serviceSessionKeyAddress?: string;
+  requestId: string;
+  messageId: string;
+  requestContextHash: string;
+  remoteTaskId?: string;
+  remoteMessageId?: string;
+  observedAt?: string;
+  evidenceIds: string[];
+  detail: string;
+}
+
+export interface ServiceTaskRequestContext {
+  jobIntentId: string;
+  findingId: string;
+  serviceId: string;
+  agentId: string;
+  walletAddress: string;
+  category: "rebalancing";
+  requestedAction: "PREPARE_RANGE_REBALANCE";
+  subject: {
+    protocol: "PancakeSwap";
+    version: "V3" | "INFINITY_CL";
+    network: BscNetwork;
+    tokenId: string;
+    pair: string;
+    tickLower: number;
+    tickUpper: number;
+    currentTick: number;
+    feePips?: number;
+    tickSpacing?: number;
+    rangeState: LiquidityRangeState;
+    blockNumber: string;
+  };
+  constraints: RebalancingJobConstraints;
+  expiresAt: string;
+}
+
+export interface ServiceTask {
+  serviceTaskId: string;
+  jobIntentId: string;
+  findingId: string;
+  serviceId: string;
+  agentId: string;
+  state: ServiceTaskState;
+  protocol: "A2A";
+  protocolBinding?: "JSONRPC" | "HTTP+JSON";
+  protocolVersion?: string;
+  runtimeEndpoint?: string;
+  agentCardUrl?: string;
+  tenant?: string;
+  requestContextHash: string;
+  requestContext: ServiceTaskRequestContext;
+  attempt: number;
+  attempts: ServiceTaskAttempt[];
+  remoteTaskId?: string;
+  remoteMessageId?: string;
+  remoteStatus?: string;
+  proposalState: ServiceTaskProposalState;
+  proposal?: RebalancingServiceProposal;
+  originProof: ServiceTaskOriginProof;
+  commercialState: ServiceTaskCommercialState;
+  evidence: EvidenceEnvelope[];
+  createdAt: string;
+  updatedAt: string;
+  limitations: string[];
+}
+
+export interface JobIntentServiceTaskLink {
+  serviceTaskId: string;
+  state: ServiceTaskState;
+  originProofState: ServiceTaskOriginProofState;
+  proposalState: ServiceTaskProposalState;
+  requestContextHash: string;
+  proposalId?: string;
+  proposalHash?: string;
+  proposedTickLower?: number;
+  proposedTickUpper?: number;
+  commercialState: ServiceTaskCommercialState;
+  linkedAt: string;
+}
+
 // ─── Rebalancing vertical handoff / reviewable job intent ────────────────────
 export type JobIntentState = "REVIEWABLE" | "AWAITING_AUTHORITY" | "COMPLETED" | "CANCELLED" | "EXPIRED";
 export type JobIntentExecutionState = "NO_EXECUTION" | "CONTROLLED_TESTNET_EXECUTED";
@@ -1602,6 +1730,7 @@ export interface RebalancingJobIntent {
     readinessEvidenceIds: string[];
   };
   authority: JobIntentAuthorityRequirement;
+  serviceTask?: JobIntentServiceTaskLink;
   methodVersion: string;
   createdAt: string;
   updatedAt: string;
@@ -1637,7 +1766,7 @@ export interface RebalancingTargetRangeReview {
   tickSpacing: number;
   currentTickAtReview: number;
   state: "PROPOSED" | "USER_REVIEWED";
-  proposedBy: "USER" | "SPOTRIQ_DETERMINISTIC_DRAFT";
+  proposedBy: "USER" | "SPOTRIQ_DETERMINISTIC_DRAFT" | "AGENT_SERVICE";
   reviewedAt?: string;
   detail: string;
 }
@@ -1701,6 +1830,13 @@ export interface RebalancingExecutionPlan {
   chainId: 56 | 97;
   state: "REVIEWABLE" | "REVIEWED" | "STALE" | "BLOCKED";
   targetRange: RebalancingTargetRangeReview;
+  proposalOrigin?: {
+    serviceTaskId: string;
+    proposalId: string;
+    proposalHash: string;
+    requestContextHash: string;
+    attribution: "AGENT_SERVICE" | "USER_OVERRIDE";
+  };
   positionSnapshot: RebalancingExecutionPlanPositionSnapshot;
   quote: RebalancingExecutionQuote;
   steps: RebalancingExecutionPlanStep[];

@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, FindingServiceMatch, FindingServiceMatchPage, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution, ExecutionActivityOutcomeBundle,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution, ExecutionActivityOutcomeBundle, ServiceTask,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -37,6 +37,7 @@ import { altanaHandlers } from "../services/altanaHandlers";
 import { executionPlanRepository } from "../repositories/executionPlanRepository";
 import { controlledExecutionRepository } from "../repositories/controlledExecutionRepository";
 import { activityOutcomesRepository } from "../repositories/activityOutcomesRepository";
+import { serviceTaskRepository } from "../repositories/serviceTaskRepository";
 
 const {
   services: SERVICES,
@@ -2364,6 +2365,8 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
   const [targetTickLower, setTargetTickLower] = useState("");
   const [targetTickUpper, setTargetTickUpper] = useState("");
   const [executionPlanBusy, setExecutionPlanBusy] = useState(false);
+  const [serviceTask, setServiceTask] = useState<ServiceTask>();
+  const [serviceTaskBusy, setServiceTaskBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -2376,6 +2379,14 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
       setValidForMinutes(String(value.constraints.validForMinutes));
       setAllowSwapPreparation(value.constraints.allowSwapPreparation);
       setAuthorityValidForMinutes(String(value.constraints.validForMinutes));
+      void serviceTaskRepository.getForJob(value.jobIntentId).then((task) => {
+        if (!active || !task) return;
+        setServiceTask(task);
+        if (task.proposal?.targetTickLower !== undefined && task.proposal?.targetTickUpper !== undefined) {
+          setTargetTickLower(String(task.proposal.targetTickLower));
+          setTargetTickUpper(String(task.proposal.targetTickUpper));
+        }
+      }).catch(() => undefined);
       if (value.authority.permissionRequestId) {
         void authorityRepository.getRequest(value.authority.permissionRequestId).then((request) => {
           if (!active) return;
@@ -2422,11 +2433,45 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
         allowSwapPreparation,
       });
       setIntent(next);
+      if (!next.serviceTask) setServiceTask(undefined);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Spotriq could not save the proposed job limits.");
     } finally {
       setSaving(false);
     }
+  };
+
+  const applyServiceTaskResult = (result: { task: ServiceTask; intent?: RebalancingJobIntent }) => {
+    setServiceTask(result.task);
+    if (result.intent) setIntent(result.intent);
+    if (result.task.proposal?.targetTickLower !== undefined && result.task.proposal?.targetTickUpper !== undefined) {
+      setTargetTickLower(String(result.task.proposal.targetTickLower));
+      setTargetTickUpper(String(result.task.proposal.targetTickUpper));
+    }
+  };
+
+  const invokeServiceTask = async () => {
+    if (!intent) return;
+    setServiceTaskBusy(true); setError(undefined);
+    try { applyServiceTaskResult(await serviceTaskRepository.invoke(intent.jobIntentId)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Spotriq could not invoke the selected AgentService."); }
+    finally { setServiceTaskBusy(false); }
+  };
+
+  const refreshServiceTask = async () => {
+    if (!serviceTask) return;
+    setServiceTaskBusy(true); setError(undefined);
+    try { applyServiceTaskResult(await serviceTaskRepository.reconcile(serviceTask.serviceTaskId)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Spotriq could not reconcile the remote AgentService task."); }
+    finally { setServiceTaskBusy(false); }
+  };
+
+  const retryServiceTask = async () => {
+    if (!serviceTask) return;
+    setServiceTaskBusy(true); setError(undefined);
+    try { applyServiceTaskResult(await serviceTaskRepository.retry(serviceTask.serviceTaskId)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Spotriq could not retry the AgentService task."); }
+    finally { setServiceTaskBusy(false); }
   };
 
   const confirmJob = async () => {
@@ -2732,6 +2777,37 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
         <div className="text-xs text-[#8090a8]">Service <span className="font-mono text-[#9aacc4]">{intent.selectedService.serviceId}</span></div>
       </Card>
 
+      <Card className="p-6 space-y-4 border-[#60a5fa]/15">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-mono uppercase tracking-wide text-[#6b7d99]">Real AgentService task origin · v0.21</div>
+            <h2 className="font-semibold text-[#dde3ef] mt-1">Invoke the selected service before confirming the job</h2>
+            <p className="text-xs text-[#6b7d99] mt-1 max-w-2xl">Spotriq sends the exact server-derived LP/job context through the service's tested A2A interface. A completed structured proposal must be attributable to this service before the Job Intent can advance. Invocation is not payment, hiring, wallet authority or activation.</p>
+          </div>
+          <Badge variant={serviceTask?.originProof.state === "VERIFIED" && serviceTask?.proposalState === "STRUCTURED" && serviceTask?.state === "COMPLETED" ? "green" : serviceTask ? "amber" : "muted"}>{serviceTask ? serviceTask.state.replaceAll("_", " ") : "Not invoked"}</Badge>
+        </div>
+        {!serviceTask ? (
+          <Btn variant="teal-outline" onClick={() => void invokeServiceTask()} disabled={serviceTaskBusy || isConfirmed}>{serviceTaskBusy ? <><RefreshCw className="w-4 h-4 animate-spin" /> Invoking</> : <><Play className="w-4 h-4" /> Invoke selected service</>}</Btn>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid sm:grid-cols-2 gap-3 text-xs">
+              <div><span className="text-[#6b7d99]">Origin proof</span><div className={serviceTask.originProof.state === "VERIFIED" ? "text-[#4ade80] mt-0.5" : "text-[#f59e0b] mt-0.5"}>{serviceTask.originProof.state.replaceAll("_", " ")}</div></div>
+              <div><span className="text-[#6b7d99]">Proposal</span><div className={serviceTask.proposalState === "STRUCTURED" ? "text-[#4ade80] mt-0.5" : "text-[#f59e0b] mt-0.5"}>{serviceTask.proposalState.replaceAll("_", " ")}</div></div>
+              <div><span className="text-[#6b7d99]">Protocol</span><div className="text-[#dde3ef] mt-0.5">{serviceTask.protocolBinding ?? "A2A"} {serviceTask.protocolVersion ?? ""}</div></div>
+              <div><span className="text-[#6b7d99]">Commercial state</span><div className="text-[#dde3ef] mt-0.5">{serviceTask.commercialState.replaceAll("_", " ")}</div></div>
+              <div className="sm:col-span-2"><span className="text-[#6b7d99]">Request-context hash</span><div className="font-mono text-[#9aacc4] break-all mt-0.5">{serviceTask.requestContextHash}</div></div>
+              {(serviceTask.remoteTaskId || serviceTask.remoteMessageId) && <div className="sm:col-span-2"><span className="text-[#6b7d99]">Remote reference</span><div className="font-mono text-[#9aacc4] break-all mt-0.5">{serviceTask.remoteTaskId ?? serviceTask.remoteMessageId}</div></div>}
+            </div>
+            {serviceTask.proposal && <div className="rounded-lg border border-[#2dd4bf]/15 bg-[#2dd4bf]/[0.025] p-3 text-xs"><div className="font-medium text-[#dde3ef]">AgentService proposal</div><div className="text-[#8090a8] mt-1">Replacement ticks <span className="font-mono text-[#9aacc4]">{serviceTask.proposal.targetTickLower} → {serviceTask.proposal.targetTickUpper}</span></div>{serviceTask.proposal.summary && <p className="text-[#6b7d99] mt-1">{serviceTask.proposal.summary}</p>}<p className="text-[10px] text-[#52637b] mt-2">These values prefill the execution-plan review only. You may change them; Spotriq will record any changed range as a user override rather than agent-originated.</p></div>}
+            <div className="flex flex-wrap gap-2">
+              {(serviceTask.state === "SUBMITTED" || serviceTask.state === "WORKING" || serviceTask.state === "INPUT_REQUIRED") && <Btn variant="secondary" onClick={() => void refreshServiceTask()} disabled={serviceTaskBusy}><RefreshCw className={cn("w-4 h-4", serviceTaskBusy && "animate-spin")} /> Refresh task</Btn>}
+              {(["FAILED","TIMED_OUT","REJECTED","CANCELLED","UNSUPPORTED","AUTH_REQUIRED","READINESS_BLOCKED","ORIGIN_PROOF_FAILED"] as string[]).includes(serviceTask.state) && !isConfirmed && <Btn variant="secondary" onClick={() => void retryServiceTask()} disabled={serviceTaskBusy}><RotateCcw className="w-4 h-4" /> Retry invocation</Btn>}
+            </div>
+            {serviceTask.originProof.detail && <p className="text-[10px] text-[#6b7d99]">{serviceTask.originProof.detail}</p>}
+          </div>
+        )}
+      </Card>
+
       <Card className="p-6 space-y-5">
         <div>
           <h2 className="font-semibold text-[#dde3ef]">Proposed job limits</h2>
@@ -2943,10 +3019,11 @@ function LiveRebalancingJobIntentPage({ jobIntentId, navigate }: { jobIntentId: 
         </div>
       ) : (
         <div className="flex flex-col sm:flex-row gap-3">
-          <Btn variant="primary" size="lg" className="flex-1 justify-center" onClick={() => void confirmJob()} disabled={confirming || saving}>
+          <Btn variant="primary" size="lg" className="flex-1 justify-center" onClick={() => void confirmJob()} disabled={confirming || saving || !intent.serviceTask || intent.serviceTask.state !== "COMPLETED" || intent.serviceTask.originProofState !== "VERIFIED" || intent.serviceTask.proposalState !== "STRUCTURED"}>
             {confirming ? <><RefreshCw className="w-4 h-4 animate-spin" /> Confirming</> : <>Confirm job intent <ArrowRight className="w-4 h-4" /></>}
           </Btn>
           <Btn variant="secondary" size="lg" onClick={() => navigate("explore", { exploreCategory: "rebalancing", fromFinding: intent.findingId })}>Choose another service</Btn>
+          {(!intent.serviceTask || intent.serviceTask.state !== "COMPLETED" || intent.serviceTask.originProofState !== "VERIFIED" || intent.serviceTask.proposalState !== "STRUCTURED") && <p className="w-full text-[10px] text-[#f59e0b]">Confirm stays locked until the real selected AgentService completes an attributable structured proposal.</p>}
         </div>
       )}
 

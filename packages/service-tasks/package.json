@@ -1,5 +1,5 @@
 {
-  "name": "@spotriq/protocol-pancakeswap",
+  "name": "@spotriq/service-tasks",
   "private": true,
   "version": "0.21.0",
   "type": "module",
@@ -7,10 +7,9 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@spotriq/chain": "workspace:*",
     "@spotriq/domain": "workspace:*",
     "@spotriq/evidence": "workspace:*",
-    "viem": "2.55.11"
+    "@spotriq/marketplace-supply": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

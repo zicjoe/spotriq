@@ -22,9 +22,10 @@
 - Boundary-Controlled Altana Financial Session + Plan-Specific Balance/Allowance Readiness
 - First Controlled BSC Testnet Rebalancing Execution + Exact User-Controlled Approval Flow
 - Execution-scoped Activity & Outcomes evidence
+- Real AgentService A2A Task Invocation + Origin Proof
 
 ## Current source of truth
-Use Spotriq **v0.20.0**.
+Use Spotriq **v0.21.0**.
 
 ## Current live-data spine
 BSC JSON-RPC → protocol adapters → Evidence Engine → Smart Money Engine → Findings → Spotriq UI.
@@ -216,6 +217,7 @@ A2A verification uses Agent Card discovery/validation. Modern MCP verification t
 - Migration 0012 stores boundary-controlled Altana financial-session evidence and plan-specific asset/allowance readiness.
 - Migration 0013 stores exact bounded approval plans/observations and controlled BSC Testnet Rebalancing execution attempts/results.
 - Migration 0014 stores execution-scoped Activity & Outcomes linkage using the original activity/outcome tables without fabricating an Activation.
+- Migration 0015 stores real AgentService task invocation/origin/proposal evidence without fabricating a commercial Activation.
 - Railway PostgreSQL can be attached when the API itself is deployed in Railway; local Railway tunnelling is not required.
 
 ## Controlled execution state in v0.19.0
@@ -234,8 +236,15 @@ The outcome deliberately remains `COLLECTING / INSUFFICIENT_HISTORY` for long-ho
 
 `marketplaceActivationEnabled` remains false because execution evidence does not prove the external AgentService was actually invoked/hired as proposal origin.
 
+## AgentService task-origin state in v0.21.0
+`@spotriq/service-tasks` now closes the gap between service selection and actual external-service proposal origin. The API invokes the selected, fresh-tested A2A runtime with the exact persisted Rebalancing Job Intent context and records a durable `ServiceTask`. A service proposal must echo the exact server-derived request-context hash and is attributable only after fresh service-owned key-control verification plus same-origin A2A observation.
+
+Job Intent confirmation is now gated on `COMPLETED + VERIFIED origin + STRUCTURED proposal`. Revising job constraints invalidates the prior link. The execution plan carries the service task/proposal hash forward; exact accepted ticks retain `AGENT_SERVICE` attribution and changed ticks become `USER_OVERRIDE`. No service receives the boundary-controlled financial signer.
+
+Migration `0015_service_task_origin_proof.sql` persists this evidence separately from `activations`. `marketplaceActivationEnabled` remains false because A2A invocation is not automatically commercial hiring or payment.
+
 ## Next
-Build **v0.21.0 — Real AgentService Task Invocation / Hiring Origin Proof**. Invoke/hire the selected live service through a supported machine/task interface, bind a real task/proposal reference and authenticated response to the Job Intent/execution path, and only then consider the marketplace activation journey proven.
+Build **real marketplace hiring / activation semantics**. Distinguish free invocation from hired/paid/activated state, and use ERC-8183/x402/B402 only where a real service genuinely exposes or requires those commerce semantics. Then attribute Activity & Outcomes to actual service tasks and expand the remaining financial categories end-to-end.
 
 ## Rule
 Every completed replacement ZIP becomes the new source of truth.

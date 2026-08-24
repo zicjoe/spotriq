@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { BoundedPermissionGrant, BoundedPermissionRequest, CheckSession, Finding, FindingServiceMatch, MarketplaceServiceRecord } from "@spotriq/domain";
+import type { BoundedPermissionGrant, BoundedPermissionRequest, CheckSession, Finding, FindingServiceMatch, MarketplaceServiceRecord, RebalancingJobIntent, ServiceTask } from "@spotriq/domain";
 import { createJobIntentEngine } from "./index.js";
 
 const now = "2026-08-21T12:00:00.000Z";
@@ -138,6 +138,24 @@ function match(): FindingServiceMatch {
   };
 }
 
+
+function completedServiceTask(intent: RebalancingJobIntent): ServiceTask {
+  return {
+    serviceTaskId: `service-task:${intent.jobIntentId}`, jobIntentId: intent.jobIntentId, findingId: intent.findingId, serviceId: intent.selectedService.serviceId, agentId: intent.selectedService.agentId,
+    state: "COMPLETED", protocol: "A2A", protocolBinding: "JSONRPC", protocolVersion: "1.0", runtimeEndpoint: "https://agent.example/a2a", agentCardUrl: "https://agent.example/.well-known/agent-card.json",
+    requestContextHash: "sha256:task-context", requestContext: { jobIntentId: intent.jobIntentId, findingId: intent.findingId, serviceId: intent.selectedService.serviceId, agentId: intent.selectedService.agentId, walletAddress: intent.walletAddress, category: "rebalancing", requestedAction: "PREPARE_RANGE_REBALANCE", subject: { protocol: "PancakeSwap", version: intent.subject.version, network: intent.subject.network, tokenId: intent.subject.tokenId, pair: intent.subject.pair, tickLower: intent.subject.tickLower, tickUpper: intent.subject.tickUpper, currentTick: intent.subject.currentTick, feePips: intent.subject.feePips, tickSpacing: intent.subject.tickSpacing, rangeState: intent.subject.rangeState, blockNumber: intent.subject.blockNumber }, constraints: { ...intent.constraints }, expiresAt: intent.expiresAt },
+    attempt: 1, attempts: [{ attempt: 1, requestId: "request-1", messageId: "message-1", idempotencyKey: "idem-1", requestedAt: intent.updatedAt, respondedAt: intent.updatedAt, state: "COMPLETED", remoteTaskId: "remote-task-1" }], remoteTaskId: "remote-task-1",
+    proposalState: "STRUCTURED", proposal: { proposalId: "proposal-1", proposalHash: "sha256:proposal", requestContextHash: "sha256:task-context", action: "PREPARE_RANGE_REBALANCE", targetTickLower: -50, targetTickUpper: 50, receivedAt: intent.updatedAt, provenance: "marketplace-observed" },
+    originProof: { state: "VERIFIED", serviceId: intent.selectedService.serviceId, agentId: intent.selectedService.agentId, runtimeEndpoint: "https://agent.example/a2a", protocol: "A2A", protocolBinding: "JSONRPC", protocolVersion: "1.0", requestId: "request-1", messageId: "message-1", requestContextHash: "sha256:task-context", remoteTaskId: "remote-task-1", observedAt: intent.updatedAt, evidenceIds: [], detail: "test proof" },
+    commercialState: "NOT_PROVEN", evidence: [], createdAt: intent.createdAt, updatedAt: intent.updatedAt, limitations: [],
+  };
+}
+
+async function confirmWithTask(engine: ReturnType<typeof createJobIntentEngine>, prepared: RebalancingJobIntent): Promise<RebalancingJobIntent> {
+  await engine.linkServiceTask(prepared.jobIntentId, completedServiceTask(prepared));
+  return engine.confirm(prepared.jobIntentId);
+}
+
 test("prepare creates an exact PREPARE_ONLY rebalancing job intent with unresolved authority", async () => {
   const engine = createJobIntentEngine();
   const intent = await engine.prepare({ session: session(), finding: finding(), match: match(), now: new Date(now) });
@@ -177,13 +195,33 @@ test("revise validates proposed limits without turning them into authority", asy
 test("confirm advances only to AWAITING_AUTHORITY and never enables execution", async () => {
   const engine = createJobIntentEngine();
   const prepared = await engine.prepare({ session: session(), finding: finding(), match: match(), now: new Date() });
-  const confirmed = await engine.confirm(prepared.jobIntentId);
+  const confirmed = await confirmWithTask(engine, prepared);
   assert.equal(confirmed.state, "AWAITING_AUTHORITY");
   assert.equal(confirmed.executionState, "NO_EXECUTION");
   assert.equal(confirmed.authority.state, "UNRESOLVED");
   const repeated = await engine.prepare({ session: session(), finding: finding(), match: match(), constraints: { maxSlippageBps: 250 } });
   assert.equal(repeated.state, "AWAITING_AUTHORITY");
   assert.equal(repeated.constraints.maxSlippageBps, confirmed.constraints.maxSlippageBps);
+});
+
+test("confirm is blocked until a real completed service task has verified origin and a structured proposal", async () => {
+  const engine = createJobIntentEngine();
+  const prepared = await engine.prepare({ session: session(), finding: finding(), match: match(), now: new Date() });
+  await assert.rejects(() => engine.confirm(prepared.jobIntentId), /real server-originated task/i);
+  const bad = completedServiceTask(prepared);
+  bad.originProof = { ...bad.originProof, state: "UNVERIFIED" };
+  await engine.linkServiceTask(prepared.jobIntentId, bad);
+  await assert.rejects(() => engine.confirm(prepared.jobIntentId), /verified origin/i);
+});
+
+test("revising job limits invalidates a previously linked service task", async () => {
+  const engine = createJobIntentEngine();
+  const prepared = await engine.prepare({ session: session(), finding: finding(), match: match(), now: new Date() });
+  const linked = await engine.linkServiceTask(prepared.jobIntentId, completedServiceTask(prepared));
+  assert.ok(linked.serviceTask);
+  const revised = await engine.revise(prepared.jobIntentId, { maxSlippageBps: 75 });
+  assert.equal(revised.serviceTask, undefined);
+  await assert.rejects(() => engine.confirm(prepared.jobIntentId), /real server-originated task/i);
 });
 
 test("non-rebalancing findings cannot enter the v0.14 vertical", async () => {
@@ -195,7 +233,7 @@ test("non-rebalancing findings cannot enter the v0.14 vertical", async () => {
 test("linking a bounded request and verified grant never enables execution", async () => {
   const engine = createJobIntentEngine();
   const prepared = await engine.prepare({ session: session("VERIFIED_CONTROL"), finding: finding(), match: match(), now: new Date() });
-  const confirmed = await engine.confirm(prepared.jobIntentId);
+  const confirmed = await confirmWithTask(engine, prepared);
 
   const request: BoundedPermissionRequest = {
     permissionRequestId: "permission-request:test",
@@ -280,7 +318,7 @@ test("a receipt-confirmed controlled BSC Testnet execution completes the Job Int
   const engine = createJobIntentEngine();
   const liveNow = new Date();
   const prepared = await engine.prepare({ session: session("VERIFIED_CONTROL"), finding: finding(), match: match(), now: liveNow });
-  const confirmed = await engine.confirm(prepared.jobIntentId);
+  const confirmed = await confirmWithTask(engine, prepared);
   const execution = {
     executionId: "execution:rebalancing:test",
     boundaryId: "boundary:test",

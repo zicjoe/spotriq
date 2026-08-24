@@ -70,6 +70,7 @@ export interface CapabilityResponse {
   boundedTokenApprovalFlowEnabled: boolean;
   controlledBscTestnetExecutionEnabled: boolean;
   executionActivityOutcomesEnabled: boolean;
+  serviceTaskOriginProofEnabled: boolean;
   marketplaceActivationEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
@@ -246,6 +247,15 @@ export interface ReviseRebalancingJobIntentRequest {
 
 export interface RebalancingJobIntentResponse {
   intent: import("@spotriq/domain").RebalancingJobIntent;
+}
+
+export interface ServiceTaskResponse {
+  task: import("@spotriq/domain").ServiceTask;
+  intent?: import("@spotriq/domain").RebalancingJobIntent;
+}
+
+export interface ServiceTaskForJobResponse {
+  task: import("@spotriq/domain").ServiceTask | null;
 }
 
 export interface PrepareBoundedPermissionRequest {

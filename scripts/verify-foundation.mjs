@@ -1,4 +1,4 @@
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
@@ -97,6 +97,15 @@ const required = [
   "apps/web/src/repositories/activityOutcomesRepository.ts",
   "docs/ACTIVITY_OUTCOMES.md",
   "docs/IMPLEMENTATION_REPORT_ACTIVITY_OUTCOMES_v0.20.0.md",
+  "packages/service-tasks/package.json",
+  "packages/service-tasks/src/index.ts",
+  "packages/service-tasks/src/index.test.ts",
+  "packages/db/migrations/0015_service_task_origin_proof.sql",
+  "apps/api/src/routes/service-tasks.ts",
+  "apps/api/src/routes/service-tasks.test.ts",
+  "apps/web/src/repositories/serviceTaskRepository.ts",
+  "docs/AGENTSERVICE_TASK_ORIGIN_PROOF.md",
+  "docs/IMPLEMENTATION_REPORT_SERVICE_TASK_ORIGIN_PROOF_v0.21.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -469,5 +478,66 @@ if (!controlledRoutes.includes("Activity & Outcomes sync failed after confirmed 
   throw new Error("Post-confirmation Activity & Outcomes enrichment must not invalidate already-confirmed execution truth.");
 }
 
-console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + bounded Altana authority + trusted service-key binding + calldata guard + Altana BSC Testnet probe + reviewed Rebalancing execution plan + non-bypassable boundary + boundary-controlled financial session + exact bounded approvals + controlled BSC Testnet Rebalancing dispatch/receipt/replay protection + execution-scoped Activity & Outcomes evidence verification passed.");
+
+const serviceTasks = await readFile(path.join(root, "packages/service-tasks/src/index.ts"), "utf8");
+for (const marker of [
+  "SERVICE_TASK_METHOD", "SPOTRIQ_REBALANCING_PROPOSAL_SCHEMA", "requestContextHash",
+  "exactA2aTestEndpoint", "marketplace.verifyAuthorityBinding", "SendMessage", "message/send", "message:send",
+  "GetTask", "CancelTask", "AUTH_REQUIRED", 'commercialState:"NOT_PROVEN"', "sameOrigin",
+]) {
+  if (!serviceTasks.replaceAll(" ", "").includes(marker.replaceAll(" ", ""))) throw new Error(`v0.21 service-task origin engine is missing ${marker}.`);
+}
+const serviceTaskRoutes = await readFile(path.join(root, "apps/api/src/routes/service-tasks.ts"), "utf8");
+for (const route of [
+  "/v1/job-intents/:jobIntentId/service-tasks",
+  "/v1/job-intents/:jobIntentId/service-task",
+  "/v1/service-tasks/:serviceTaskId",
+  "/v1/service-tasks/:serviceTaskId/reconcile",
+  "/v1/service-tasks/:serviceTaskId/retry",
+  "/v1/service-tasks/:serviceTaskId/cancel",
+]) {
+  if (!serviceTaskRoutes.includes(route)) throw new Error(`Missing v0.21 service-task route ${route}.`);
+}
+if (serviceTaskRoutes.includes("request.body")) throw new Error("v0.21 service-task origin routes must not trust browser-supplied runtime/proposal/origin payloads.");
+const serviceTaskRouteTests = await readFile(path.join(root, "apps/api/src/routes/service-tasks.test.ts"), "utf8");
+if (!serviceTaskRouteTests.includes("browser-fabricated") || !serviceTaskRouteTests.includes("financialSigner")) throw new Error("v0.21 must preserve an adversarial test proving browser-origin evidence cannot be fabricated.");
+const migration0015 = await readFile(path.join(root, "packages/db/migrations/0015_service_task_origin_proof.sql"), "utf8");
+for (const marker of ["service_tasks", "request_context_hash", "origin_proof_state", "commercial_state"]) {
+  if (!migration0015.includes(marker)) throw new Error(`v0.21 migration is missing ${marker}.`);
+}
+for (const marker of ["ServiceTask", "JobIntentServiceTaskLink", "requestContextHash", "proposalOrigin", "USER_OVERRIDE"]) {
+  if (!domain.includes(marker)) throw new Error(`v0.21 domain model is missing ${marker}.`);
+}
+for (const marker of ["linkServiceTask", 'originProofState !== "VERIFIED"', 'proposalState !== "STRUCTURED"', "serviceTask: undefined"]) {
+  if (!jobIntents.includes(marker)) throw new Error(`v0.21 Job Intent origin gate is missing ${marker}.`);
+}
+for (const marker of ["proposalOrigin", "AGENT_SERVICE", "USER_OVERRIDE"]) {
+  if (!executionPlans.includes(marker)) throw new Error(`v0.21 execution-plan proposal attribution is missing ${marker}.`);
+}
+for (const marker of ["Invoke selected service", "Real AgentService task origin", "Confirm stays locked", "serviceTaskRepository.invoke"]) {
+  if (!appUi.includes(marker)) throw new Error(`v0.21 live task-origin UI is missing ${marker}.`);
+}
+if (!apiApp.includes("serviceTaskOriginProofEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
+  throw new Error("API capabilities must expose v0.21 service-task origin proof while keeping commercial marketplace activation unproven.");
+}
+
+async function collectPackageJson(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const output = [];
+  for (const entry of entries) {
+    if (entry.name === "node_modules" || entry.name === ".git") continue;
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory()) output.push(...await collectPackageJson(full));
+    else if (entry.name === "package.json") output.push(full);
+  }
+  return output;
+}
+const manifests = await collectPackageJson(root);
+if (manifests.length !== 24) throw new Error(`v0.21 expects 24 repository package manifests, found ${manifests.length}.`);
+for (const manifestPath of manifests) {
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  if (manifest.version !== "0.21.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.21.0.`);
+}
+
+console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + bounded Altana authority + trusted service-key binding + calldata guard + Altana BSC Testnet probe + reviewed Rebalancing execution plan + non-bypassable boundary + boundary-controlled financial session + exact bounded approvals + controlled BSC Testnet Rebalancing dispatch/receipt/replay protection + execution-scoped Activity & Outcomes + real AgentService A2A task-origin/proposal attribution verification passed.");
 

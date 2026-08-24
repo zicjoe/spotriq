@@ -121,6 +121,12 @@ POST http://localhost:3001/v1/checks/:checkSessionId/findings/:findingId/job-int
 GET  http://localhost:3001/v1/job-intents/:jobIntentId
 PATCH http://localhost:3001/v1/job-intents/:jobIntentId
 POST http://localhost:3001/v1/job-intents/:jobIntentId/confirm
+POST http://localhost:3001/v1/job-intents/:jobIntentId/service-tasks
+GET  http://localhost:3001/v1/job-intents/:jobIntentId/service-task
+GET  http://localhost:3001/v1/service-tasks/:serviceTaskId
+POST http://localhost:3001/v1/service-tasks/:serviceTaskId/reconcile
+POST http://localhost:3001/v1/service-tasks/:serviceTaskId/retry
+POST http://localhost:3001/v1/service-tasks/:serviceTaskId/cancel
 POST http://localhost:3001/v1/job-intents/:jobIntentId/permissions
 GET  http://localhost:3001/v1/permissions/:permissionRequestId
 PATCH http://localhost:3001/v1/permissions/:permissionRequestId
@@ -175,7 +181,7 @@ pnpm db:health
 pnpm db:migrate
 ```
 
-Migration `0002_chain_evidence_spine.sql` introduces Spotriq's data-source, evidence-method, raw-observation, freshness, and conflict schema. Migration `0003_smart_money_rebalancing.sql` adds check-event persistence and the additional Smart Money finding fields. Migration `0004_venus_health_positions.sql` adds normalized Venus pool/market lending snapshots. Migration `0005_yield_opportunities.sql` persists Yield opportunity snapshots. Migration `0006_grid_market_context.sql` persists Grid market-context snapshots plus Grid evidence methods. Migration `0007_agent_registry_discovery.sql` extends canonical agent identity fields, discovery cache, external feedback records, and registry sync history. Migration `0008_marketplace_service_readiness.sql` persists service offers, permission profiles, readiness snapshots, capability claims and normalized service cache. Migration `0009_marketplace_test_lab.sql` persists immutable Marketplace Test Lab runs and coverage payloads.
+Migration `0002_chain_evidence_spine.sql` introduces Spotriq's data-source, evidence-method, raw-observation, freshness, and conflict schema. Migration `0003_smart_money_rebalancing.sql` adds check-event persistence and the additional Smart Money finding fields. Migration `0004_venus_health_positions.sql` adds normalized Venus pool/market lending snapshots. Migration `0005_yield_opportunities.sql` persists Yield opportunity snapshots. Migration `0006_grid_market_context.sql` persists Grid market-context snapshots plus Grid evidence methods. Migration `0007_agent_registry_discovery.sql` extends canonical agent identity fields, discovery cache, external feedback records, and registry sync history. Migration `0008_marketplace_service_readiness.sql` persists service offers, permission profiles, readiness snapshots, capability claims and normalized service cache. Migration `0009_marketplace_test_lab.sql` persists immutable Marketplace Test Lab runs and coverage payloads. Migration `0015_service_task_origin_proof.sql` persists real AgentService task invocation/origin/proposal evidence separately from commercial activation.
 
 ## Run one process only
 
@@ -389,4 +395,13 @@ GET  /v1/controlled-executions/:executionId/activity
 GET  /v1/controlled-executions/:executionId/outcome
 ```
 
-The next milestone is **v0.21.0 — Real AgentService Task Invocation / Hiring Origin Proof** so marketplace activation is established from a real service task/proposal origin rather than inferred from service selection.
+v0.21.0 closes the task-origin gap that remained after Activity & Outcomes: the selected external service must now be genuinely invoked and return attributable proposal evidence before the Job Intent can advance. Commercial hiring/payment/activation remains a separate later gap.
+
+
+## v0.21.0 Real AgentService Task Invocation / Origin Proof
+
+A selected live Rebalancing AgentService must now be genuinely contacted before the Job Intent can be confirmed. Spotriq invokes a fresh-tested A2A interface server-side, binds the exact persisted Job/Finding/LP/constraint context into `requestContextHash`, requires a fresh service-owned key-control proof, and persists the remote task/message plus structured proposal evidence.
+
+The browser cannot provide trusted proposal/origin data. A returned range only pre-fills the existing user review. Exact acceptance is attributed to `AGENT_SERVICE`; changed ticks are explicitly `USER_OVERRIDE` and that attribution is sealed into the execution plan hash. The external service remains proposer-only and never receives the boundary financial signer.
+
+A2A invocation is deliberately **not** called paid hiring or marketplace activation. `marketplaceActivationEnabled` remains false until real commerce/activation semantics are proven. See `docs/AGENTSERVICE_TASK_ORIGIN_PROOF.md`.

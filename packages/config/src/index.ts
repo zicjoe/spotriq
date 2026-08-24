@@ -39,6 +39,9 @@ export interface ServerConfig {
   marketplaceTestTimeoutMs: number;
   marketplaceTestMaxResponseBytes: number;
   marketplaceTestMaxRedirects: number;
+  serviceTaskTimeoutMs: number;
+  serviceTaskMaxResponseBytes: number;
+  serviceTaskMaxRedirects: number;
   agentRegistryMainnetRpc?: string;
   agentRegistryTestnetRpc?: string;
 }
@@ -109,6 +112,9 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     marketplaceTestTimeoutMs: parsePositiveInt(env.MARKETPLACE_TEST_TIMEOUT_MS, 5000, "MARKETPLACE_TEST_TIMEOUT_MS"),
     marketplaceTestMaxResponseBytes: parsePositiveInt(env.MARKETPLACE_TEST_MAX_RESPONSE_BYTES, 256000, "MARKETPLACE_TEST_MAX_RESPONSE_BYTES"),
     marketplaceTestMaxRedirects: parsePositiveInt(env.MARKETPLACE_TEST_MAX_REDIRECTS, 2, "MARKETPLACE_TEST_MAX_REDIRECTS"),
+    serviceTaskTimeoutMs: parsePositiveInt(env.SERVICE_TASK_TIMEOUT_MS, 10000, "SERVICE_TASK_TIMEOUT_MS"),
+    serviceTaskMaxResponseBytes: parsePositiveInt(env.SERVICE_TASK_MAX_RESPONSE_BYTES, 384000, "SERVICE_TASK_MAX_RESPONSE_BYTES"),
+    serviceTaskMaxRedirects: parsePositiveInt(env.SERVICE_TASK_MAX_REDIRECTS, 2, "SERVICE_TASK_MAX_REDIRECTS"),
     agentRegistryMainnetRpc: optional(env.AGENT_REGISTRY_MAINNET_RPC),
     agentRegistryTestnetRpc: optional(env.AGENT_REGISTRY_TESTNET_RPC),
   };

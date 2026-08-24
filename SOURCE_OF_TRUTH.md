@@ -1,8 +1,8 @@
 # Spotriq Source of Truth
 
-Current release: **v0.20.0**
+Current release: **v0.21.0**
 
-This ZIP supersedes Spotriq v0.19.0.
+This ZIP supersedes Spotriq v0.20.0.
 
 Implemented live financial-data categories:
 1. Rebalancing — PancakeSwap V3/Infinity CL current-state foundation and V3 wallet discovery.
@@ -99,7 +99,8 @@ Persistence:
 - Migration `0011_rebalancing_execution_plan_boundary.sql` persists reviewed execution plans plus sealed execution boundaries.
 - Migration `0012_boundary_financial_session_readiness.sql` persists boundary financial-session evidence plus asset/allowance readiness observations.
 - Migration `0013_controlled_rebalancing_execution.sql` persists exact bounded approval plans/observations plus controlled BSC Testnet execution attempts and receipt evidence.
-- Migration `0014_execution_activity_outcomes.sql` is now the latest migration and activates execution-scoped activity/outcome persistence without fabricating a marketplace Activation.
+- Migration `0014_execution_activity_outcomes.sql` activates execution-scoped activity/outcome persistence without fabricating a marketplace Activation.
+- Migration `0015_service_task_origin_proof.sql` is now the latest migration and persists real service-task/proposal-origin evidence separately from commercial Activation.
 - Railway PostgreSQL remains a deployment-time integration rather than a local-development requirement.
 
 Controlled BSC Testnet Rebalancing execution implemented in v0.19.0:
@@ -122,4 +123,15 @@ Activity & Outcomes implemented in v0.20.0:
 - Migration `0014_execution_activity_outcomes.sql` reuses the original activity/outcome schema for execution-scoped evidence.
 - `marketplaceActivationEnabled` remains false because the selected external AgentService is still not proven as the actual task/hiring/proposal origin.
 
-Next engineering milestone: **v0.21.0 Real AgentService Task Invocation / Hiring Origin Proof** — invoke/hire the selected real marketplace service through a supported machine/task interface, bind a trustworthy task/proposal identifier to the Job Intent and controlled execution path, and prove that the actual service originated the proposed work rather than being selected only as metadata.
+Real AgentService Task Invocation / Origin Proof implemented in v0.21.0:
+- A selected Rebalancing AgentService is now invoked server-side through its fresh-tested A2A task/message interface instead of being treated as “activated” merely because it was selected.
+- `@spotriq/service-tasks` persists a durable ServiceTask, exact server-derived request-context hash, remote task/message reference, structured proposal, task attempts, origin proof and explicit commercial state.
+- Fresh Marketplace Test Lab A2A evidence plus fresh service-owned key-control verification are required before origin attribution can become `VERIFIED`.
+- A2A 1.x JSON-RPC and HTTP+JSON are supported with version/tenant routing; historical A2A 0.3 JSON-RPC remains supported. Unconfigured client-auth requirements become `AUTH_REQUIRED` rather than fabricated credentials.
+- The browser cannot submit a trusted runtime, task result, proposal or origin proof. The service must echo the exact server-derived Job Intent context hash in `urn:spotriq:rebalancing-proposal:v1`.
+- Job Intent confirmation now requires `COMPLETED` task + `VERIFIED` origin + `STRUCTURED` proposal. Revising limits invalidates the prior task link and requires re-invocation.
+- Execution-plan attribution preserves exact agent proposal acceptance as `AGENT_SERVICE`; changed ticks become `USER_OVERRIDE`, and proposal origin is included in the plan hash.
+- Migration `0015_service_task_origin_proof.sql` persists service-task evidence without manufacturing an Activation.
+- `marketplaceActivationEnabled` remains false. A2A invocation proves neither paid hiring nor payment nor marketplace activation.
+
+Next engineering milestone: **real marketplace hiring / activation semantics** — distinguish free invocation from genuine hired/paid/activated state and integrate ERC-8183/x402/B402 only where the actual service supports and requires those commerce semantics.
