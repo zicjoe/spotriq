@@ -244,7 +244,13 @@ Job Intent confirmation is now gated on `COMPLETED + VERIFIED origin + STRUCTURE
 Migration `0015_service_task_origin_proof.sql` persists this evidence separately from `activations`. `marketplaceActivationEnabled` remains false because A2A invocation is not automatically commercial hiring or payment.
 
 ## Next
-Build **real marketplace hiring / activation semantics**. Distinguish free invocation from hired/paid/activated state, and use ERC-8183/x402/B402 only where a real service genuinely exposes or requires those commerce semantics. Then attribute Activity & Outcomes to actual service tasks and expand the remaining financial categories end-to-end.
+Foundation reconciliation against the recovered foundational Master Handoff changes the immediate sequence.
+
+Build **live four-category reference-agent supply** first: make RangeKeeper, GridPilot, YieldPilot and VenusGuard genuine BSC/BNB Agent Studio-compatible services where feasible, normalize them into Spotriq, and run safe Marketplace Test Lab/readiness evidence. Preserve the existing Rebalancing execution spine rather than duplicating it.
+
+Then build **truthful commercial hiring / Activation semantics** over those real services, using ERC-8183/x402/B402 only where the actual service exposes those semantics, followed by four-category end-to-end activation parity.
+
+See `SPOTRIQ_DRIFT_AUDIT.md` and `CORRECTED_ROADMAP.md`.
 
 ## Rule
 Every completed replacement ZIP becomes the new source of truth.

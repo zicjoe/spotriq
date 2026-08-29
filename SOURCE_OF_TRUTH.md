@@ -2,6 +2,17 @@
 
 Current release: **v0.21.0**
 
+## Project governance / reconciliation
+
+Spotriq now maintains durable project-state documents so future engineering does not depend on a single long chat:
+
+- `SPOTRIQ_FOUNDATION.md` — canonical product and engineering doctrine recovered from the original Spotriq / BNB Smart Money Marketplace design work.
+- `PROJECT_STATE.md` — concise map of what the current repository actually implements.
+- `SPOTRIQ_DRIFT_AUDIT.md` — explicit comparison of the foundation against the current implementation.
+- `CORRECTED_ROADMAP.md` — implementation order after the reconciliation.
+
+Implementation truth still comes from the current repository. Product intent is not silently rewritten when code is incomplete; material mismatches are recorded in the drift audit.
+
 This ZIP supersedes Spotriq v0.20.0.
 
 Implemented live financial-data categories:
@@ -134,4 +145,4 @@ Real AgentService Task Invocation / Origin Proof implemented in v0.21.0:
 - Migration `0015_service_task_origin_proof.sql` persists service-task evidence without manufacturing an Activation.
 - `marketplaceActivationEnabled` remains false. A2A invocation proves neither paid hiring nor payment nor marketplace activation.
 
-Next engineering milestone: **real marketplace hiring / activation semantics** — distinguish free invocation from genuine hired/paid/activated state and integrate ERC-8183/x402/B402 only where the actual service supports and requires those commerce semantics.
+Foundation-reconciled next engineering milestone: **live four-category reference-agent supply** — make RangeKeeper, GridPilot, YieldPilot and VenusGuard genuine BSC/Agent Studio-compatible services where feasible and pass them through Spotriq normalization/Test Lab/readiness. The recovered foundational roadmap shows this supply step should precede generalized ERC-8183/x402/B402 commerce. Commercial hiring/Activation remains the milestone immediately after real reference supply.

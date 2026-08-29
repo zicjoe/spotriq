@@ -4,6 +4,12 @@ import process from "node:process";
 
 const root = process.cwd();
 const required = [
+  "SPOTRIQ_FOUNDATION.md",
+  "PROJECT_STATE.md",
+  "SPOTRIQ_DRIFT_AUDIT.md",
+  "CORRECTED_ROADMAP.md",
+  "PROJECT_OPERATING_RULES.md",
+  "docs/history/SPOTRIQ_FOUNDATIONAL_HANDOFF_ARCHIVE.md",
   "apps/web/package.json",
   "apps/api/package.json",
   "apps/worker/package.json",
@@ -112,6 +118,19 @@ const required = [
 
 for (const relative of required) {
   await access(path.join(root, relative));
+}
+
+const foundationDoctrine = await readFile(path.join(root, "SPOTRIQ_FOUNDATION.md"), "utf8");
+for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper", "GridPilot", "YieldPilot", "VenusGuard", "search relevance", "partial-data", "Home · Explore · Smart Money Check · My Agents"]) {
+  if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
+}
+const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
+if (!projectState.includes("live four-category reference-agent supply") || !projectState.includes("foundational roadmap reconciliation")) {
+  throw new Error("PROJECT_STATE.md must preserve the recovered foundational roadmap reconciliation and current corrective milestone.");
+}
+const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
+if (!correctedRoadmap.includes("v0.22.0 — Live Four-Category Reference Agent Supply") || !correctedRoadmap.includes("v0.23.0 — Commercial Hiring + Marketplace Activation Kernel")) {
+  throw new Error("Corrected roadmap must preserve four-category live supply before generalized commercial activation.");
 }
 
 const workspace = await readFile(path.join(root, "pnpm-workspace.yaml"), "utf8");

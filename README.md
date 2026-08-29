@@ -1,5 +1,7 @@
 # Spotriq
 
+> Project continuity: read `PROJECT_STATE.md` for the present implementation, `SPOTRIQ_FOUNDATION.md` for canonical product/architecture doctrine, `SPOTRIQ_DRIFT_AUDIT.md` for alignment gaps, `CORRECTED_ROADMAP.md` for sequencing, and `PROJECT_OPERATING_RULES.md` for the engineering handoff/release contract. The recovered foundational handoff is preserved at `docs/history/SPOTRIQ_FOUNDATIONAL_HANDOFF_ARCHIVE.md`.
+
 **BSC financial-agent marketplace**
 
 > Know what your money needs. Spot the right agent for it.
