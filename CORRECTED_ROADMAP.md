@@ -24,6 +24,10 @@ Each completed milestone must update `PROJECT_STATE.md`. Foundational doctrine c
 
 ## v0.22.0 — Live Four-Category Reference Agent Supply
 
+**Repository implementation status: COMPLETE; public deployment/identity acceptance pending.**
+
+The repository now contains four first-party deterministic A2A services integrated into normal Spotriq supply/readiness/matching. Remaining acceptance is external: public HTTPS deployment, Test Lab observation, and genuine ERC-8004 registration/reconciliation.
+
 ### Goal
 
 Correct the largest foundation→current roadmap drift: turn the four long-standing reference services from frontend fixtures into genuine live/callable BSC financial-agent supply where feasible.
@@ -41,7 +45,7 @@ BNB Agent Studio may be used as the reference-agent deployment/runtime path, but
 
 Each agent must flow through:
 
-`deployed service → ERC-8004 identity/metadata → Spotriq AgentIdentity/Listing/Service → runtime descriptor → Marketplace Test Lab → readiness evidence → category discovery/profile`
+`first-party runtime → Spotriq AgentIdentity/Listing/Service → runtime descriptor → Marketplace Test Lab → ERC-8004 deployment identity reconciliation → readiness evidence → category discovery/profile`
 
 ### Minimum acceptance criteria
 

@@ -1,8 +1,8 @@
-# Spotriq Foundation → v0.21.0 Drift Audit
+# Spotriq Foundation → v0.22.0 Drift Audit
 
-**Audit date:** 2026-08-28  
+**Audit date:** 2026-08-29  
 **Foundation:** `SPOTRIQ_FOUNDATION.md`  
-**Implementation:** Spotriq v0.21.0
+**Implementation:** Spotriq v0.22.0
 
 ## Status vocabulary
 
@@ -16,7 +16,7 @@
 
 ## Executive finding
 
-Spotriq has **not lost its core architecture**. In several trust/authority areas, v0.21 is actually more rigorous than the initial product specification.
+Spotriq has **not lost its core architecture**. In several trust/authority areas, the current implementation is more rigorous than the initial product specification. v0.22 also corrects the most obvious supply-sequencing drift by shipping real first-party runtimes across all four required categories.
 
 The main drift is **product balance and marketplace completeness**, not architectural collapse:
 
@@ -63,7 +63,7 @@ Treat production adoption requirements as architectural requirements: durable op
 
 ---
 
-## 3. Four required categories with equal depth — DRIFTED
+## 3. Four required categories with equal depth — DRIFTED / PARTIALLY CORRECTED
 
 ### Foundation
 
@@ -78,13 +78,17 @@ Rebalancing, Grid Trading, Yield Optimisation and Health Factor Monitoring must 
 
 The latter three do not yet have Rebalancing-equivalent marketplace/hiring/runtime/outcome depth.
 
+### v0.22 update
+
+GridPilot, YieldPilot and VenusGuard now exist as genuine first-party read-only A2A AgentServices backed by their category's deterministic protocol readers, alongside RangeKeeper. This fixes the missing four-category runtime-supply layer, but not yet the deeper hiring/Activation/activity/outcome parity.
+
 ### Risk
 
 Spotriq can begin to look like a Rebalancing product with three supporting tabs, contrary to the foundational product and BNB marketplace requirement.
 
 ### Corrective action
 
-After commercial hiring/activation is generalized, build thin but real end-to-end vertical slices for Health, Yield and Grid before adding substantially more Rebalancing specialization.
+Complete public verification/identity for the v0.22 services, then generalize commercial hiring/Activation and build thin but real end-to-end vertical slices for Health, Yield and Grid before adding substantially more Rebalancing specialization.
 
 ---
 
@@ -132,7 +136,7 @@ They are distinct in the domain and marketplace-supply package. Offers exist but
 
 ### Action
 
-Do not flatten. v0.22 commercial work should make Offer/Quote state real rather than inferring it from registry metadata.
+Do not flatten. v0.23 commercial work should make Offer/Quote state real rather than inferring it from registry metadata.
 
 ---
 
@@ -402,7 +406,7 @@ Make genuine four-category reference supply the next milestone. Do not delete or
 
 ---
 
-## 22. Reference financial agents — MISSING AS LIVE FOUR-CATEGORY SUPPLY
+## 22. Reference financial agents — PARTIALLY RESOLVED / PUBLIC PROOF PENDING
 
 ### Foundation checkpoint
 
@@ -410,11 +414,17 @@ RangeKeeper, GridPilot, YieldPilot and VenusGuard were explicitly intended to be
 
 ### v0.21
 
-Their names remain heavily represented in frontend/sample fixtures. Live ERC-8004 discovery and normalized external AgentService candidates exist, but the repository does not prove a completed live four-reference-agent suite.
+Their names remained heavily represented in frontend/sample fixtures. Live ERC-8004 discovery and normalized external AgentService candidates existed, but the repository did not prove a completed live four-reference-agent suite.
+
+### v0.22
+
+The repository now ships RangeKeeper, GridPilot, YieldPilot and VenusGuard as genuine first-party deterministic A2A runtimes and normalized `REFERENCE` AgentServices. They use the same readiness/Test Lab/matching surfaces and do not receive write authority. Legacy duplicate sample cards are suppressed when the live counterpart is present.
+
+What remains unproven by repository code is external/public state: deployed HTTPS reachability, Test Lab observations against that deployment, and genuine ERC-8004 registrations.
 
 ### Corrective action
 
-Build/register/deploy/test real reference services progressively and replace sample dependency with evidence-backed live supply. A reference agent must pass the same Spotriq normalization/readiness rules as external supply.
+Deploy/test/register/reconcile the four public services and preserve the same readiness gates. Do not convert first-party ownership into a shortcut around canonical identity or Marketplace Observed evidence.
 
 ---
 
@@ -468,9 +478,9 @@ The current UI remains a premium dark graphite/charcoal financial interface with
 
 Do not roll back the evidence/readiness/authority/execution safety work already completed.
 
-## P1 — restore genuine four-category live reference supply
+## P1 — complete public proof for four-category reference supply
 
-Make RangeKeeper, GridPilot, YieldPilot and VenusGuard real BSC/Agent Studio-compatible services where feasible, or replace a reference with another genuine service only through an explicit product decision. Run them through the same marketplace evidence/readiness contracts as external agents.
+The repository runtimes now exist. Deploy them behind truthful HTTPS Agent Cards, run Marketplace Test Lab, and register/reconcile genuine ERC-8004 identities without weakening the same marketplace evidence/readiness contracts used for external agents.
 
 ## P2 — truthful commercial hiring + Activation kernel
 
@@ -502,4 +512,4 @@ Supply lifecycle, moderation, observability, incident response, rate limiting, A
 
 **The foundational handoff checkpoint confirms that Spotriq has veered mainly in roadmap sequence and category emphasis, not in its core truth/safety architecture.**
 
-v0.12 and v0.13 followed the intended plan. v0.14–v0.21 then invested heavily in a sophisticated Rebalancing authority/execution spine before establishing the planned genuine four-reference-agent layer. That work should be preserved, but the next move must restore live supply and product parity across Rebalancing, Grid, Yield and Health before another Rebalancing-only subsystem or commerce-rail-first detour.
+v0.12 and v0.13 followed the intended plan. v0.14–v0.21 then invested heavily in a sophisticated Rebalancing authority/execution spine before the planned four-reference-agent layer. v0.22 corrects that missing repository supply layer. The remaining correction is to obtain real public/identity evidence, then build truthful commercial Activation and end-to-end parity for Grid, Yield and Health before another Rebalancing-only detour.

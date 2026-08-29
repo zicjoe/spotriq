@@ -56,6 +56,8 @@ export interface CapabilityResponse {
   marketplaceReadinessEngineEnabled: boolean;
   marketplaceTestingEnabled: boolean;
   findingServiceCompatibilityEnabled: boolean;
+  liveReferenceAgentSupplyEnabled: boolean;
+  referenceAgentRuntimeEnabled: boolean;
   rebalancingJobIntentEnabled: boolean;
   boundedPermissionAuthorityEnabled: boolean;
   trustedAgentSessionKeyBindingEnabled: boolean;

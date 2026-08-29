@@ -23,9 +23,10 @@
 - First Controlled BSC Testnet Rebalancing Execution + Exact User-Controlled Approval Flow
 - Execution-scoped Activity & Outcomes evidence
 - Real AgentService A2A Task Invocation + Origin Proof
+- Live Four-Category First-Party Reference Agent Supply
 
 ## Current source of truth
-Use Spotriq **v0.21.0**.
+Use Spotriq **v0.22.0**.
 
 ## Current live-data spine
 BSC JSON-RPC → protocol adapters → Evidence Engine → Smart Money Engine → Findings → Spotriq UI.
@@ -37,7 +38,12 @@ Live financial categories:
 4. Grid Trading — PancakeSwap V3 current price + onchain TWAP market context
 
 ## Current marketplace-supply spine
-Targeted four-category 8004scan search → deduplicated `FinancialSupplyLead` set → operator-metadata capability gate → `DiscoveredAgent` / `AgentIdentity` → `AgentListing` → supported-category `AgentService` candidate → `Offer` + `PermissionProfile` → Marketplace Test Lab → Marketplace Observed evidence → deterministic `ReadinessSnapshot` → Finding compatibility/ranking → Explore.
+Two truthful supply sources now converge on one marketplace model:
+
+- external: targeted four-category 8004scan search → discovery lead → operator-metadata capability gate → ERC-8004-derived `AgentService` candidate;
+- first-party: versioned Spotriq reference definition → `MARKETPLACE_REFERENCE` identity → real A2A `AgentService`.
+
+Both continue through `AgentListing` → `AgentService` → `Offer` + `PermissionProfile` → Marketplace Test Lab → Marketplace Observed evidence → deterministic `ReadinessSnapshot` → Finding compatibility/ranking → Explore. First-party runtime supply does not imply ERC-8004 identity or Activation.
 
 Targeted discovery no longer relies on a generic newest-agents page to populate financial supply. Rebalancing, Grid, Yield and Health each receive one bounded registry search. Search relevance remains External discovery evidence and never becomes capability proof by itself.
 
@@ -243,12 +249,17 @@ Job Intent confirmation is now gated on `COMPLETED + VERIFIED origin + STRUCTURE
 
 Migration `0015_service_task_origin_proof.sql` persists this evidence separately from `activations`. `marketplaceActivationEnabled` remains false because A2A invocation is not automatically commercial hiring or payment.
 
+## Live reference-agent supply state in v0.22.0
+
+`@spotriq/reference-agents` now backs RangeKeeper, GridPilot, YieldPilot and VenusGuard with deterministic read-only A2A runtimes using existing PancakeSwap/Venus/market-context readers. `/v1/reference-agents` publishes the catalog; each service has a `.well-known/agent-card.json` discovery surface plus same-origin JSON-RPC endpoint.
+
+The records are integrated into normal marketplace supply/readiness/matching with `origin = REFERENCE`, no fake ERC-8004 verification, no invented external reputation, `READ_ONLY` authority and `marketplaceActivationEligible = false`. Public deployment/Test Lab/real ERC-8004 registration remain external acceptance evidence, not repository constants.
+
+See `docs/LIVE_REFERENCE_AGENT_SUPPLY.md`.
+
 ## Next
-Foundation reconciliation against the recovered foundational Master Handoff changes the immediate sequence.
 
-Build **live four-category reference-agent supply** first: make RangeKeeper, GridPilot, YieldPilot and VenusGuard genuine BSC/BNB Agent Studio-compatible services where feasible, normalize them into Spotriq, and run safe Marketplace Test Lab/readiness evidence. Preserve the existing Rebalancing execution spine rather than duplicating it.
-
-Then build **truthful commercial hiring / Activation semantics** over those real services, using ERC-8183/x402/B402 only where the actual service exposes those semantics, followed by four-category end-to-end activation parity.
+Build **truthful commercial hiring / Activation semantics** over real services: `Offer/Quote → Hire/Job → funding/payment evidence → Activation → Activation-bound ServiceTask`. Use ERC-8183/x402/B402 only where actual service semantics fit, then continue into four-category end-to-end activation parity.
 
 See `SPOTRIQ_DRIFT_AUDIT.md` and `CORRECTED_ROADMAP.md`.
 

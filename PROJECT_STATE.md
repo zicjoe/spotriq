@@ -1,7 +1,7 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.21.0  
-**Audited:** 2026-08-28  
+**Current implementation release:** v0.22.0  
+**Audited:** 2026-08-29  
 **Repository role:** Current implementation truth
 
 ## 1. Source-of-truth order
@@ -24,7 +24,7 @@ A code/foundation mismatch is not automatically resolved in favor of code; code 
 
 Spotriq is currently implemented as a BSC-focused financial-agent marketplace and control surface with a read-only Smart Money Check, live BSC financial-data adapters, live ERC-8004/8004scan discovery, marketplace service normalization/readiness, a Marketplace Test Lab, Finding-to-service matching, and one deep Rebalancing execution vertical.
 
-The repository does **not** yet implement complete commercial marketplace activation/hiring semantics. `marketplaceActivationEnabled` is intentionally `false` in v0.21.0.
+The repository does **not** yet implement complete commercial marketplace activation/hiring semantics. `marketplaceActivationEnabled` is intentionally `false` in v0.22.0.
 
 ---
 
@@ -50,6 +50,7 @@ The repository does **not** yet implement complete commercial marketplace activa
 - `@spotriq/smart-money` — Smart Money Check / Findings.
 - `@spotriq/agent-registry` — ERC-8004 + 8004scan discovery/verification.
 - `@spotriq/marketplace-supply` — listings/services/offers/permission profiles/readiness/Test Lab.
+- `@spotriq/reference-agents` — four deterministic first-party A2A reference services and runtime cards.
 - `@spotriq/job-intents` — Finding/service → Rebalancing Job Intent.
 - `@spotriq/service-tasks` — real A2A service invocation/origin proof.
 - `@spotriq/authority` — bounded permission and Altana proof/reconciliation.
@@ -65,9 +66,9 @@ The repository does **not** yet implement complete commercial marketplace activa
 
 | Domain | State | Current implementation |
 |---|---|---|
-| AgentIdentity | LIVE | ERC-8004/8004scan discovery + selected canonical verification |
-| AgentListing | LIVE/PARTIAL | normalized listing surface from discovered identity |
-| AgentService | LIVE/PARTIAL | supported-category normalized candidates from operator metadata hints |
+| AgentIdentity | LIVE | ERC-8004/8004scan external discovery + selected canonical verification; explicit first-party marketplace identity namespace for reference services |
+| AgentListing | LIVE/PARTIAL | normalized listing surface from external identities plus first-party reference listings |
+| AgentService | LIVE/PARTIAL | external supported-category normalized candidates plus four real first-party reference AgentServices |
 | ServiceOffer | PARTIAL | modeled/persisted; often undeclared because commercial provider terms are not proven |
 | PermissionProfile | LIVE/PARTIAL | distinct modeled/persisted declaration state |
 | ReadinessSnapshot | LIVE | deterministic readiness, Test Lab and authority-related gates |
@@ -139,14 +140,18 @@ Known practical issue: live normalized service supply can be sparse/empty when r
 
 ### Reference-agent supply status
 
-The four original reference services still exist primarily as frontend/sample fixtures:
+**LIVE IN REPOSITORY / PUBLIC DEPLOYMENT EVIDENCE PENDING.**
 
-- RangeKeeper — sample/reference;
-- GridPilot — sample/reference;
-- YieldPilot — sample/reference;
-- VenusGuard — sample/reference.
+The four original reference names now have genuine first-party machine-callable implementations in `@spotriq/reference-agents`:
 
-The repository does not yet prove that all four are genuine live BSC Agent Studio services registered, marketplace-normalized, Test-Lab verified and callable through their intended category contracts. This is now the most important supply-side gap exposed by the foundational handoff checkpoint.
+- RangeKeeper — Rebalancing → PancakeSwap V3 position/range analysis;
+- GridPilot — Grid Trading → PancakeSwap V3 market/TWAP context;
+- YieldPilot — Yield Optimisation → Venus current supply-opportunity data;
+- VenusGuard — Health Factor Monitoring → Venus lending-risk/health data.
+
+They publish A2A Agent Cards and JSON-RPC runtimes under `/v1/reference-agents/*`, are normalized as `origin = REFERENCE`, and flow through the same readiness/Test Lab/Finding compatibility surfaces as external supply. Duplicate legacy sample cards are suppressed when the live counterpart is present.
+
+They are deliberately **not** labelled ERC-8004 verified or activatable. Public HTTPS deployment, Marketplace Test Lab observation, and genuine on-chain ERC-8004 registration/reconciliation remain environment-bound proof steps. `first-party runtime ≠ ERC-8004 identity ≠ activation`.
 
 ---
 
@@ -223,6 +228,7 @@ It is now historical design input; `SPOTRIQ_FOUNDATION.md` is the concise canoni
 - `DATABASE_URL` → PostgreSQL persistence.
 - Migrations 0001 through 0015 are present.
 - v0.21 uses migration `0015_service_task_origin_proof.sql` for service task/origin/proposal evidence.
+- v0.22 requires no new migration; existing marketplace tables store first-party reference identities/listings/services with explicit source kinds.
 
 ---
 
@@ -232,19 +238,20 @@ It is now historical design input; `SPOTRIQ_FOUNDATION.md` is the concise canoni
 - Transactional controlled engineering currently uses BSC Testnet where explicitly configured.
 - Dedicated BSC RPC endpoints are recommended for production/staging; public fallbacks support development.
 - `SCAN8004_API_KEY` is optional but useful for higher-quality live discovery throughput.
+- `PUBLIC_API_BASE_URL` defaults to localhost for development, but is explicit and HTTPS-only in production because first-party A2A cards need a truthful public origin.
 - No secrets belong in this document or repository.
 
 ---
 
 ## 12. Current verification
 
-On 2026-08-28 the repository-level foundation verification script passed:
+For v0.22 the repository-level foundation verifier covers the four-category first-party reference-agent package/routes, marketplace integration, evidence methods, truthful UI labeling, activation gating and release-version consistency in addition to all earlier invariants:
 
 `node scripts/verify-foundation.mjs`
 
-The script confirms the implemented foundation through v0.21, including four-category financial data, targeted ERC-8004 supply, Test Lab, compatibility, Rebalancing Job Intent, bounded authority, execution boundary, controlled BSC Testnet execution, Activity & Outcomes and A2A task-origin proof.
+The packaging environment also performs repository-wide TypeScript/TSX syntax transpilation and targeted reference-agent tests where installed dependencies permit. The user's `pnpm check` remains the authoritative full workspace validation because the packaging environment cannot download the dependency graph.
 
-This is a repository-structure/contract verification. It is not evidence that an actual user wallet broadcast a live financial transaction during this audit.
+Repository validation is not public-deployment evidence, ERC-8004 registration evidence, or evidence that a user wallet broadcast a financial transaction.
 
 ---
 
@@ -269,24 +276,18 @@ The implementation after v0.13 therefore strengthened one category far beyond th
 
 ## 14. Current milestone
 
-**Next product/engineering milestone:** live four-category reference-agent supply + Agent Studio integration.
+**v0.22 implementation:** live four-category reference-agent supply is now present in the repository.
 
-The immediate corrective target is not another Rebalancing security subsystem and not ERC-8183/x402-first commerce. It is to turn the four long-standing reference names into genuine, discoverable/callable BSC services where feasible:
+The remaining v0.22 acceptance is environment-bound rather than another source-code subsystem: deploy the API publicly, set `PUBLIC_API_BASE_URL`, run Test Lab against all four public Agent Cards, and register/reconcile genuine ERC-8004 identities rather than embedding fake IDs.
 
-`RangeKeeper · GridPilot · YieldPilot · VenusGuard`
+**Next product/engineering milestone:** v0.23 — truthful Commercial Hiring + Marketplace Activation Kernel.
 
-At minimum each reference service should have:
+Target seam:
 
-- a real deployed/runtime service rather than a mock card;
-- BSC/BNB Agent Studio identity/runtime evidence where applicable;
-- structured category/protocol capability metadata;
-- a normalized Spotriq `AgentService` representation;
-- safe Marketplace Test Lab coverage;
-- a category-appropriate read-only or bounded task contract;
-- explicit commercial/authority state rather than invented pricing or permission;
-- clear live-vs-sample labeling until proof is complete.
+`AgentService → Offer/Quote → Commercial Hire/Job → funding/payment evidence → Activation → Activation-bound ServiceTask`
 
-The marketplace architecture remains provider-neutral: Agent Studio is an integration/source of real agents, not the definition of Spotriq's domain.
+ERC-8183 and x402/B402 should be adapters only where their real service semantics fit. PermissionGrant, commercial Activation and financial execution remain independent resources.
+
 
 ## 15. Immediate product risk
 
@@ -296,7 +297,7 @@ Rebalancing has received far more implementation depth than Grid, Yield and Heal
 
 The priority order is now:
 
-1. establish genuine four-category live reference supply;
+1. complete public verification/registration of the v0.22 four-category reference supply;
 2. generalize truthful commercial hiring/Activation semantics over real services;
 3. bring each category through a meaningful end-to-end activation/runtime path;
 4. then deepen My Agents, Plans, operator tooling and production hardening.

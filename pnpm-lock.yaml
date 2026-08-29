@@ -74,6 +74,9 @@ importers:
       '@spotriq/protocol-venus':
         specifier: workspace:*
         version: link:../../packages/protocol-venus
+      '@spotriq/reference-agents':
+        specifier: workspace:*
+        version: link:../../packages/reference-agents
       '@spotriq/service-tasks':
         specifier: workspace:*
         version: link:../../packages/service-tasks
@@ -666,6 +669,34 @@ importers:
       viem:
         specifier: 2.55.11
         version: 2.55.11(typescript@5.7.3)(zod@4.4.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      tsx:
+        specifier: 4.23.1
+        version: 4.23.1
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+
+  packages/reference-agents:
+    dependencies:
+      '@spotriq/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@spotriq/evidence':
+        specifier: workspace:*
+        version: link:../evidence
+      '@spotriq/market-context':
+        specifier: workspace:*
+        version: link:../market-context
+      '@spotriq/protocol-pancakeswap':
+        specifier: workspace:*
+        version: link:../protocol-pancakeswap
+      '@spotriq/protocol-venus':
+        specifier: workspace:*
+        version: link:../protocol-venus
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

@@ -2,7 +2,7 @@
 
 **Status:** Canonical product and engineering doctrine  
 **Project:** Spotriq (formerly **BNB Smart Money Marketplace**)  
-**Baseline implementation reviewed:** v0.21.0  
+**Baseline implementation reviewed:** v0.22.0  
 **Foundation recovered:** 2026-08-28
 
 ## 1. Purpose of this document

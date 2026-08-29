@@ -1181,9 +1181,9 @@ export type AgentCanonicalVerificationState = "VERIFIED" | "MISMATCH" | "UNAVAIL
 export type AgentRegistrationMetadataState = "PARSED_DATA_URI" | "REMOTE_URI_NOT_FETCHED" | "UNAVAILABLE" | "INVALID";
 
 export interface AgentRegistryReference {
-  namespace: "eip155";
+  namespace: "eip155" | "marketplace";
   chainId: AgentRegistryChainId;
-  registryAddress: string;
+  registryAddress?: string;
   agentId: string;
   identifier: string;
 }
@@ -1217,7 +1217,7 @@ export interface AgentCategoryHint {
 }
 
 export interface ExternalAgentReputationSummary {
-  source: "8004scan";
+  source: "8004scan" | "none";
   totalScore?: number;
   starCount?: number;
   totalFeedbacks: number;
@@ -1241,6 +1241,7 @@ export interface AgentCanonicalVerification {
 
 export interface DiscoveredAgent {
   discoveryId: string;
+  sourceKind?: "ERC8004" | "MARKETPLACE_REFERENCE";
   identity: AgentRegistryReference;
   name: string;
   description: string;
@@ -1445,7 +1446,8 @@ export interface MarketplaceSupplyStatus {
   normalizationMethodVersion: string;
   readinessMethodVersion: string;
   activationGate: "ENFORCED";
-  referenceServicesRemainSample: true;
+  referenceServicesRemainSample: boolean;
+  liveReferenceServices: boolean;
   checkedAt: string;
   capabilities: {
     erc8004IdentityInput: true;
@@ -1458,6 +1460,7 @@ export interface MarketplaceSupplyStatus {
     targetedFinancialDiscovery: true;
     marketplaceTesting: boolean;
     findingServiceCompatibility: boolean;
+    liveReferenceAgentSupply: boolean;
     activation: false;
   };
   limitations: string[];

@@ -43,6 +43,8 @@ import { registerExecutionPlanRoutes } from "./routes/execution-plans.js";
 import { registerControlledExecutionRoutes } from "./routes/controlled-execution.js";
 import { registerActivityOutcomeRoutes } from "./routes/activity-outcomes.js";
 import { registerServiceTaskRoutes } from "./routes/service-tasks.js";
+import { registerReferenceAgentRoutes } from "./routes/reference-agents.js";
+import { createReferenceAgentCatalog } from "@spotriq/reference-agents";
 
 export interface BuildServerOptions {
   config?: ServerConfig;
@@ -95,10 +97,15 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const marketplaceSupplyStore = database
     ? new PostgresMarketplaceSupplyStore({ query: (text, values) => database.query(text, values) })
     : new MemoryMarketplaceSupplyStore();
+  const referenceServices = createReferenceAgentCatalog({
+    publicBaseUrl: config.publicApiBaseUrl,
+    chainId: config.agentDiscoveryChainId,
+  });
   const marketplaceSupply = options.marketplaceSupply ?? createMarketplaceSupply({
     registry: agentRegistry,
     defaultChainId: config.agentDiscoveryChainId,
     store: marketplaceSupplyStore,
+    referenceServices,
     testLab: createMarketplaceTestLab({
       timeoutMs: config.marketplaceTestTimeoutMs,
       maxResponseBytes: config.marketplaceTestMaxResponseBytes,
@@ -169,7 +176,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.21.0",
+      version: "0.22.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -211,6 +218,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       marketplaceReadinessEngineEnabled: true,
       marketplaceTestingEnabled: true,
       findingServiceCompatibilityEnabled: true,
+      liveReferenceAgentSupplyEnabled: true,
+      referenceAgentRuntimeEnabled: true,
       rebalancingJobIntentEnabled: true,
       boundedPermissionAuthorityEnabled: true,
       trustedAgentSessionKeyBindingEnabled: true,
@@ -243,6 +252,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "Financial-category identity hints are now normalized into Spotriq AgentListing and AgentService candidates with explicit Offer, PermissionProfile, runtime-endpoint, and deterministic Readiness resources.",
         "Marketplace Test Lab performs bounded A2A/MCP endpoint-policy, reachability, protocol-contract, and category-capability checks without invoking financial actions.",
         "Smart Money Findings now support deterministic AgentService compatibility ranking using explicit category/protocol/context rules plus evidence quality and operational readiness; no opaque trust or profitability score is produced.",
+        "v0.22 ships four genuine first-party, read-only A2A reference services—RangeKeeper, GridPilot, YieldPilot and VenusGuard—through the same marketplace supply/readiness pipeline. Public HTTPS Test Lab evidence and ERC-8004 registration remain independent gates and are never fabricated.",
         "A selected compatible Rebalancing service can become an idempotent, reviewable PREPARE_ONLY Job Intent carrying exact LP contract/token context and user bounds.",
         "v0.16 can verify service-owned Altana-compatible session-key control through a Spotriq A2A extension and fresh runtime challenge; browser-entered keys never satisfy the binding.",
         "A deterministic V3 calldata guard decodes proposed calls and checks target, LP token ID, recipients, token caps, slippage/deadline bounds, fee tier, and tick alignment against reviewed evidence.",
@@ -270,6 +280,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerCheckRoutes(app, smartMoney, marketplaceSupply);
   await registerAgentRoutes(app, agentRegistry, config.agentDiscoveryChainId);
   await registerMarketplaceRoutes(app, marketplaceSupply, config.agentDiscoveryChainId);
+  await registerReferenceAgentRoutes(app, { publicBaseUrl: config.publicApiBaseUrl, pancakeSwap, venus, marketContext });
   await registerJobIntentRoutes(app, smartMoney, marketplaceSupply, jobIntents);
   await registerServiceTaskRoutes(app, serviceTasks, jobIntents);
   await registerAuthorityRoutes(app, authority, jobIntents, marketplaceSupply);

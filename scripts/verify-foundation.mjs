@@ -112,6 +112,13 @@ const required = [
   "apps/web/src/repositories/serviceTaskRepository.ts",
   "docs/AGENTSERVICE_TASK_ORIGIN_PROOF.md",
   "docs/IMPLEMENTATION_REPORT_SERVICE_TASK_ORIGIN_PROOF_v0.21.0.md",
+  "packages/reference-agents/package.json",
+  "packages/reference-agents/src/index.ts",
+  "packages/reference-agents/src/index.test.ts",
+  "packages/config/src/index.test.ts",
+  "apps/api/src/routes/reference-agents.ts",
+  "docs/LIVE_REFERENCE_AGENT_SUPPLY.md",
+  "docs/IMPLEMENTATION_REPORT_LIVE_REFERENCE_AGENT_SUPPLY_v0.22.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -249,8 +256,8 @@ for (const route of ["/v1/marketplace/status", "/v1/listings", "/v1/services", "
   if (!marketplaceRoutes.includes(route)) throw new Error(`Missing marketplace supply route ${route}.`);
 }
 const marketplaceUiRepo = await readFile(path.join(root, "apps/web/src/repositories/marketplaceSupplyRepository.ts"), "utf8");
-if (!marketplaceUiRepo.includes("ApiMarketplaceSupplyRepository") || !marketplaceUiRepo.includes("runTests") || !appUi.includes("Normalized financial service candidates") || !appUi.includes("Activation blocked") || !appUi.includes("Run Test Lab")) {
-  throw new Error("Explore must render normalized live service candidates separately from sample services and keep activation gated.");
+if (!marketplaceUiRepo.includes("ApiMarketplaceSupplyRepository") || !marketplaceUiRepo.includes("runTests") || !appUi.includes("Live financial services") || !appUi.includes("Activation blocked") || !appUi.includes("Run Test Lab")) {
+  throw new Error("Explore must render live first-party/external service candidates separately from legacy samples and keep activation gated.");
 }
 if (!appUi.includes("Targeted financial supply discovery") || !appUi.includes("Discovery lead only · not a service claim")) {
   throw new Error("Explore must expose targeted financial search coverage and keep search-only leads separate from normalized services.");
@@ -540,6 +547,28 @@ if (!apiApp.includes("serviceTaskOriginProofEnabled: true") || !apiApp.includes(
   throw new Error("API capabilities must expose v0.21 service-task origin proof while keeping commercial marketplace activation unproven.");
 }
 
+// v0.22 — genuine first-party reference AgentService supply across all four required categories.
+const referenceAgents = await readFile(path.join(root, "packages/reference-agents/src/index.ts"), "utf8");
+for (const marker of ["RangeKeeper", "GridPilot", "YieldPilot", "VenusGuard", "REFERENCE_AGENT_DEFINITIONS", "createReferenceAgentCatalog", "handleReferenceAgentJsonRpc", "READ_ONLY", "REQUIRED_AFTER_PUBLIC_DEPLOYMENT"]) {
+  if (!referenceAgents.includes(marker)) throw new Error(`v0.22 reference-agent package is missing ${marker}.`);
+}
+const referenceRoutes = await readFile(path.join(root, "apps/api/src/routes/reference-agents.ts"), "utf8");
+for (const route of ["/v1/reference-agents", "/v1/reference-agents/:slug/.well-known/agent-card.json", "/v1/reference-agents/:slug/a2a"]) {
+  if (!referenceRoutes.includes(route)) throw new Error(`Missing v0.22 reference-agent route ${route}.`);
+}
+if (!marketplaceSupply.includes("referenceServices") || !marketplaceSupply.includes("MARKETPLACE_REFERENCE") || !marketplaceSupply.includes("liveReferenceAgentSupply")) {
+  throw new Error("Marketplace supply must integrate first-party reference services through the existing readiness pipeline.");
+}
+if (!appUi.includes("Live reference service") || !appUi.includes("First-party runtime ≠ ERC-8004 identity ≠ activation")) {
+  throw new Error("Explore must label first-party reference services truthfully and preserve identity/activation separation.");
+}
+if (!apiApp.includes("liveReferenceAgentSupplyEnabled: true") || !apiApp.includes("referenceAgentRuntimeEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
+  throw new Error("v0.22 capabilities must expose live reference supply/runtime while commercial activation remains disabled.");
+}
+if (!evidence.includes("REFERENCE_AGENT_CATALOG") || !evidence.includes("REFERENCE_AGENT_RUNTIME")) {
+  throw new Error("Evidence Engine must expose versioned reference-agent catalog/runtime methodologies.");
+}
+
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const output = [];
@@ -552,11 +581,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 24) throw new Error(`v0.21 expects 24 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 25) throw new Error(`v0.22 expects 25 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.21.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.21.0.`);
+  if (manifest.version !== "0.22.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.22.0.`);
 }
 
-console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing Job Intent + bounded Altana authority + trusted service-key binding + calldata guard + Altana BSC Testnet probe + reviewed Rebalancing execution plan + non-bypassable boundary + boundary-controlled financial session + exact bounded approvals + controlled BSC Testnet Rebalancing dispatch/receipt/replay protection + execution-scoped Activity & Outcomes + real AgentService A2A task-origin/proposal attribution verification passed.");
+console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing execution stack + Activity/Outcomes + AgentService task-origin proof + live four-category first-party reference AgentService supply verification passed.");
 

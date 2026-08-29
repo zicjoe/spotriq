@@ -9,6 +9,7 @@ const config: ServerConfig = {
   appEnv: "development",
   apiHost: "127.0.0.1",
   apiPort: 3001,
+  publicApiBaseUrl: "https://api.spotriq.example",
   corsOrigins: ["http://localhost:5173"],
   bscNetwork: "testnet",
   bscRpcTimeoutMs: 7500,
@@ -18,6 +19,9 @@ const config: ServerConfig = {
   marketplaceTestTimeoutMs: 5000,
   marketplaceTestMaxResponseBytes: 262144,
   marketplaceTestMaxRedirects: 2,
+  serviceTaskTimeoutMs: 10000,
+  serviceTaskMaxResponseBytes: 384000,
+  serviceTaskMaxRedirects: 2,
 };
 
 function rpcResponse(id: number, result: unknown): Response {
@@ -341,5 +345,48 @@ test("GET /v1/agents exposes live registry discoveries without converting them i
   const payload = response.json();
   assert.equal(payload.data.page.agents[0].listingState, "DISCOVERED");
   assert.equal(payload.data.page.agents[0].marketplaceServiceState, "NOT_CREATED");
+  await app.close();
+});
+
+test("GET /v1/reference-agents exposes four first-party categories without claiming activation", async () => {
+  const app = await buildServer({ config, chain: makeChain(), logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/reference-agents" });
+  assert.equal(response.statusCode, 200);
+  const payload = response.json();
+  assert.equal(payload.data.agents.length, 4);
+  assert.deepEqual(new Set(payload.data.agents.map((agent: any) => agent.category)), new Set(["rebalancing", "grid", "yield", "health"]));
+  assert.ok(payload.data.agents.every((agent: any) => agent.authority === "READ_ONLY" && agent.commercialState === "UNDECLARED"));
+  await app.close();
+});
+
+test("GET reference Agent Card publishes the same-origin JSON-RPC runtime", async () => {
+  const app = await buildServer({ config, chain: makeChain(), logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/reference-agents/rangekeeper/.well-known/agent-card.json" });
+  assert.equal(response.statusCode, 200);
+  const card = response.json();
+  assert.equal(card.name, "RangeKeeper");
+  assert.equal(card.metadata.safeMode, "READ_ONLY");
+  assert.equal(card.supportedInterfaces[0].url, "https://api.spotriq.example/v1/reference-agents/rangekeeper/a2a");
+  assert.equal(card.supportedInterfaces[0].protocolBinding, "JSONRPC");
+  await app.close();
+});
+
+test("GET /v1/services returns all four first-party reference services even when external discovery is empty", async () => {
+  const emptyRegistry = {
+    getStatus: async () => ({ provider: "8004scan + ERC-8004", defaultDiscoveryChainId: 56, apiBaseUrl: "https://8004scan.example", apiKeyConfigured: false, indexState: "AVAILABLE", canonicalVerification: "ENABLED", registries: [], checkedAt: new Date().toISOString(), limitations: [] }),
+    listAgents: async (input: any = {}) => ({ agents: [], chainId: input.chainId ?? 56, page: 1, limit: input.limit ?? 20, total: 0, hasMore: false, source: "8004scan", fetchedAt: new Date().toISOString(), limitations: [] }),
+    searchAgents: async (_query: string, input: any = {}) => ({ agents: [], chainId: input.chainId ?? 56, page: 1, limit: input.limit ?? 20, total: 0, hasMore: false, source: "8004scan", fetchedAt: new Date().toISOString(), limitations: [] }),
+    getAgent: async () => { throw new Error("not found"); },
+    getAgentsByOwner: async (_owner: string, input: any = {}) => ({ agents: [], chainId: input.chainId ?? 56, page: 1, limit: input.limit ?? 20, total: 0, hasMore: false, source: "8004scan", fetchedAt: new Date().toISOString(), limitations: [] }),
+    getFeedback: async () => ({ feedback: [], chainId: 56, agentId: "0", page: 1, limit: 20, total: 0, hasMore: false, fetchedAt: new Date().toISOString() }),
+    verifyIdentity: async () => { throw new Error("not applicable"); },
+  } as any;
+  const app = await buildServer({ config, chain: makeChain(), agentRegistry: emptyRegistry, logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/services?chainId=56&limit=8" });
+  assert.equal(response.statusCode, 200);
+  const page = response.json().data.page;
+  assert.equal(page.services.length, 4);
+  assert.deepEqual(new Set(page.services.map((record: any) => record.service.name)), new Set(["RangeKeeper", "GridPilot", "YieldPilot", "VenusGuard"]));
+  assert.ok(page.services.every((record: any) => record.service.origin === "REFERENCE" && record.service.marketplaceActivationEligible === false));
   await app.close();
 });

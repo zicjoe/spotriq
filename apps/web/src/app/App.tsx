@@ -694,6 +694,7 @@ function HomePage({ navigate, hasActivations }: { navigate: (r: Route, p?: Parti
 
 function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, testing }: { record: MarketplaceServiceRecord; onInspect: () => void; inspecting: boolean; onRunTests: () => void; testing: boolean }) {
   const service = record.service;
+  const isReference = service.origin === "REFERENCE" || record.identity.sourceKind === "MARKETPLACE_REFERENCE" || record.identity.identity.namespace === "marketplace";
   const failedOrUnknown = (record.readiness.checks ?? []).filter((check) => check.state !== "PASS");
   const machineEndpoints = (service.runtimeEndpoints ?? []).filter((endpoint) => endpoint.machineCallable);
   const marketplaceTestCheck = (record.readiness.checks ?? []).find((check) => check.code === "MARKETPLACE_TESTS");
@@ -706,9 +707,9 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-[#dde3ef] truncate">{service.name}</span>
             <CategoryPill category={service.category} />
-            <Badge variant="teal">Normalized service</Badge>
+            <Badge variant="teal">{isReference ? "Live reference service" : "Normalized service"}</Badge>
           </div>
-          <div className="text-[11px] text-[#6b7d99] font-mono mt-1">ERC-8004 #{record.identity.identity.agentId} · {record.listing.status}</div>
+          <div className="text-[11px] text-[#6b7d99] font-mono mt-1">{isReference ? `Spotriq first-party · ERC-8004 registration pending · ${record.listing.status}` : `ERC-8004 #${record.identity.identity.agentId} · ${record.listing.status}`}</div>
         </div>
         <ReadinessPill state={service.readiness} />
       </div>
@@ -719,12 +720,12 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
         <div>
           <div className="text-[#6b7d99] mb-0.5">Runtime</div>
           <div className={machineEndpoints.length ? "text-[#dde3ef]" : "text-[#f59e0b]"}>{machineEndpoints.length ? `${machineEndpoints.length} machine endpoint${machineEndpoints.length > 1 ? "s" : ""}` : "No A2A/MCP endpoint"}</div>
-          <div className="text-[10px] text-[#6b7d99]">Operator-supplied registration metadata</div>
+          <div className="text-[10px] text-[#6b7d99]">{isReference ? "First-party versioned runtime declaration" : "Operator-supplied registration metadata"}</div>
         </div>
         <div>
           <div className="text-[#6b7d99] mb-0.5">Authority</div>
-          <div className="text-[#f59e0b]">Undeclared</div>
-          <div className="text-[10px] text-[#6b7d99]">Permission profile required</div>
+          <div className={isReference ? "text-[#4ade80]" : "text-[#f59e0b]"}>{isReference ? "Read-only declared" : "Undeclared"}</div>
+          <div className="text-[10px] text-[#6b7d99]">{isReference ? "No wallet signing authority in v0.22" : "Permission profile required"}</div>
         </div>
         <div>
           <div className="text-[#6b7d99] mb-0.5">Commercial terms</div>
@@ -740,7 +741,7 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
 
       {service.supportedProtocols.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {service.supportedProtocols.map((protocol) => <Badge key={protocol} variant="muted">{protocol} · claimed</Badge>)}
+          {service.supportedProtocols.map((protocol) => <Badge key={protocol} variant="muted">{protocol} · {isReference ? "first-party" : "claimed"}</Badge>)}
         </div>
       )}
 
@@ -757,7 +758,7 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
       </div>
 
       <div className="flex items-center justify-between pt-1 gap-3">
-        <div className="text-[11px] text-[#6b7d99]">Identity ≠ service readiness · deterministic gates</div>
+        <div className="text-[11px] text-[#6b7d99]">{isReference ? "First-party runtime ≠ ERC-8004 identity ≠ activation" : "Identity ≠ service readiness · deterministic gates"}</div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <Btn variant="ghost" size="sm" onClick={onInspect} disabled={inspecting || testing} className="text-[#2dd4bf]">
             {inspecting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Checking</> : <><ShieldCheck className="w-3.5 h-3.5" /> Check readiness</>}
@@ -926,6 +927,11 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
   const visibleServiceCandidates = category === "all"
     ? serviceCandidates
     : serviceCandidates.filter((record) => record.service.category === category);
+
+  const liveReferenceNames = new Set(serviceCandidates
+    .filter((record) => record.service.origin === "REFERENCE" || record.identity.sourceKind === "MARKETPLACE_REFERENCE")
+    .map((record) => record.service.name.toLowerCase()));
+  const visibleSampleServices = filtered.filter((service) => !liveReferenceNames.has(service.name.toLowerCase()));
 
   const loadRegistry = useCallback(async (semanticQuery?: string) => {
     setRegistryLoading(true);
@@ -1207,7 +1213,7 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
 
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-[#6b7d99]">{filtered.length} reference services</span>
+              <span className="text-sm text-[#6b7d99]">{visibleSampleServices.length} legacy sample services</span>
               <Badge variant="muted">Sample data</Badge>
             </div>
             <button onClick={() => setFilterOpen(f => !f)} className="md:hidden flex items-center gap-1.5 text-sm text-[#9aacc4]">
@@ -1216,15 +1222,15 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
           </div>
 
           <div className="space-y-4">
-            {filtered.map(s => (
+            {visibleSampleServices.map(s => (
               <AgentCard key={s.serviceId} service={s}
                 onView={() => navigate("agent", { agentId: s.serviceId })}
                 onCompare={() => toggleCompare(s.serviceId)}
                 compareSelected={compareIds.includes(s.serviceId)}
               />
             ))}
-            {filtered.length === 0 && (
-              <div className="p-6 rounded-lg border border-white/6 bg-card text-sm text-[#6b7d99]">No sample reference service matches the current filters.</div>
+            {visibleSampleServices.length === 0 && (
+              <div className="p-6 rounded-lg border border-white/6 bg-card text-sm text-[#6b7d99]">Legacy sample cards are hidden when their live first-party reference service is available. Use the live financial services section below.</div>
             )}
           </div>
 
@@ -1233,10 +1239,10 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-lg font-semibold text-[#dde3ef]">Normalized financial service candidates</h2>
-                  <Badge variant="teal">Spotriq derived</Badge>
+                  <h2 className="text-lg font-semibold text-[#dde3ef]">Live financial services</h2>
+                  <Badge variant="teal">Reference + external supply</Badge>
                 </div>
-                <p className="text-xs text-[#6b7d99] max-w-2xl">Spotriq actively searches the live registry across Rebalancing, Grid, Yield and Health rather than sampling only the newest identities. Search relevance stays separate from capability proof; only matching operator metadata can become a normalized AgentService candidate.</p>
+                <p className="text-xs text-[#6b7d99] max-w-2xl">Spotriq now combines four real first-party callable reference services with external ERC-8004 supply. External search relevance stays separate from capability proof, and every service remains independently gated by runtime tests, identity evidence and authority rules.</p>
               </div>
               <button onClick={() => void loadSupply(searchText)} disabled={supplyLoading} className="text-xs text-[#2dd4bf] flex items-center gap-1.5 shrink-0 disabled:opacity-50">
                 <RefreshCw className={cn("w-3.5 h-3.5", supplyLoading && "animate-spin")} /> Refresh
@@ -1299,7 +1305,7 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
               <>
                 <div className="flex items-center gap-2 text-[11px] text-[#6b7d99] mb-3">
                   <ShieldCheck className="w-3.5 h-3.5 text-[#2dd4bf]" />
-                  <span>{serviceCandidates.length} normalized service candidate{serviceCandidates.length === 1 ? "" : "s"}</span>
+                  <span>{serviceCandidates.length} live marketplace service{serviceCandidates.length === 1 ? "" : "s"}</span>
                   <span>·</span><span>{serviceCandidates.filter((record) => record.service.marketplaceActivationEligible).length} activation-eligible</span>
                   <span>·</span><span>{serviceCandidates.filter((record) => record.readiness.checks?.find((check) => check.code === "MARKETPLACE_TESTS")?.state === "PASS").length} contract-tested</span>
                 </div>
@@ -1342,7 +1348,7 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
 
             {registryError && (
               <div className="mb-4 p-3 rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 text-xs text-[#d6a04a]">
-                Live registry source unavailable: {registryError} Reference/sample services above remain available.
+                Live registry source unavailable: {registryError} First-party reference services and legacy samples above remain independently available.
               </div>
             )}
 

@@ -1,6 +1,6 @@
 # Spotriq Source of Truth
 
-Current release: **v0.21.0**
+Current release: **v0.22.0**
 
 ## Project governance / reconciliation
 
@@ -13,7 +13,7 @@ Spotriq now maintains durable project-state documents so future engineering does
 
 Implementation truth still comes from the current repository. Product intent is not silently rewritten when code is incomplete; material mismatches are recorded in the drift audit.
 
-This ZIP supersedes Spotriq v0.20.0.
+This ZIP supersedes Spotriq v0.21.0.
 
 Implemented live financial-data categories:
 1. Rebalancing — PancakeSwap V3/Infinity CL current-state foundation and V3 wallet discovery.
@@ -145,4 +145,13 @@ Real AgentService Task Invocation / Origin Proof implemented in v0.21.0:
 - Migration `0015_service_task_origin_proof.sql` persists service-task evidence without manufacturing an Activation.
 - `marketplaceActivationEnabled` remains false. A2A invocation proves neither paid hiring nor payment nor marketplace activation.
 
-Foundation-reconciled next engineering milestone: **live four-category reference-agent supply** — make RangeKeeper, GridPilot, YieldPilot and VenusGuard genuine BSC/Agent Studio-compatible services where feasible and pass them through Spotriq normalization/Test Lab/readiness. The recovered foundational roadmap shows this supply step should precede generalized ERC-8183/x402/B402 commerce. Commercial hiring/Activation remains the milestone immediately after real reference supply.
+Live Four-Category Reference Agent Supply implemented in v0.22.0:
+- `@spotriq/reference-agents` ships genuine first-party read-only A2A runtimes for RangeKeeper, GridPilot, YieldPilot and VenusGuard.
+- Each service is represented through the existing AgentIdentity/Listing/Service/PermissionProfile/Offer/Readiness/evidence model and participates in Explore, Finding compatibility and Marketplace Test Lab.
+- First-party runtime identity is explicit `MARKETPLACE_REFERENCE`; no ERC-8004 agentId, owner proof, external reputation, pricing or Activation is fabricated.
+- Service endpoints advertise the versioned A2A discovery document, whose same-origin JSON-RPC interface executes deterministic reads through existing PancakeSwap/Venus/market-context adapters.
+- All v0.22 reference authority is `READ_ONLY`; the external runtime does not receive Spotriq's financial signer or bypass the Rebalancing execution boundary.
+- `PUBLIC_API_BASE_URL` is required/HTTPS-only in production so public Agent Cards never silently advertise localhost.
+- Public deployment, Test Lab observation and real ERC-8004 registration/reconciliation remain environment-bound acceptance steps.
+
+Foundation-reconciled next engineering milestone: **truthful commercial hiring + marketplace Activation kernel** over real services. Generalized ERC-8183/x402/B402 support belongs behind provider-neutral commerce adapters where actual service semantics fit.

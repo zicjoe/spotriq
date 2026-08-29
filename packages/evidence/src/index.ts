@@ -173,6 +173,20 @@ export const EVIDENCE_METHODS = {
     description: "Deterministically converts ERC-8004 identity self-description and service endpoints into Spotriq listing/service candidates while preserving operator-claimed provenance.",
     inputMetrics: ["erc8004.identity", "agent.category_hint", "agent.registration_services", "agent.supported_protocols"],
   },
+  REFERENCE_AGENT_CATALOG: {
+    methodId: "marketplace.reference-agent-catalog",
+    version: "1.0.0",
+    name: "Spotriq first-party reference agent catalog",
+    description: "Publishes versioned first-party reference AgentService definitions for the four required Spotriq financial categories without fabricating ERC-8004 identity, commercial terms, runtime observations, or activation readiness.",
+    inputMetrics: ["reference_agent.slug", "reference_agent.category", "reference_agent.runtime_contract"],
+  },
+  REFERENCE_AGENT_RUNTIME: {
+    methodId: "marketplace.reference-agent-runtime",
+    version: "1.0.0",
+    name: "Spotriq deterministic reference agent runtime",
+    description: "Runs bounded read-only reference-agent actions through Spotriq protocol readers. The runtime does not receive signing authority or broadcast financial transactions.",
+    inputMetrics: ["reference_agent.action", "protocol.current_state"],
+  },
   SERVICE_READINESS: {
     methodId: "marketplace.service-readiness",
     version: "1.0.0",

@@ -25,6 +25,7 @@ export interface ServerConfig {
   appEnv: SpotriqEnvironment;
   apiHost: string;
   apiPort: number;
+  publicApiBaseUrl: string;
   corsOrigins: string[];
   databaseUrl?: string;
   redisUrl?: string;
@@ -74,6 +75,17 @@ function parseEnvironment(value: string | undefined): SpotriqEnvironment {
   throw new Error(`Invalid SPOTRIQ_ENV: ${value}`);
 }
 
+function parsePublicApiBaseUrl(value: string | undefined, apiPort: number, appEnv: SpotriqEnvironment): string {
+  const candidate = value?.trim() || `http://127.0.0.1:${apiPort}`;
+  let parsed: URL;
+  try { parsed = new URL(candidate); } catch { throw new Error(`Invalid PUBLIC_API_BASE_URL: ${candidate}`); }
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error("PUBLIC_API_BASE_URL must use http:// or https://.");
+  if (appEnv === "production" && parsed.protocol !== "https:") throw new Error("PUBLIC_API_BASE_URL must use HTTPS in production.");
+  parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+  parsed.search = "";
+  parsed.hash = "";
+  return parsed.toString().replace(/\/$/, "");
+}
 
 function parseAgentDiscoveryChainId(value: string | undefined): 56 | 97 {
   if (!value) return 56;
@@ -90,11 +102,13 @@ function parseNetwork(value: string | undefined): BscNetwork {
 
 export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const appEnv = parseEnvironment(env.SPOTRIQ_ENV);
+  const apiPort = parsePort(env.API_PORT, 3001);
   const config: ServerConfig = {
     nodeEnv: env.NODE_ENV ?? "development",
     appEnv,
     apiHost: env.API_HOST?.trim() || "0.0.0.0",
-    apiPort: parsePort(env.API_PORT, 3001),
+    apiPort,
+    publicApiBaseUrl: parsePublicApiBaseUrl(env.PUBLIC_API_BASE_URL, apiPort, appEnv),
     corsOrigins: (env.CORS_ORIGINS ?? "http://localhost:5173")
       .split(",")
       .map((origin) => origin.trim())
@@ -123,6 +137,7 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     const missing = [
       !config.databaseUrl && "DATABASE_URL",
       !config.bscRpcPrimary && "BSC_RPC_PRIMARY",
+      !optional(env.PUBLIC_API_BASE_URL) && "PUBLIC_API_BASE_URL",
     ].filter(Boolean);
     if (missing.length > 0) {
       throw new Error(`Missing required production configuration: ${missing.join(", ")}`);

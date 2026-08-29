@@ -114,6 +114,18 @@ export class PostgresMarketplaceSupplyStore implements MarketplaceSupplyStore {
   async saveListings(records: MarketplaceListingRecord[]): Promise<void> {
     for (const record of records) {
       const listing = record.listing;
+      if (record.identity.sourceKind === "MARKETPLACE_REFERENCE" || record.identity.identity.namespace === "marketplace") {
+        await this.database.query(`
+          insert into agent_operators (operator_id, display_name, status, created_at)
+          values ('spotriq-reference-agents','Spotriq Reference Agents','ACTIVE',now())
+          on conflict (operator_id) do update set display_name=excluded.display_name, status=excluded.status
+        `);
+        await this.database.query(`
+          insert into agent_identities (agent_id, operator_id, network, registry, identifier, registration_status, chain_id, canonical_status, metadata_status, active, supported_protocols, supported_trust, category_hints, external_source, external_feedback_count, synced_at)
+          values ($1,'spotriq-reference-agents','BSC','MARKETPLACE_REFERENCE',$2,'DISCOVERED',$3,'NOT_CHECKED','UNAVAILABLE',true,$4::jsonb,$5::jsonb,$6::jsonb,'NONE',0,now())
+          on conflict (agent_id) do update set identifier=excluded.identifier, chain_id=excluded.chain_id, active=true, supported_protocols=excluded.supported_protocols, supported_trust=excluded.supported_trust, category_hints=excluded.category_hints, synced_at=now()
+        `, [record.identity.discoveryId, record.identity.identity.identifier, record.identity.identity.chainId, JSON.stringify(record.identity.supportedProtocols), JSON.stringify(record.identity.supportedTrust), JSON.stringify(record.identity.categoryHints)]);
+      }
       await this.database.query(`
         insert into agent_listings (listing_id, agent_id, slug, name, short_description, status, category_tags, created_at, updated_at)
         values ($1,$2,$3,$4,$5,$6,$7::jsonb,now(),now())
@@ -139,7 +151,7 @@ export class PostgresMarketplaceSupplyStore implements MarketplaceSupplyStore {
           runtime_endpoints, normalized_at, created_at, updated_at
         ) values (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12::jsonb,$13::jsonb,$14,$15::jsonb,
-          'ERC8004',$16,$17::jsonb,$18,now(),now()
+          $19,$16,$17::jsonb,$18,now(),now()
         )
         on conflict (service_id) do update set
           listing_id = excluded.listing_id,
@@ -176,6 +188,7 @@ export class PostgresMarketplaceSupplyStore implements MarketplaceSupplyStore {
         Boolean(service.marketplaceActivationEligible),
         JSON.stringify(service.runtimeEndpoints ?? []),
         record.normalizedAt,
+        service.origin ?? "ERC8004",
       ]);
 
       await this.database.query(`
@@ -289,6 +302,7 @@ export interface CreateMarketplaceSupplyOptions {
   store?: MarketplaceSupplyStore;
   testLab?: MarketplaceTestLab;
   authorityBindingVerifier?: AgentAuthorityBindingVerifier;
+  referenceServices?: MarketplaceServiceRecord[];
 }
 
 function slugPart(value: string): string {
@@ -296,12 +310,16 @@ function slugPart(value: string): string {
   return slug || "agent";
 }
 
+function isReferenceAgent(agent: DiscoveredAgent): boolean {
+  return agent.sourceKind === "MARKETPLACE_REFERENCE" || agent.identity.namespace === "marketplace";
+}
+
 function serviceIdFor(agent: DiscoveredAgent, category: ServiceCategory): string {
-  return `svc:erc8004:${agent.identity.chainId}:${agent.identity.agentId}:${category}`;
+  return isReferenceAgent(agent) ? `svc:reference:${agent.identity.agentId}` : `svc:erc8004:${agent.identity.chainId}:${agent.identity.agentId}:${category}`;
 }
 
 function listingIdFor(agent: DiscoveredAgent): string {
-  return `listing:erc8004:${agent.identity.chainId}:${agent.identity.agentId}`;
+  return isReferenceAgent(agent) ? `listing:reference:${agent.identity.agentId}` : `listing:erc8004:${agent.identity.chainId}:${agent.identity.agentId}`;
 }
 
 function parseServiceId(serviceId: string): { chainId: AgentRegistryChainId; agentId: string; category: ServiceCategory } {
@@ -344,17 +362,20 @@ function buildListing(agent: DiscoveredAgent): AgentListing {
   const mismatch = agent.canonicalVerification?.state === "MISMATCH";
   const hasFinancialHint = agent.categoryHints.length > 0;
   const machineEndpoint = normalizeRuntimeEndpoints(agent).some((endpoint) => endpoint.machineCallable);
+  const reference = isReferenceAgent(agent);
   const status: AgentListing["status"] = mismatch || agent.active === false
     ? "SUSPENDED"
-    : verified && hasFinancialHint && machineEndpoint
+    : reference && machineEndpoint
       ? "TESTING"
-      : hasFinancialHint
-        ? "SUBMITTED"
-        : "DISCOVERED";
+      : verified && hasFinancialHint && machineEndpoint
+        ? "TESTING"
+        : hasFinancialHint
+          ? "SUBMITTED"
+          : "DISCOVERED";
   return {
     listingId: listingIdFor(agent),
     agentId: agent.discoveryId,
-    slug: `${slugPart(agent.name)}-${agent.identity.chainId}-${agent.identity.agentId}`,
+    slug: reference ? slugPart(agent.name) : `${slugPart(agent.name)}-${agent.identity.chainId}-${agent.identity.agentId}`,
     name: agent.name,
     shortDescription: agent.description,
     categoryTags: agent.categoryHints.map((hint) => hint.category),
@@ -406,7 +427,8 @@ function readinessFor(
   permissionProfile: PermissionProfile,
   testCoverage: MarketplaceServiceTestCoverage = emptyMarketplaceTestCoverage(serviceId),
 ): ReadinessSnapshot {
-  const verification = agent.canonicalVerification?.state ?? "NOT_CHECKED";
+  const reference = isReferenceAgent(agent);
+  const verification = reference ? "NOT_CHECKED" : agent.canonicalVerification?.state ?? "NOT_CHECKED";
   const machineEndpoint = runtimeEndpoints.some((endpoint) => endpoint.machineCallable);
   const reachabilityTests = testCoverage.tests.filter((test) => test.code === "ENDPOINT_REACHABILITY");
   const runtimeReachable = reachabilityTests.some((test) => test.state === "PASS");
@@ -431,14 +453,18 @@ function readinessFor(
       label: "BSC network",
       state: agent.identity.chainId === 56 ? "PASS" : "WARN",
       requiredForActivation: true,
-      detail: agent.identity.chainId === 56 ? "Identity is registered on BSC Mainnet." : "Identity is registered on BSC Testnet; production activation remains unavailable.",
+      detail: reference
+        ? (agent.identity.chainId === 56 ? "First-party reference supply is associated with BSC Mainnet discovery context; the v0.22 runtime remains read-only." : "First-party reference supply is associated with BSC Testnet context.")
+        : (agent.identity.chainId === 56 ? "Identity is registered on BSC Mainnet." : "Identity is registered on BSC Testnet; production activation remains unavailable."),
     },
     {
       code: "CANONICAL_IDENTITY",
       label: "Canonical ERC-8004 identity",
       state: verification === "VERIFIED" ? "PASS" : verification === "MISMATCH" ? "FAIL" : "UNKNOWN",
       requiredForActivation: true,
-      detail: verification === "VERIFIED" ? "Current ERC-8004 owner and registration backlink are consistent." : verification === "MISMATCH" ? "Canonical identity data conflicts with indexed metadata." : "Canonical onchain verification has not been completed for this service candidate.",
+      detail: reference
+        ? "This first-party runtime is registration-ready, but Spotriq has not fabricated an ERC-8004 agentId. Register the public service onchain and reconcile the resulting identity before activation."
+        : verification === "VERIFIED" ? "Current ERC-8004 owner and registration backlink are consistent." : verification === "MISMATCH" ? "Canonical identity data conflicts with indexed metadata." : "Canonical onchain verification has not been completed for this service candidate.",
     },
     {
       code: "ACTIVE_METADATA",
@@ -473,7 +499,9 @@ function readinessFor(
       label: "Permission profile",
       state: permissionProfile.declarationState === "DECLARED" ? "PASS" : "UNKNOWN",
       requiredForActivation: true,
-      detail: permissionProfile.declarationState === "DECLARED" ? "Required authority has been explicitly declared." : "Protocols, assets, execution mode, spend limits and authority scope have not yet been declared as a Spotriq permission profile.",
+      detail: permissionProfile.declarationState === "DECLARED"
+        ? (reference && permissionProfile.executionMode === "READ_ONLY" ? "The reference runtime explicitly declares read-only authority and receives no wallet signing capability in v0.22." : "Required authority has been explicitly declared.")
+        : "Protocols, assets, execution mode, spend limits and authority scope have not yet been declared as a Spotriq permission profile.",
     },
     {
       code: "MARKETPLACE_TESTS",
@@ -497,13 +525,15 @@ function readinessFor(
     ? "SUSPENDED"
     : agent.identity.chainId === 97
       ? "TESTNET_ONLY"
-      : allRequiredPass
-        ? "READY"
-        : runtimeFailed
-          ? "OFFLINE"
-          : testCoverage.coverage === "FAIL"
-            ? "DEGRADED"
-            : "LIMITED";
+      : reference
+        ? runtimeFailed ? "OFFLINE" : testCoverage.coverage === "FAIL" ? "DEGRADED" : "LIMITED"
+        : allRequiredPass
+          ? "READY"
+          : runtimeFailed
+            ? "OFFLINE"
+            : testCoverage.coverage === "FAIL"
+              ? "DEGRADED"
+              : "LIMITED";
   const reasons = checks.filter((check) => check.state !== "PASS").map((check) => check.detail);
   return {
     readinessSnapshotId: `ready:${serviceId}`,
@@ -512,10 +542,10 @@ function readinessFor(
     checkedAt: new Date().toISOString(),
     reasons,
     checks,
-    activationEligible: state === "READY",
+    activationEligible: !reference && state === "READY",
     limitations: [
       "Marketplace Test Lab verifies bounded runtime contracts and advertised machine capability; it does not execute financial actions or establish profitability.",
-      "A service cannot become Ready unless identity, active state, endpoint declaration/reachability, explicit permission profile and marketplace tests all pass independently.",
+      reference ? "A first-party runtime cannot become activation-eligible until its public service is registered/reconciled through ERC-8004 and later commercial activation gates exist." : "A service cannot become Ready unless identity, active state, endpoint declaration/reachability, explicit permission profile and marketplace tests all pass independently.",
       "Readiness is operational eligibility, not a prediction of financial performance or profitability.",
     ],
     methodVersion: MARKETPLACE_SERVICE_READINESS_METHOD,
@@ -650,7 +680,7 @@ function applyTestCoverageToRecord(record: MarketplaceServiceRecord, coverage: M
     limitations: [
       ...record.limitations.filter((item) => !/Activation is blocked by design in this milestone|not yet marketplace-tested/i.test(item)),
       coverage.coverage === "NOT_RUN"
-        ? "Category/protocol capability is normalized from operator metadata and has not yet been observed by Marketplace Test Lab."
+        ? (isReferenceAgent(record.identity) ? "First-party capability is declared by the versioned reference-agent catalog and has not yet been observed through the public Marketplace Test Lab." : "Category/protocol capability is normalized from operator metadata and has not yet been observed by Marketplace Test Lab.")
         : "Marketplace Test Lab evidence is contract-level only and does not establish profitability, execution quality, or authority safety.",
       "Activation remains independently gated by explicit permission/authority requirements and the marketplace activation engine.",
     ],
@@ -939,6 +969,8 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
   const store = options.store ?? new MemoryMarketplaceSupplyStore();
   const testLab = options.testLab ?? createMarketplaceTestLab();
   const authorityBindingVerifier = options.authorityBindingVerifier ?? createAgentAuthorityBindingVerifier();
+  const referenceServices = [...(options.referenceServices ?? [])];
+  const referenceServiceMap = new Map(referenceServices.map((record) => [record.service.serviceId, record]));
 
   async function hydrateTestCoverage(record: MarketplaceServiceRecord): Promise<MarketplaceServiceRecord> {
     try {
@@ -951,14 +983,18 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
 
   async function listListings(input: { chainId?: AgentRegistryChainId; page?: number; limit?: number; search?: string } = {}): Promise<MarketplaceListingPage> {
     const page = await registry.listAgents({ chainId: input.chainId ?? defaultChainId, page: input.page, limit: input.limit, search: input.search });
-    const listings = page.agents.map(normalizeMarketplaceListing);
+    const externalListings = page.agents.map(normalizeMarketplaceListing);
+    const referenceListings = referenceServices
+      .filter((record) => record.identity.identity.chainId === (input.chainId ?? defaultChainId))
+      .map((record) => ({ identity: record.identity, listing: record.listing, serviceCount: 1, normalizedAt: record.normalizedAt, limitations: [...record.limitations] }));
+    const listings = [...referenceListings, ...externalListings];
     try { await store.saveListings(listings); } catch { /* persistence is best effort in discovery */ }
     return {
       listings,
       chainId: page.chainId,
       page: page.page,
       limit: page.limit,
-      total: page.total,
+      total: page.total === undefined ? undefined : page.total + referenceListings.length,
       source: page.source,
       fetchedAt: page.fetchedAt,
       limitations: [
@@ -1099,7 +1135,16 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
       });
     }
 
-    const allNormalized = [...servicesByCategory.values()].flat();
+    const eligibleReference = referenceServices.filter((record) => {
+      if (record.identity.identity.chainId !== chainId) return false;
+      if (input.category && record.service.category !== input.category) return false;
+      if (userQuery) {
+        const haystack = [record.service.name, record.service.description, record.service.category, ...record.service.supportedProtocols, ...record.capabilityClaims.flatMap((claim) => [claim.claim, ...claim.basis])].join(" ").toLowerCase();
+        if (!userQuery.toLowerCase().split(/\s+/).filter(Boolean).some((term) => haystack.includes(term))) return false;
+      }
+      return true;
+    });
+    const allNormalized = [...eligibleReference, ...[...servicesByCategory.values()].flat()];
     const uniqueNormalized = [...new Map(allNormalized.map((record) => [record.service.serviceId, record])).values()];
     const hydratedNormalized = await Promise.all(uniqueNormalized.map(hydrateTestCoverage));
     const balancedGroups = new Map<ServiceCategory, MarketplaceServiceRecord[]>(FINANCIAL_CATEGORIES.map((category) => [
@@ -1107,7 +1152,10 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
       hydratedNormalized.filter((record) => record.service.category === category),
     ]));
     const services = roundRobinServices(balancedGroups, limit);
-    const listings = [...discoveredAgents.values()].map(normalizeMarketplaceListing);
+    const listings = [
+      ...eligibleReference.map((record) => ({ identity: record.identity, listing: record.listing, serviceCount: 1, normalizedAt: record.normalizedAt, limitations: [...record.limitations] })),
+      ...[...discoveredAgents.values()].map(normalizeMarketplaceListing),
+    ];
     try {
       await store.saveListings(listings);
       await store.saveServices(hydratedNormalized);
@@ -1128,7 +1176,7 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
       generatedAt,
       limitations: [
         "Search relevance is External discovery evidence and does not establish a financial capability.",
-        "Only operator metadata carrying a supported category hint can be promoted into an AgentService candidate.",
+        "External identities require operator metadata carrying a supported category hint before promotion; first-party Spotriq reference services are versioned catalog entries and remain independently test/readiness gated.",
         "Targeted discovery is bounded to protect the anonymous 8004scan request quota; results are not an exhaustive inventory of all BSC agents.",
       ],
     };
@@ -1145,13 +1193,22 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
       discovery,
       limitations: [
         "Spotriq actively searches the registry for each supported financial category instead of relying on a generic newest-agents page.",
-        "Only identities with a supported operator metadata hint become AgentService candidates; targeted search relevance alone remains a discovery lead.",
+        "External identities need a supported operator metadata hint to become AgentService candidates; targeted search relevance alone remains a discovery lead. First-party reference services are explicit catalog supply, not inferred registry claims.",
         "Service candidates remain non-activatable until canonical verification, runtime reachability, explicit authority, and marketplace tests satisfy readiness gates.",
       ],
     };
   }
 
   async function getService(serviceId: string): Promise<MarketplaceServiceRecord> {
+    const reference = referenceServiceMap.get(serviceId);
+    if (reference) {
+      const record = await hydrateTestCoverage(reference);
+      try {
+        await store.saveListings([{ identity: record.identity, listing: record.listing, serviceCount: 1, normalizedAt: record.normalizedAt, limitations: [...record.limitations] }]);
+        await store.saveServices([record]);
+      } catch { /* persistence is best effort */ }
+      return record;
+    }
     const parsed = parseServiceId(serviceId);
     const agent = await registry.getAgent(parsed.chainId, parsed.agentId);
     const normalized = normalizeMarketplaceService(agent, parsed.category);
@@ -1207,7 +1264,8 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
       normalizationMethodVersion: MARKETPLACE_SERVICE_NORMALIZATION_METHOD,
       readinessMethodVersion: MARKETPLACE_SERVICE_READINESS_METHOD,
       activationGate: "ENFORCED",
-      referenceServicesRemainSample: true,
+      referenceServicesRemainSample: false,
+      liveReferenceServices: referenceServices.length > 0,
       checkedAt: new Date().toISOString(),
       capabilities: {
         erc8004IdentityInput: true,
@@ -1220,9 +1278,11 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
         targetedFinancialDiscovery: true,
         marketplaceTesting: true,
         findingServiceCompatibility: true,
+        liveReferenceAgentSupply: referenceServices.length > 0,
         activation: false,
       },
       limitations: [
+        "Spotriq v0.22 ships first-party callable reference services across Rebalancing, Grid Trading, Yield Optimisation and Health Factor Monitoring; they remain non-activatable until public runtime tests and ERC-8004 registration/reconciliation are complete.",
         "ERC-8004 identity proves portable identity/discovery, not functional or safe financial capability.",
         "Spotriq performs bounded targeted registry discovery across all four supported financial categories; search relevance is never treated as capability proof.",
         "Only supported-category candidates are normalized into services; search-relevant identities without matching operator metadata remain discovery leads.",

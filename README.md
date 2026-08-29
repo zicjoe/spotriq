@@ -27,6 +27,7 @@ packages/
   smart-money/    live check orchestration + deterministic findings + persistence adapters
   agent-registry/  ERC-8004 canonical identity + 8004scan indexed discovery
   marketplace-supply/ financial service normalization, Test Lab, matching, trusted runtime evidence
+  reference-agents/ first-party four-category deterministic A2A services
   job-intents/      reviewable Rebalancing job intent lifecycle
   authority/        bounded permission requests, Altana verification and safety prerequisites
   execution-guard/  deterministic PancakeSwap V3 calldata validation
@@ -153,11 +154,37 @@ http://localhost:3001/v1/agents/56/AGENT_TOKEN_ID/feedback
 http://localhost:3001/v1/accounts/0xOWNER_ADDRESS/agents
 ```
 
-The consumer Explore screen keeps Spotriq's current reference services clearly labelled **Sample data** and shows live registry identities in a separate **Live ERC-8004 registry discoveries** section. Registry-derived financial category labels are metadata hints only and remain **Operator supplied**, not marketplace-tested capability. External 8004scan feedback remains external evidence and is never converted into a Spotriq marketplace review or opaque trust score.
+Explore now combines two truthful live-supply sources: first-party Spotriq reference AgentServices and external ERC-8004-derived candidates. RangeKeeper, GridPilot, YieldPilot and VenusGuard are backed by real read-only A2A runtimes in v0.22; duplicate legacy sample cards are suppressed while any remaining fixture is still clearly labelled sample data. Live registry identities remain separate in **Live ERC-8004 registry discoveries**. Registry-derived financial category labels are metadata hints only and remain **Operator supplied**, not marketplace-tested capability. External 8004scan feedback remains external evidence and is never converted into a Spotriq marketplace review or opaque trust score.
 
 Default discovery uses BSC Mainnet (`AGENT_DISCOVERY_CHAIN_ID=56`) so the marketplace can inspect live BSC identities while transactional engineering can continue on BSC Testnet. The discovery chain can be changed to 97 for testing. An 8004scan API key is optional; configure `SCAN8004_API_KEY` when available.
 
 Remote HTTPS/IPFS registration URIs are intentionally not fetched server-side in this milestone. `data:` registration files can be parsed and backlink-checked safely; remote URIs remain visible but are marked as not fetched until Spotriq adds a hardened metadata-fetch subsystem.
+
+## v0.22.0 Live four-category reference AgentServices
+
+Spotriq now ships genuine first-party deterministic service runtimes for all four required categories:
+
+- RangeKeeper — PancakeSwap V3 position/range analysis;
+- GridPilot — PancakeSwap V3 current/TWAP market context;
+- YieldPilot — Venus current supply-opportunity/base-rate data;
+- VenusGuard — Venus lending-risk/health state.
+
+Service discovery/runtime APIs:
+
+```text
+GET  http://localhost:3001/v1/reference-agents
+GET  http://localhost:3001/v1/reference-agents/rangekeeper/.well-known/agent-card.json
+GET  http://localhost:3001/v1/reference-agents/gridpilot/.well-known/agent-card.json
+GET  http://localhost:3001/v1/reference-agents/yieldpilot/.well-known/agent-card.json
+GET  http://localhost:3001/v1/reference-agents/venusguard/.well-known/agent-card.json
+POST http://localhost:3001/v1/reference-agents/:slug/a2a
+```
+
+These records flow through the normal Spotriq listing/service/readiness/Test Lab/Finding-matching pipeline with `origin = REFERENCE`. They explicitly remain `erc8004Verified = false`, `READ_ONLY`, commercially `UNDECLARED`, and non-activatable until independent evidence exists. A first-party callable runtime is not treated as an ERC-8004 identity or marketplace Activation.
+
+Local runtime calls work on `127.0.0.1`; Marketplace Test Lab intentionally refuses private/localhost addresses. For a deployed environment set `PUBLIC_API_BASE_URL=https://YOUR_PUBLIC_API_HOST`. Production requires this value and HTTPS. After public deployment, run Test Lab and perform genuine ERC-8004 registration/reconciliation rather than embedding fake agent IDs.
+
+See `docs/LIVE_REFERENCE_AGENT_SUPPLY.md`.
 
 ## BSC RPC configuration
 
@@ -407,3 +434,12 @@ A selected live Rebalancing AgentService must now be genuinely contacted before 
 The browser cannot provide trusted proposal/origin data. A returned range only pre-fills the existing user review. Exact acceptance is attributed to `AGENT_SERVICE`; changed ticks are explicitly `USER_OVERRIDE` and that attribution is sealed into the execution plan hash. The external service remains proposer-only and never receives the boundary financial signer.
 
 A2A invocation is deliberately **not** called paid hiring or marketplace activation. `marketplaceActivationEnabled` remains false until real commerce/activation semantics are proven. See `docs/AGENTSERVICE_TASK_ORIGIN_PROOF.md`.
+
+## v0.22.0 Live Four-Category Reference Agent Supply
+
+`@spotriq/reference-agents` corrects the foundation sequencing drift by backing RangeKeeper, GridPilot, YieldPilot and VenusGuard with real first-party read-only A2A runtime contracts. The runtimes use Spotriq's existing deterministic PancakeSwap/Venus/market-context readers and never receive the financial signer.
+
+The four services are injected into normal marketplace supply/readiness/matching rather than a demo-only path. Explore identifies them as **Live reference service**, while preserving the explicit boundary `First-party runtime ≠ ERC-8004 identity ≠ activation`.
+
+Public HTTPS Test Lab evidence and ERC-8004 registration are deployment-bound acceptance steps. `marketplaceActivationEnabled` remains false because v0.22 proves callable supply, not hiring/payment/Activation. See `docs/IMPLEMENTATION_REPORT_LIVE_REFERENCE_AGENT_SUPPLY_v0.22.0.md`.
+
