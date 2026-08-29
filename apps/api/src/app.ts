@@ -77,14 +77,25 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const venus = options.venus ?? createVenusAdapter({ chain });
   const marketContext = options.marketContext ?? createGridMarketContextEngine({ chain, pancakeSwap });
   const database = getDatabasePool(config.databaseUrl);
+  const sqlDatabase = database
+    ? {
+        query: async <Row = Record<string, unknown>>(text: string, values?: unknown[]) => {
+          const result = await database.query(text, values);
+          return {
+            rows: result.rows as unknown as Row[],
+            rowCount: result.rowCount,
+          };
+        },
+      }
+    : undefined;
   const registryMainnetChain = config.bscNetwork === "mainnet"
     ? chain
     : createBscChainAdapter({ network: "mainnet", primaryRpcUrl: config.agentRegistryMainnetRpc, timeoutMs: config.bscRpcTimeoutMs });
   const registryTestnetChain = config.bscNetwork === "testnet"
     ? chain
     : createBscChainAdapter({ network: "testnet", primaryRpcUrl: config.agentRegistryTestnetRpc, timeoutMs: config.bscRpcTimeoutMs });
-  const agentRegistryStore = database
-    ? new PostgresAgentRegistryStore({ query: (text, values) => database.query(text, values) })
+  const agentRegistryStore = sqlDatabase
+    ? new PostgresAgentRegistryStore(sqlDatabase)
     : new MemoryAgentRegistryStore();
   const agentRegistry = options.agentRegistry ?? createAgentRegistry({
     defaultChainId: config.agentDiscoveryChainId,
@@ -94,8 +105,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     chainReaders: { 56: registryMainnetChain, 97: registryTestnetChain },
     store: agentRegistryStore,
   });
-  const marketplaceSupplyStore = database
-    ? new PostgresMarketplaceSupplyStore({ query: (text, values) => database.query(text, values) })
+  const marketplaceSupplyStore = sqlDatabase
+    ? new PostgresMarketplaceSupplyStore(sqlDatabase)
     : new MemoryMarketplaceSupplyStore();
   const referenceServices = createReferenceAgentCatalog({
     publicBaseUrl: config.publicApiBaseUrl,
@@ -112,16 +123,16 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       maxRedirects: config.marketplaceTestMaxRedirects,
     }),
   });
-  const smartMoneyStore = database
-    ? new PostgresSmartMoneyStore({ query: (text, values) => database.query(text, values) })
+  const smartMoneyStore = sqlDatabase
+    ? new PostgresSmartMoneyStore(sqlDatabase)
     : new MemorySmartMoneyStore();
   const smartMoney = options.smartMoney ?? createSmartMoneyEngine({ chain, pancakeSwap, venus, marketContext, store: smartMoneyStore });
-  const jobIntentStore = database
-    ? new PostgresJobIntentStore({ query: (text, values) => database.query(text, values) })
+  const jobIntentStore = sqlDatabase
+    ? new PostgresJobIntentStore(sqlDatabase)
     : new MemoryJobIntentStore();
   const jobIntents = options.jobIntents ?? createJobIntentEngine(jobIntentStore);
-  const serviceTaskStore = database
-    ? new PostgresServiceTaskStore({ query: (text, values) => database.query(text, values) })
+  const serviceTaskStore = sqlDatabase
+    ? new PostgresServiceTaskStore(sqlDatabase)
     : new MemoryServiceTaskStore();
   const serviceTasks = options.serviceTasks ?? createServiceTaskEngine({
     store: serviceTaskStore,
@@ -132,28 +143,28 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       maxRedirects: config.serviceTaskMaxRedirects,
     },
   });
-  const authorityStore = database
-    ? new PostgresAuthorityStore({ query: (text, values) => database.query(text, values) })
+  const authorityStore = sqlDatabase
+    ? new PostgresAuthorityStore(sqlDatabase)
     : new MemoryAuthorityStore();
   const authority = options.authority ?? createAuthorityEngine({
     store: authorityStore,
     verifier: createAltanaKeystoreVerifier({ mainnet: registryMainnetChain, testnet: registryTestnetChain }),
     chain,
   });
-  const executionPlanStore = database
-    ? new PostgresExecutionPlanStore({ query: (text, values) => database.query(text, values) })
+  const executionPlanStore = sqlDatabase
+    ? new PostgresExecutionPlanStore(sqlDatabase)
     : new MemoryExecutionPlanStore();
   const executionPlans = options.executionPlans ?? createExecutionPlanEngine({ store: executionPlanStore, pancakeSwap });
-  const executionBoundaryStore = database
-    ? new PostgresExecutionBoundaryStore({ query: (text, values) => database.query(text, values) })
+  const executionBoundaryStore = sqlDatabase
+    ? new PostgresExecutionBoundaryStore(sqlDatabase)
     : new MemoryExecutionBoundaryStore();
   const executionBoundary = options.executionBoundary ?? createExecutionBoundaryEngine({ store: executionBoundaryStore, plans: executionPlans, pancakeSwap });
-  const controlledExecutionStore = database
-    ? new PostgresControlledExecutionStore({ query: (text, values) => database.query(text, values) })
+  const controlledExecutionStore = sqlDatabase
+    ? new PostgresControlledExecutionStore(sqlDatabase)
     : new MemoryControlledExecutionStore();
   const controlledExecution = options.controlledExecution ?? createControlledExecutionEngine({ store: controlledExecutionStore, boundaries: executionBoundary, plans: executionPlans, authority, chain, pancakeSwap });
-  const activityOutcomesStore = database
-    ? new PostgresActivityOutcomesStore({ query: (text, values) => database.query(text, values) })
+  const activityOutcomesStore = sqlDatabase
+    ? new PostgresActivityOutcomesStore(sqlDatabase)
     : new MemoryActivityOutcomesStore();
   const activityOutcomes = options.activityOutcomes ?? createActivityOutcomesEngine({ store: activityOutcomesStore, executions: controlledExecution, jobs: jobIntents, plans: executionPlans, boundaries: executionBoundary, authority, pancakeSwap });
   const app = Fastify({
@@ -438,7 +449,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const body: ApiErrorBody = {
       error: {
         code: "INTERNAL_ERROR",
-        message: config.appEnv === "production" ? "The request could not be completed." : error.message,
+        message: config.appEnv === "production" ? "The request could not be completed." : error instanceof Error ? error.message : String(error),
         recoverable: true,
         retryable: false,
         correlationId: request.id,

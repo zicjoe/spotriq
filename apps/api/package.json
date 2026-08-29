@@ -1,13 +1,14 @@
 {
   "name": "@spotriq/api",
   "private": true,
-  "version": "0.22.0",
+  "version": "0.22.1",
   "type": "module",
   "dependencies": {
     "@fastify/cors": "11.3.0",
     "@spotriq/api-contracts": "workspace:*",
     "@spotriq/config": "workspace:*",
     "@spotriq/db": "workspace:*",
+    "@spotriq/domain": "workspace:*",
     "fastify": "5.10.0",
     "@spotriq/chain": "workspace:*",
     "@spotriq/evidence": "workspace:*",

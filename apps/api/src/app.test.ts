@@ -148,6 +148,7 @@ test("GET PancakeSwap status exposes normalized adapter capabilities", async () 
         maxPositions: 50,
       },
     }),
+    quoteV3DecreaseLiquidity: async () => { throw new Error("not used"); },
   };
   const app = await buildServer({ config, chain: makeChain(), pancakeSwap, logger: false });
   const response = await app.inject({ method: "GET", url: "/v1/protocols/pancakeswap/status" });
@@ -199,6 +200,7 @@ test("GET wallet PancakeSwap positions preserves explicit Infinity discovery cov
         maxPositions: maxPositions ?? 50,
       },
     }),
+    quoteV3DecreaseLiquidity: async () => { throw new Error("not used"); },
   };
   const app = await buildServer({ config, chain: makeChain(), pancakeSwap, logger: false });
   const response = await app.inject({ method: "GET", url: "/v1/wallets/0x1111111111111111111111111111111111111111/pancakeswap/positions?max=5" });

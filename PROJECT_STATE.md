@@ -1,6 +1,7 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.22.0  
+**Current implementation release:** v0.22.1  
+**Railway clean-build hotfix:** v0.22.1 fixes TypeScript/package-boundary issues surfaced by the first clean Railway build; product scope remains the v0.22 four-category reference-agent milestone.  
 **Audited:** 2026-08-29  
 **Repository role:** Current implementation truth
 
@@ -24,7 +25,7 @@ A code/foundation mismatch is not automatically resolved in favor of code; code 
 
 Spotriq is currently implemented as a BSC-focused financial-agent marketplace and control surface with a read-only Smart Money Check, live BSC financial-data adapters, live ERC-8004/8004scan discovery, marketplace service normalization/readiness, a Marketplace Test Lab, Finding-to-service matching, and one deep Rebalancing execution vertical.
 
-The repository does **not** yet implement complete commercial marketplace activation/hiring semantics. `marketplaceActivationEnabled` is intentionally `false` in v0.22.0.
+The repository does **not** yet implement complete commercial marketplace activation/hiring semantics. `marketplaceActivationEnabled` remains intentionally `false` in v0.22.x.
 
 ---
 

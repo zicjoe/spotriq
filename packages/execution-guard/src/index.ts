@@ -113,9 +113,10 @@ export function guardRebalancingProposal(args: {
   let callKind: RebalancingGuardCallKind | undefined;
   try {
     const decoded = decodeFunctionData({ abi: V3_POSITION_MANAGER_ABI, data: proposal.call.data as Hex });
-    decodedFunction = decoded.functionName;
+    const functionName: string = decoded.functionName;
+    decodedFunction = functionName;
     const params = (decoded.args?.[0] ?? {}) as any;
-    if (decoded.functionName === "collect") {
+    if (functionName === "collect") {
       callKind = "COLLECT";
       checks.push(BigInt(params.tokenId) === BigInt(intent.subject.tokenId)
         ? check("TOKEN_ID", "LP token ID", "PASS", "Collect references the exact LP NFT from the Job Intent.")
@@ -123,14 +124,14 @@ export function guardRebalancingProposal(args: {
       checks.push(lower(String(params.recipient)) === lower(intent.walletAddress)
         ? check("RECIPIENT", "Collect recipient", "PASS", "Collected tokens/fees return directly to the Job Intent wallet.")
         : check("RECIPIENT", "Collect recipient", "FAIL", "Collect recipient is not the Job Intent wallet."));
-    } else if (decoded.functionName === "increaseLiquidity") {
+    } else if (functionName === "increaseLiquidity") {
       callKind = "INCREASE_LIQUIDITY";
       checks.push(BigInt(params.tokenId) === BigInt(intent.subject.tokenId)
         ? check("TOKEN_ID", "LP token ID", "PASS", "Increase-liquidity references the exact LP NFT from the Job Intent.")
         : check("TOKEN_ID", "LP token ID", "FAIL", "Increase-liquidity references a different LP token ID."));
       checks.push(...amountChecks(BigInt(params.amount0Desired), BigInt(params.amount1Desired), BigInt(params.amount0Min), BigInt(params.amount1Min), intent, request));
       checks.push(deadlineCheck(BigInt(params.deadline), intent, request));
-    } else if (decoded.functionName === "decreaseLiquidity") {
+    } else if (functionName === "decreaseLiquidity") {
       callKind = "DECREASE_LIQUIDITY";
       checks.push(BigInt(params.tokenId) === BigInt(intent.subject.tokenId)
         ? check("TOKEN_ID", "LP token ID", "PASS", "Decrease-liquidity references the exact LP NFT from the Job Intent.")
@@ -158,7 +159,7 @@ export function guardRebalancingProposal(args: {
       } else {
         checks.push(check("DECREASE_QUOTE", "Decrease-liquidity quote", "INCONCLUSIVE", "No matching reviewed execution-plan quote was supplied, so Spotriq cannot prove amount0Min/amount1Min represent the reviewed slippage ceiling."));
       }
-    } else if (decoded.functionName === "mint") {
+    } else if (functionName === "mint") {
       callKind = "MINT";
       checks.push(lower(String(params.token0)) === lower(intent.subject.token0?.address ?? "") && lower(String(params.token1)) === lower(intent.subject.token1?.address ?? "")
         ? check("TOKEN_PAIR", "Mint token pair", "PASS", "Mint uses the exact token0/token1 addresses observed for the LP.")
@@ -180,7 +181,7 @@ export function guardRebalancingProposal(args: {
         ? check("TARGET_RANGE_REVIEW", "Target range review", "PASS", `Mint uses the user-reviewed replacement range [${reviewedRange.tickLower}, ${reviewedRange.tickUpper}).`)
         : check("TARGET_RANGE_REVIEW", "Target range review", "INCONCLUSIVE", "Mint target ticks are not backed by the user-reviewed replacement range from the execution plan."));
     } else {
-      throw new ExecutionGuardError(`Unsupported V3 function ${decoded.functionName}.`, "UNSUPPORTED_CALL");
+      throw new ExecutionGuardError(`Unsupported V3 function ${functionName}.`, "UNSUPPORTED_CALL");
     }
   } catch (error) {
     if (error instanceof ExecutionGuardError) throw error;

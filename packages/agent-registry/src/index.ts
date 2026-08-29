@@ -1,4 +1,4 @@
-import { decodeFunctionResult, encodeFunctionData, getAddress, type Address } from "viem";
+import { decodeFunctionResult, encodeFunctionData, getAddress, type Address, type Hex } from "viem";
 import type { BscChainReader } from "@spotriq/chain";
 import type {
   AgentCanonicalVerification,
@@ -480,12 +480,12 @@ export function createAgentRegistry(options: CreateAgentRegistryOptions): AgentR
         chain.callContract(registry.identityRegistry, encodeFunctionData({ abi: IDENTITY_ABI, functionName: "ownerOf", args: [id] })),
         chain.callContract(registry.identityRegistry, encodeFunctionData({ abi: IDENTITY_ABI, functionName: "tokenURI", args: [id] })),
       ]);
-      const owner = decodeFunctionResult({ abi: IDENTITY_ABI, functionName: "ownerOf", data: ownerCall.data });
-      const agentUri = decodeFunctionResult({ abi: IDENTITY_ABI, functionName: "tokenURI", data: uriCall.data });
+      const owner = decodeFunctionResult({ abi: IDENTITY_ABI, functionName: "ownerOf", data: ownerCall.data as Hex });
+      const agentUri = decodeFunctionResult({ abi: IDENTITY_ABI, functionName: "tokenURI", data: uriCall.data as Hex });
       let agentWallet: string | undefined;
       try {
         const walletCall = await chain.callContract(registry.identityRegistry, encodeFunctionData({ abi: IDENTITY_ABI, functionName: "getAgentWallet", args: [id] }), ownerCall.blockNumber);
-        const wallet = decodeFunctionResult({ abi: IDENTITY_ABI, functionName: "getAgentWallet", data: walletCall.data });
+        const wallet = decodeFunctionResult({ abi: IDENTITY_ABI, functionName: "getAgentWallet", data: walletCall.data as Hex });
         if (wallet && wallet !== "0x0000000000000000000000000000000000000000") agentWallet = getAddress(wallet).toLowerCase();
       } catch { /* optional metadata */ }
       const metadata = decodeDataRegistration(agentUri);

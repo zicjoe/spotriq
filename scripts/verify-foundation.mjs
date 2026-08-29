@@ -584,7 +584,7 @@ const manifests = await collectPackageJson(root);
 if (manifests.length !== 25) throw new Error(`v0.22 expects 25 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.22.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.22.0.`);
+  if (manifest.version !== "0.22.1") throw new Error(`${path.relative(root, manifestPath)} must be version 0.22.1.`);
 }
 
 console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing execution stack + Activity/Outcomes + AgentService task-origin proof + live four-category first-party reference AgentService supply verification passed.");

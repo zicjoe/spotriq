@@ -17,7 +17,7 @@ import type {
   RebalancingJobIntent,
 } from "@spotriq/domain";
 import type { BscChainReader } from "@spotriq/chain";
-import { decodeFunctionResult, encodeFunctionData } from "viem";
+import { decodeFunctionResult, encodeFunctionData, type Hex } from "viem";
 
 export const BOUNDED_AUTHORITY_METHOD = "marketplace.bounded-authority@1.2.0";
 export const BOUNDARY_FINANCIAL_SESSION_METHOD = "marketplace.boundary-financial-session@1.0.0";
@@ -422,7 +422,7 @@ function readPlanAmounts(plan: RebalancingExecutionPlan): { token0Required: bigi
 async function readAllowance(chain: BscChainReader, token: string, owner: string, spender: string, blockNumber: string): Promise<bigint> {
   const data = encodeFunctionData({ abi: ERC20_ALLOWANCE_ABI, functionName: "allowance", args: [owner as `0x${string}`, spender as `0x${string}`] });
   const result = await chain.callContract(token, data, blockNumber);
-  return decodeFunctionResult({ abi: ERC20_ALLOWANCE_ABI, functionName: "allowance", data: result.data }) as bigint;
+  return decodeFunctionResult({ abi: ERC20_ALLOWANCE_ABI, functionName: "allowance", data: result.data as Hex }) as bigint;
 }
 
 export function createAuthorityEngine(options: { store?: AuthorityStore; verifier: AltanaKeystoreVerifier; chain?: BscChainReader }): AuthorityEngine {

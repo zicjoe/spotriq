@@ -26,7 +26,7 @@
 - Live Four-Category First-Party Reference Agent Supply
 
 ## Current source of truth
-Use Spotriq **v0.22.0**.
+Use Spotriq **v0.22.1**.
 
 ## Current live-data spine
 BSC JSON-RPC → protocol adapters → Evidence Engine → Smart Money Engine → Findings → Spotriq UI.

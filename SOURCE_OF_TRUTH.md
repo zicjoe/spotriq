@@ -1,6 +1,6 @@
 # Spotriq Source of Truth
 
-Current release: **v0.22.0**
+Current release: **v0.22.1**
 
 ## Project governance / reconciliation
 
@@ -144,6 +144,15 @@ Real AgentService Task Invocation / Origin Proof implemented in v0.21.0:
 - Execution-plan attribution preserves exact agent proposal acceptance as `AGENT_SERVICE`; changed ticks become `USER_OVERRIDE`, and proposal origin is included in the plan hash.
 - Migration `0015_service_task_origin_proof.sql` persists service-task evidence without manufacturing an Activation.
 - `marketplaceActivationEnabled` remains false. A2A invocation proves neither paid hiring nor payment nor marketplace activation.
+
+
+Railway TypeScript build hotfix implemented in v0.22.1:
+
+- clean `@spotriq/api` production typecheck fixes;
+- direct API/domain workspace dependency declared;
+- PostgreSQL query generics aligned;
+- viem chain-return decoding tightened to `Hex`;
+- v0.22 functionality/readiness semantics unchanged.
 
 Live Four-Category Reference Agent Supply implemented in v0.22.0:
 - `@spotriq/reference-agents` ships genuine first-party read-only A2A runtimes for RangeKeeper, GridPilot, YieldPilot and VenusGuard.

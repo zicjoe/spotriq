@@ -47,6 +47,9 @@ importers:
       '@spotriq/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@spotriq/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@spotriq/evidence':
         specifier: workspace:*
         version: link:../../packages/evidence

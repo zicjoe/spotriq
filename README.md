@@ -160,6 +160,10 @@ Default discovery uses BSC Mainnet (`AGENT_DISCOVERY_CHAIN_ID=56`) so the market
 
 Remote HTTPS/IPFS registration URIs are intentionally not fetched server-side in this milestone. `data:` registration files can be parsed and backlink-checked safely; remote URIs remain visible but are marked as not fetched until Spotriq adds a hardened metadata-fetch subsystem.
 
+## v0.22.1 Railway TypeScript Build Hotfix
+
+v0.22.1 preserves the v0.22.0 four-category reference-agent functionality and fixes production TypeScript build failures surfaced by Railway's clean `pnpm --filter @spotriq/api build` environment. The hotfix aligns PostgreSQL query generics, viem Hex decoding types, PancakeSwap test doubles, direct API workspace dependencies, and execution-guard narrowing. No marketplace semantics or readiness gates are weakened.
+
 ## v0.22.0 Live four-category reference AgentServices
 
 Spotriq now ships genuine first-party deterministic service runtimes for all four required categories:
