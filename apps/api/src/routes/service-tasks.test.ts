@@ -24,7 +24,10 @@ test("service-task invocation is server-authoritative and ignores browser-fabric
     get: async (id: string) => { assert.equal(id,"job-1"); return job; },
     linkServiceTask: async (_id: string, value: ServiceTask) => { linkedWith=value; return { ...job, serviceTask:{serviceTaskId:value.serviceTaskId} } as unknown as RebalancingJobIntent; },
   };
-  await registerServiceTaskRoutes(app as any, tasks as any, jobs as any);
+  const commercial = {
+    assertActivationForService: async () => { throw new Error("commercial activation should not be queried when activationId is omitted"); },
+  };
+  await registerServiceTaskRoutes(app as any, tasks as any, jobs as any, commercial as any);
   const handler=app.handlers.get("POST /v1/job-intents/:jobIntentId/service-tasks");
   assert.ok(handler);
   const reply=replyRecorder();
