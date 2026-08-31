@@ -393,3 +393,36 @@ test("marketplace supply exposes end-to-end Finding to live AgentService matchin
   assert.equal(page.matches[0]?.activationEligible, false);
   assert.equal(page.methodVersion, "marketplace.finding-service-compatibility@1.0.0");
 });
+
+test("canonically bound first-party identity is not duplicated as a second external AgentService", async () => {
+  const discovered = agent({
+    discoveryId: "erc8004:97:2017",
+    sourceKind: "ERC8004",
+    identity: { namespace: "eip155", chainId: 97, registryAddress: "0x8004A818BFB912233c491871b3d84c89A494BD9e", agentId: "2017", identifier: "eip155:97:registry:2017" },
+    name: "RangeKeeper",
+    description: "PancakeSwap concentrated-liquidity rebalancing agent",
+    supportedProtocols: ["PancakeSwap"],
+    categoryHints: [{ category: "rebalancing", confidence: "high", basis: ["rebalancing"], provenance: "operator-claimed", note: "registered" }],
+    canonicalVerification: {
+      state: "VERIFIED",
+      checkedAt: new Date().toISOString(),
+      registryAddress: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+      ownerAddress: "0x08a594e828133d18a43918cc804754f46daf44db",
+      registrationMetadataState: "PARSED_DATA_URI",
+      registrationBacklinkMatches: true,
+      evidence: [],
+      limitations: [],
+    },
+  });
+  const reference = normalizeMarketplaceService(discovered, "rebalancing")!;
+  reference.identity.sourceKind = "MARKETPLACE_REFERENCE";
+  reference.service.serviceId = "svc:reference:rangekeeper";
+  reference.service.origin = "REFERENCE";
+  reference.service.marketplaceActivationEligible = false;
+  reference.listing.listingId = "listing:reference:rangekeeper";
+  const supply = createMarketplaceSupply({ registry: registryFor(discovered), defaultChainId: 97, referenceServices: [reference] });
+  const page = await supply.listServices({ chainId: 97, limit: 10 });
+  const sameIdentity = page.services.filter((record) => record.identity.discoveryId === "erc8004:97:2017");
+  assert.equal(sameIdentity.length, 1);
+  assert.equal(sameIdentity[0]?.service.serviceId, "svc:reference:rangekeeper");
+});

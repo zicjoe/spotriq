@@ -1,7 +1,7 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.22.1  
-**Railway clean-build hotfix:** v0.22.1 fixes TypeScript/package-boundary issues surfaced by the first clean Railway build; product scope remains the v0.22 four-category reference-agent milestone.  
+**Current implementation release:** v0.22.2  
+**Reference identity reconciliation:** v0.22.2 lets real ERC-8004 identities be deployment-bound to first-party reference services only after canonical owner/backlink/name/A2A endpoint verification. The earlier v0.22.1 Railway build hotfix remains included.  
 **Audited:** 2026-08-29  
 **Repository role:** Current implementation truth
 
@@ -67,7 +67,7 @@ The repository does **not** yet implement complete commercial marketplace activa
 
 | Domain | State | Current implementation |
 |---|---|---|
-| AgentIdentity | LIVE | ERC-8004/8004scan external discovery + selected canonical verification; explicit first-party marketplace identity namespace for reference services |
+| AgentIdentity | LIVE | ERC-8004/8004scan external discovery + canonical verification; first-party reference services can remain explicit marketplace identities or reconcile to configured real ERC-8004 identities without changing stable service IDs |
 | AgentListing | LIVE/PARTIAL | normalized listing surface from external identities plus first-party reference listings |
 | AgentService | LIVE/PARTIAL | external supported-category normalized candidates plus four real first-party reference AgentServices |
 | ServiceOffer | PARTIAL | modeled/persisted; often undeclared because commercial provider terms are not proven |
@@ -152,7 +152,7 @@ The four original reference names now have genuine first-party machine-callable 
 
 They publish A2A Agent Cards and JSON-RPC runtimes under `/v1/reference-agents/*`, are normalized as `origin = REFERENCE`, and flow through the same readiness/Test Lab/Finding compatibility surfaces as external supply. Duplicate legacy sample cards are suppressed when the live counterpart is present.
 
-They are deliberately **not** labelled ERC-8004 verified or activatable. Public HTTPS deployment, Marketplace Test Lab observation, and genuine on-chain ERC-8004 registration/reconciliation remain environment-bound proof steps. `first-party runtime ≠ ERC-8004 identity ≠ activation`.
+They are deliberately **not** labelled ERC-8004 verified merely because Spotriq ships their runtime. v0.22.2 can bind a configured real identity only after direct canonical verification plus registration-name/A2A endpoint reconciliation. Commercial activation remains separate. `first-party runtime ≠ ERC-8004 identity ≠ activation`.
 
 ---
 
@@ -277,9 +277,9 @@ The implementation after v0.13 therefore strengthened one category far beyond th
 
 ## 14. Current milestone
 
-**v0.22 implementation:** live four-category reference-agent supply is now present in the repository.
+**v0.22 implementation:** live four-category reference-agent supply is present in the repository, public Railway deployment has been exercised, and Marketplace Test Lab has produced PASS coverage for all four public reference Agent Cards.
 
-The remaining v0.22 acceptance is environment-bound rather than another source-code subsystem: deploy the API publicly, set `PUBLIC_API_BASE_URL`, run Test Lab against all four public Agent Cards, and register/reconcile genuine ERC-8004 identities rather than embedding fake IDs.
+**Current external acceptance checkpoint:** RangeKeeper has been registered on BSC Testnet as ERC-8004 Agent ID `2017`. Spotriq independently returned `canonicalVerification.state = VERIFIED`, canonical owner `0x08a594e828133d18a43918cc804754f46daf44db`, a matching registry backlink, parsed registration metadata, and the expected public RangeKeeper A2A Agent Card. v0.22.2 adds the deployment-configured binding needed for `svc:reference:rangekeeper` to consume that canonical proof without hard-coding the ID. GridPilot, YieldPilot and VenusGuard still require their own real ERC-8004 registrations/bindings.
 
 **Next product/engineering milestone:** v0.23 — truthful Commercial Hiring + Marketplace Activation Kernel.
 
@@ -298,7 +298,7 @@ Rebalancing has received far more implementation depth than Grid, Yield and Heal
 
 The priority order is now:
 
-1. complete public verification/registration of the v0.22 four-category reference supply;
+1. deploy v0.22.2, bind RangeKeeper Agent ID 2017, verify its service-level `CANONICAL_IDENTITY = PASS`, then register/bind GridPilot, YieldPilot and VenusGuard;
 2. generalize truthful commercial hiring/Activation semantics over real services;
 3. bring each category through a meaningful end-to-end activation/runtime path;
 4. then deepen My Agents, Plans, operator tooling and production hardening.

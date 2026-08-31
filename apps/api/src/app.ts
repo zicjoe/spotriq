@@ -44,7 +44,7 @@ import { registerControlledExecutionRoutes } from "./routes/controlled-execution
 import { registerActivityOutcomeRoutes } from "./routes/activity-outcomes.js";
 import { registerServiceTaskRoutes } from "./routes/service-tasks.js";
 import { registerReferenceAgentRoutes } from "./routes/reference-agents.js";
-import { createReferenceAgentCatalog } from "@spotriq/reference-agents";
+import { createReferenceAgentCatalog, type ReferenceAgentIdentityBinding, type ReferenceAgentSlug } from "@spotriq/reference-agents";
 
 export interface BuildServerOptions {
   config?: ServerConfig;
@@ -108,9 +108,23 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const marketplaceSupplyStore = sqlDatabase
     ? new PostgresMarketplaceSupplyStore(sqlDatabase)
     : new MemoryMarketplaceSupplyStore();
+
+  const referenceIdentityBindings: Partial<Record<ReferenceAgentSlug, ReferenceAgentIdentityBinding>> = {};
+  for (const slug of ["rangekeeper", "gridpilot", "yieldpilot", "venusguard"] as const) {
+    const agentId = config.referenceAgentIds[slug];
+    if (!agentId) continue;
+    const verification = await agentRegistry.verifyIdentity(config.referenceAgentRegistryChainId, agentId);
+    referenceIdentityBindings[slug] = {
+      chainId: config.referenceAgentRegistryChainId,
+      agentId,
+      verification,
+    };
+  }
+
   const referenceServices = createReferenceAgentCatalog({
     publicBaseUrl: config.publicApiBaseUrl,
     chainId: config.agentDiscoveryChainId,
+    identityBindings: referenceIdentityBindings,
   });
   const marketplaceSupply = options.marketplaceSupply ?? createMarketplaceSupply({
     registry: agentRegistry,
@@ -187,7 +201,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.22.0",
+      version: "0.22.2",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -291,7 +305,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerCheckRoutes(app, smartMoney, marketplaceSupply);
   await registerAgentRoutes(app, agentRegistry, config.agentDiscoveryChainId);
   await registerMarketplaceRoutes(app, marketplaceSupply, config.agentDiscoveryChainId);
-  await registerReferenceAgentRoutes(app, { publicBaseUrl: config.publicApiBaseUrl, pancakeSwap, venus, marketContext });
+  await registerReferenceAgentRoutes(app, { publicBaseUrl: config.publicApiBaseUrl, pancakeSwap, venus, marketContext, identityBindings: referenceIdentityBindings });
   await registerJobIntentRoutes(app, smartMoney, marketplaceSupply, jobIntents);
   await registerServiceTaskRoutes(app, serviceTasks, jobIntents);
   await registerAuthorityRoutes(app, authority, jobIntents, marketplaceSupply);
@@ -443,6 +457,15 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         },
       };
       return reply.code(statusCode).send(body);
+    }
+
+    const frameworkStatusCode = typeof (error as { statusCode?: unknown }).statusCode === "number"
+      ? (error as { statusCode: number }).statusCode
+      : undefined;
+    if (frameworkStatusCode && frameworkStatusCode >= 400 && frameworkStatusCode < 500) {
+      const frameworkCode = typeof (error as { code?: unknown }).code === "string" ? String((error as { code: string }).code) : "REQUEST_REJECTED";
+      const body: ApiErrorBody = { error: { code: frameworkCode, message: error instanceof Error ? error.message : "The request was rejected.", recoverable: true, retryable: false, correlationId: request.id } };
+      return reply.code(frameworkStatusCode).send(body);
     }
 
     request.log.error({ err: error }, "request failed");

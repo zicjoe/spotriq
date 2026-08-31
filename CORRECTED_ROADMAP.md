@@ -24,9 +24,9 @@ Each completed milestone must update `PROJECT_STATE.md`. Foundational doctrine c
 
 ## v0.22.0 — Live Four-Category Reference Agent Supply
 
-**Repository implementation status: COMPLETE; public deployment/identity acceptance pending.**
+**Repository implementation status: COMPLETE; public deployment + Test Lab acceptance COMPLETE; ERC-8004 identity acceptance 1/4 COMPLETE.**
 
-The repository now contains four first-party deterministic A2A services integrated into normal Spotriq supply/readiness/matching. Remaining acceptance is external: public HTTPS deployment, Test Lab observation, and genuine ERC-8004 registration/reconciliation.
+The repository contains four first-party deterministic A2A services integrated into normal Spotriq supply/readiness/matching. All four are publicly deployed and have passed Marketplace Test Lab. RangeKeeper is registered/canonically verified on BSC Testnet as ERC-8004 Agent ID `2017`; v0.22.2 adds generic service-level identity reconciliation. Remaining v0.22 acceptance is to deploy that binding and repeat ERC-8004 registration/binding for GridPilot, YieldPilot and VenusGuard.
 
 ### Goal
 
@@ -66,6 +66,19 @@ For every category:
 - Grid: bounded strategy/market-context task contract; no fabricated PnL.
 - Yield: bounded opportunity/strategy task contract; no realised-yield claim without measurement.
 - Health: read-only monitoring/alert task first; protective write actions remain separately gated.
+
+### v0.22.2 acceptance bridge
+
+Before starting v0.23:
+
+1. deploy v0.22.2;
+2. set `REFERENCE_AGENT_REGISTRY_CHAIN_ID=97` and `REFERENCE_AGENT_RANGEKEEPER_ID=2017`;
+3. verify `svc:reference:rangekeeper` reports `CANONICAL_IDENTITY = PASS`, `TESTNET_ONLY`, `activationEligible = false`;
+4. register GridPilot, YieldPilot and VenusGuard using their real public A2A Agent Cards;
+5. configure their returned IDs and verify the same canonical service binding for all four.
+
+This is acceptance completion for v0.22, not a new product vertical.
+
 
 ---
 

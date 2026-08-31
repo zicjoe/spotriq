@@ -3,10 +3,14 @@ import type { GridMarketContextReader } from "@spotriq/market-context";
 import type { PancakeSwapReader } from "@spotriq/protocol-pancakeswap";
 import type { VenusReader } from "@spotriq/protocol-venus";
 import {
+  assessReferenceAgentIdentityBinding,
   getReferenceAgentDefinition,
   handleReferenceAgentJsonRpc,
   referenceAgentCard,
   REFERENCE_AGENT_DEFINITIONS,
+  referenceAgentCardPath,
+  type ReferenceAgentIdentityBinding,
+  type ReferenceAgentSlug,
 } from "@spotriq/reference-agents";
 
 export async function registerReferenceAgentRoutes(
@@ -16,21 +20,28 @@ export async function registerReferenceAgentRoutes(
     pancakeSwap: PancakeSwapReader;
     venus: VenusReader;
     marketContext: GridMarketContextReader;
+    identityBindings?: Partial<Record<ReferenceAgentSlug, ReferenceAgentIdentityBinding>>;
   },
 ): Promise<void> {
   app.get("/v1/reference-agents", async (_request, reply) => reply.send({
     data: {
-      agents: REFERENCE_AGENT_DEFINITIONS.map((definition) => ({
-        slug: definition.slug,
-        name: definition.name,
-        category: definition.category,
-        description: definition.description,
-        action: definition.action,
-        protocols: definition.protocols,
-        authority: "READ_ONLY",
-        commercialState: "UNDECLARED",
-        erc8004Registration: "REQUIRED_AFTER_PUBLIC_DEPLOYMENT",
-      })),
+      agents: REFERENCE_AGENT_DEFINITIONS.map((definition) => {
+        const binding = input.identityBindings?.[definition.slug];
+        const expectedCardUrl = `${input.publicBaseUrl}${referenceAgentCardPath(definition.slug)}`;
+        const assessment = assessReferenceAgentIdentityBinding(definition, binding, expectedCardUrl);
+        return {
+          slug: definition.slug,
+          name: definition.name,
+          category: definition.category,
+          description: definition.description,
+          action: definition.action,
+          protocols: definition.protocols,
+          authority: "READ_ONLY",
+          commercialState: "UNDECLARED",
+          erc8004Registration: assessment.verified ? "REGISTERED_VERIFIED" : assessment.configured ? "CONFIGURED_UNVERIFIED" : "REQUIRED_AFTER_PUBLIC_DEPLOYMENT",
+          ...(assessment.verified && binding ? { erc8004Identity: { chainId: binding.chainId, agentId: binding.agentId, registryAddress: binding.verification.registryAddress, ownerAddress: binding.verification.ownerAddress } } : {}),
+        };
+      }),
     },
     meta: { generatedAt: new Date().toISOString() },
   }));
@@ -38,7 +49,7 @@ export async function registerReferenceAgentRoutes(
   app.get<{ Params: { slug: string } }>("/v1/reference-agents/:slug/.well-known/agent-card.json", async (request, reply) => {
     const definition = getReferenceAgentDefinition(request.params.slug);
     if (!definition) return reply.code(404).send({ error: { code: "REFERENCE_AGENT_NOT_FOUND", message: "Unknown Spotriq reference agent." } });
-    return reply.type("application/json").send(referenceAgentCard(definition, input.publicBaseUrl));
+    return reply.type("application/json").send(referenceAgentCard(definition, input.publicBaseUrl, input.identityBindings?.[definition.slug]));
   });
 
   app.post<{ Params: { slug: string }; Body: unknown }>("/v1/reference-agents/:slug/a2a", async (request, reply) => {

@@ -26,3 +26,28 @@ test("production normalizes an HTTPS public API base URL", () => {
   const config = loadServerConfig({ ...baseProduction, PUBLIC_API_BASE_URL: "https://api.spotriq.example/" });
   assert.equal(config.publicApiBaseUrl, "https://api.spotriq.example");
 });
+
+test("reference-agent registry defaults to the active BSC execution network", () => {
+  const testnet = loadServerConfig({ NODE_ENV: "test", SPOTRIQ_ENV: "development", BSC_NETWORK: "testnet" });
+  const mainnet = loadServerConfig({ NODE_ENV: "test", SPOTRIQ_ENV: "development", BSC_NETWORK: "mainnet" });
+  assert.equal(testnet.referenceAgentRegistryChainId, 97);
+  assert.equal(mainnet.referenceAgentRegistryChainId, 56);
+});
+
+test("reference-agent ERC-8004 IDs are parsed independently from general discovery", () => {
+  const config = loadServerConfig({
+    NODE_ENV: "test",
+    SPOTRIQ_ENV: "development",
+    BSC_NETWORK: "testnet",
+    AGENT_DISCOVERY_CHAIN_ID: "56",
+    REFERENCE_AGENT_REGISTRY_CHAIN_ID: "97",
+    REFERENCE_AGENT_RANGEKEEPER_ID: "2017",
+  });
+  assert.equal(config.agentDiscoveryChainId, 56);
+  assert.equal(config.referenceAgentRegistryChainId, 97);
+  assert.equal(config.referenceAgentIds.rangekeeper, "2017");
+});
+
+test("reference-agent ERC-8004 IDs must be numeric", () => {
+  assert.throws(() => loadServerConfig({ NODE_ENV: "test", SPOTRIQ_ENV: "development", REFERENCE_AGENT_RANGEKEEPER_ID: "range-1" }), /numeric ERC-8004 token ID/i);
+});

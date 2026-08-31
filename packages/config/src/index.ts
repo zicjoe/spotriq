@@ -45,6 +45,13 @@ export interface ServerConfig {
   serviceTaskMaxRedirects: number;
   agentRegistryMainnetRpc?: string;
   agentRegistryTestnetRpc?: string;
+  referenceAgentRegistryChainId: 56 | 97;
+  referenceAgentIds: {
+    rangekeeper?: string;
+    gridpilot?: string;
+    yieldpilot?: string;
+    venusguard?: string;
+  };
 }
 
 function optional(value: string | undefined): string | undefined {
@@ -94,6 +101,21 @@ function parseAgentDiscoveryChainId(value: string | undefined): 56 | 97 {
   throw new Error(`Invalid AGENT_DISCOVERY_CHAIN_ID: ${value}. Expected 56 or 97.`);
 }
 
+
+function parseOptionalAgentId(value: string | undefined, label: string): string | undefined {
+  const candidate = optional(value);
+  if (!candidate) return undefined;
+  if (!/^\d+$/.test(candidate)) throw new Error(`Invalid ${label}: expected a numeric ERC-8004 token ID.`);
+  return candidate;
+}
+
+function parseReferenceAgentRegistryChainId(value: string | undefined, network: BscNetwork): 56 | 97 {
+  if (!value) return network === "testnet" ? 97 : 56;
+  const parsed = Number(value);
+  if (parsed === 56 || parsed === 97) return parsed;
+  throw new Error(`Invalid REFERENCE_AGENT_REGISTRY_CHAIN_ID: ${value}. Expected 56 or 97.`);
+}
+
 function parseNetwork(value: string | undefined): BscNetwork {
   if (!value) return "testnet";
   if (value === "testnet" || value === "mainnet") return value;
@@ -103,6 +125,7 @@ function parseNetwork(value: string | undefined): BscNetwork {
 export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const appEnv = parseEnvironment(env.SPOTRIQ_ENV);
   const apiPort = parsePort(env.API_PORT, 3001);
+  const bscNetwork = parseNetwork(env.BSC_NETWORK);
   const config: ServerConfig = {
     nodeEnv: env.NODE_ENV ?? "development",
     appEnv,
@@ -115,7 +138,7 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
       .filter(Boolean),
     databaseUrl: optional(env.DATABASE_URL),
     redisUrl: optional(env.REDIS_URL),
-    bscNetwork: parseNetwork(env.BSC_NETWORK),
+    bscNetwork,
     bscRpcPrimary: optional(env.BSC_RPC_PRIMARY),
     bscRpcSecondary: optional(env.BSC_RPC_SECONDARY),
     bscRpcTimeoutMs: parsePositiveInt(env.BSC_RPC_TIMEOUT_MS, 7500, "BSC_RPC_TIMEOUT_MS"),
@@ -131,6 +154,13 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     serviceTaskMaxRedirects: parsePositiveInt(env.SERVICE_TASK_MAX_REDIRECTS, 2, "SERVICE_TASK_MAX_REDIRECTS"),
     agentRegistryMainnetRpc: optional(env.AGENT_REGISTRY_MAINNET_RPC),
     agentRegistryTestnetRpc: optional(env.AGENT_REGISTRY_TESTNET_RPC),
+    referenceAgentRegistryChainId: parseReferenceAgentRegistryChainId(env.REFERENCE_AGENT_REGISTRY_CHAIN_ID, bscNetwork),
+    referenceAgentIds: {
+      rangekeeper: parseOptionalAgentId(env.REFERENCE_AGENT_RANGEKEEPER_ID, "REFERENCE_AGENT_RANGEKEEPER_ID"),
+      gridpilot: parseOptionalAgentId(env.REFERENCE_AGENT_GRIDPILOT_ID, "REFERENCE_AGENT_GRIDPILOT_ID"),
+      yieldpilot: parseOptionalAgentId(env.REFERENCE_AGENT_YIELDPILOT_ID, "REFERENCE_AGENT_YIELDPILOT_ID"),
+      venusguard: parseOptionalAgentId(env.REFERENCE_AGENT_VENUSGUARD_ID, "REFERENCE_AGENT_VENUSGUARD_ID"),
+    },
   };
 
   if (appEnv === "production") {

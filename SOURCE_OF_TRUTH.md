@@ -1,6 +1,6 @@
 # Spotriq Source of Truth
 
-Current release: **v0.22.1**
+Current release: **v0.22.2**
 
 ## Project governance / reconciliation
 
@@ -13,7 +13,7 @@ Spotriq now maintains durable project-state documents so future engineering does
 
 Implementation truth still comes from the current repository. Product intent is not silently rewritten when code is incomplete; material mismatches are recorded in the drift audit.
 
-This ZIP supersedes Spotriq v0.21.0.
+This ZIP supersedes Spotriq v0.22.1 and includes all earlier v0.22 functionality.
 
 Implemented live financial-data categories:
 1. Rebalancing — PancakeSwap V3/Infinity CL current-state foundation and V3 wallet discovery.
@@ -145,6 +145,19 @@ Real AgentService Task Invocation / Origin Proof implemented in v0.21.0:
 - Migration `0015_service_task_origin_proof.sql` persists service-task evidence without manufacturing an Activation.
 - `marketplaceActivationEnabled` remains false. A2A invocation proves neither paid hiring nor payment nor marketplace activation.
 
+
+Reference-agent ERC-8004 identity reconciliation implemented in v0.22.2:
+
+- First-party reference services can be bound to real ERC-8004 token IDs through deployment configuration rather than hard-coded source IDs.
+- `REFERENCE_AGENT_REGISTRY_CHAIN_ID` is independent from `AGENT_DISCOVERY_CHAIN_ID`, allowing live external marketplace discovery to remain BSC Mainnet while first-party acceptance identities are proven on BSC Testnet.
+- Per-service bindings use `REFERENCE_AGENT_RANGEKEEPER_ID`, `REFERENCE_AGENT_GRIDPILOT_ID`, `REFERENCE_AGENT_YIELDPILOT_ID`, and `REFERENCE_AGENT_VENUSGUARD_ID`.
+- At API startup Spotriq performs direct canonical ERC-8004 verification for configured reference IDs and accepts the binding only when canonical verification succeeds, the registration backlink is consistent, the registration name matches the intended first-party agent, and the registered A2A endpoint exactly matches Spotriq's expected public Agent Card.
+- A reconciled reference service keeps its stable `svc:reference:<slug>` marketplace service ID, preserving Test Lab history, while its AgentIdentity/AgentService agent reference becomes the real `erc8004:<chainId>:<agentId>` identity.
+- `CANONICAL_IDENTITY` can now become `PASS` for first-party reference services without making them commercially activatable. BSC Testnet-bound references remain `TESTNET_ONLY`.
+- First-party references remain visible in the BSC marketplace even when their current identity is Testnet-only; each record exposes its own identity chain/readiness explicitly.
+- Runtime release metadata and Marketplace Test Lab client metadata now report v0.22.2 consistently.
+
+Environment acceptance already established for RangeKeeper before this source patch: public Test Lab coverage passed and ERC-8004 Agent ID `2017` on BSC Testnet was independently returned by Spotriq as `canonicalVerification.state = VERIFIED`, with owner/backlink/A2A registration metadata all matching. The v0.22.2 binding mechanism turns that verified registry fact into the corresponding `svc:reference:rangekeeper` readiness gate after deployment configuration.
 
 Railway TypeScript build hotfix implemented in v0.22.1:
 

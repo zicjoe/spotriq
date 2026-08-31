@@ -160,6 +160,31 @@ Default discovery uses BSC Mainnet (`AGENT_DISCOVERY_CHAIN_ID=56`) so the market
 
 Remote HTTPS/IPFS registration URIs are intentionally not fetched server-side in this milestone. `data:` registration files can be parsed and backlink-checked safely; remote URIs remain visible but are marked as not fetched until Spotriq adds a hardened metadata-fetch subsystem.
 
+## v0.22.2 Reference-agent ERC-8004 identity reconciliation
+
+Spotriq can now bind a first-party reference AgentService to a real ERC-8004 identity **without hard-coding registry IDs into source**. Deployment configuration supplies the candidate ID, the API performs direct canonical verification, and the binding is accepted only when all of these agree:
+
+- canonical ERC-8004 verification is `VERIFIED`;
+- the ERC-8004 registration backlink identifies the same token/registry;
+- registration metadata names the expected Spotriq reference agent;
+- the registered `A2A` endpoint exactly matches the expected public Spotriq Agent Card.
+
+Configuration:
+
+```env
+# Independent from AGENT_DISCOVERY_CHAIN_ID. Use 97 for the current Testnet acceptance identities.
+REFERENCE_AGENT_REGISTRY_CHAIN_ID=97
+
+REFERENCE_AGENT_RANGEKEEPER_ID=2017
+REFERENCE_AGENT_GRIDPILOT_ID=
+REFERENCE_AGENT_YIELDPILOT_ID=
+REFERENCE_AGENT_VENUSGUARD_ID=
+```
+
+`AGENT_DISCOVERY_CHAIN_ID=56` may remain unchanged for live external marketplace discovery. First-party reference services remain visible even when their current identity is BSC Testnet-only, and each record exposes its own identity chain/readiness state. A verified first-party identity can make `CANONICAL_IDENTITY = PASS`, but `marketplaceActivationEligible` remains false because commercial hiring/Activation is a separate later gate.
+
+The first externally accepted binding is RangeKeeper: BSC Testnet ERC-8004 Agent ID `2017`, with Spotriq-observed canonical owner/backlink/registration metadata and the public RangeKeeper A2A Agent Card all matching.
+
 ## v0.22.1 Railway TypeScript Build Hotfix
 
 v0.22.1 preserves the v0.22.0 four-category reference-agent functionality and fixes production TypeScript build failures surfaced by Railway's clean `pnpm --filter @spotriq/api build` environment. The hotfix aligns PostgreSQL query generics, viem Hex decoding types, PancakeSwap test doubles, direct API workspace dependencies, and execution-guard narrowing. No marketplace semantics or readiness gates are weakened.
@@ -184,7 +209,7 @@ GET  http://localhost:3001/v1/reference-agents/venusguard/.well-known/agent-card
 POST http://localhost:3001/v1/reference-agents/:slug/a2a
 ```
 
-These records flow through the normal Spotriq listing/service/readiness/Test Lab/Finding-matching pipeline with `origin = REFERENCE`. They explicitly remain `erc8004Verified = false`, `READ_ONLY`, commercially `UNDECLARED`, and non-activatable until independent evidence exists. A first-party callable runtime is not treated as an ERC-8004 identity or marketplace Activation.
+These records flow through the normal Spotriq listing/service/readiness/Test Lab/Finding-matching pipeline with `origin = REFERENCE`. They remain `READ_ONLY`, commercially `UNDECLARED`, and non-activatable. `erc8004Verified` becomes true only for a deployment-configured reference identity that passes v0.22.2 canonical name/backlink/A2A endpoint reconciliation. A first-party callable runtime is never treated as an ERC-8004 identity merely because Spotriq ships it, and ERC-8004 verification is never treated as marketplace Activation.
 
 Local runtime calls work on `127.0.0.1`; Marketplace Test Lab intentionally refuses private/localhost addresses. For a deployed environment set `PUBLIC_API_BASE_URL=https://YOUR_PUBLIC_API_HOST`. Production requires this value and HTTPS. After public deployment, run Test Lab and perform genuine ERC-8004 registration/reconciliation rather than embedding fake agent IDs.
 

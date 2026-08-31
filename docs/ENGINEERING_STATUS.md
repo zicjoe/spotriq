@@ -24,9 +24,10 @@
 - Execution-scoped Activity & Outcomes evidence
 - Real AgentService A2A Task Invocation + Origin Proof
 - Live Four-Category First-Party Reference Agent Supply
+- First-Party ERC-8004 Identity Reconciliation
 
 ## Current source of truth
-Use Spotriq **v0.22.1**.
+Use Spotriq **v0.22.2**.
 
 ## Current live-data spine
 BSC JSON-RPC → protocol adapters → Evidence Engine → Smart Money Engine → Findings → Spotriq UI.
@@ -43,7 +44,7 @@ Two truthful supply sources now converge on one marketplace model:
 - external: targeted four-category 8004scan search → discovery lead → operator-metadata capability gate → ERC-8004-derived `AgentService` candidate;
 - first-party: versioned Spotriq reference definition → `MARKETPLACE_REFERENCE` identity → real A2A `AgentService`.
 
-Both continue through `AgentListing` → `AgentService` → `Offer` + `PermissionProfile` → Marketplace Test Lab → Marketplace Observed evidence → deterministic `ReadinessSnapshot` → Finding compatibility/ranking → Explore. First-party runtime supply does not imply ERC-8004 identity or Activation.
+Both continue through `AgentListing` → `AgentService` → `Offer` + `PermissionProfile` → Marketplace Test Lab → Marketplace Observed evidence → deterministic `ReadinessSnapshot` → Finding compatibility/ranking → Explore. A first-party runtime does not imply ERC-8004 identity; v0.22.2 binds one only after canonical registry/name/backlink/A2A endpoint reconciliation. ERC-8004 verification still does not imply Activation.
 
 Targeted discovery no longer relies on a generic newest-agents page to populate financial supply. Rebalancing, Grid, Yield and Health each receive one bounded registry search. Search relevance remains External discovery evidence and never becomes capability proof by itself.
 
@@ -257,9 +258,15 @@ The records are integrated into normal marketplace supply/readiness/matching wit
 
 See `docs/LIVE_REFERENCE_AGENT_SUPPLY.md`.
 
+## Reference-agent ERC-8004 reconciliation state in v0.22.2
+
+Deployment configuration can now bind each stable `svc:reference:<slug>` service to a real ERC-8004 token ID without source-code hard-coding. `REFERENCE_AGENT_REGISTRY_CHAIN_ID` is separate from `AGENT_DISCOVERY_CHAIN_ID`, and per-agent IDs are supplied through `REFERENCE_AGENT_*_ID` variables. The API directly runs canonical verification at startup and accepts a binding only if the canonical registry state is VERIFIED, the registration backlink is correct, the registration name matches the intended reference agent, and the A2A endpoint exactly matches Spotriq's public Agent Card.
+
+RangeKeeper external acceptance has already proven BSC Testnet ERC-8004 Agent ID `2017`: Spotriq returned canonical owner `0x08a594e828133d18a43918cc804754f46daf44db`, parsed data-URI metadata, matching backlink and matching public A2A endpoint. After v0.22.2 is deployed with `REFERENCE_AGENT_RANGEKEEPER_ID=2017`, the stable RangeKeeper marketplace service can consume that proof as `CANONICAL_IDENTITY = PASS` while remaining `TESTNET_ONLY` and `activationEligible = false`.
+
 ## Next
 
-Build **truthful commercial hiring / Activation semantics** over real services: `Offer/Quote → Hire/Job → funding/payment evidence → Activation → Activation-bound ServiceTask`. Use ERC-8183/x402/B402 only where actual service semantics fit, then continue into four-category end-to-end activation parity.
+First finish external acceptance parity: deploy v0.22.2, bind/verify RangeKeeper at the service level, then register and bind GridPilot, YieldPilot and VenusGuard. After all four have Marketplace Test Lab + canonical ERC-8004 evidence, proceed to **truthful commercial hiring / Activation semantics**: `Offer/Quote → Hire/Job → funding/payment evidence → Activation → Activation-bound ServiceTask`.
 
 See `SPOTRIQ_DRIFT_AUDIT.md` and `CORRECTED_ROADMAP.md`.
 

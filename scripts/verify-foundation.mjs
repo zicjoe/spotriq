@@ -119,6 +119,7 @@ const required = [
   "apps/api/src/routes/reference-agents.ts",
   "docs/LIVE_REFERENCE_AGENT_SUPPLY.md",
   "docs/IMPLEMENTATION_REPORT_LIVE_REFERENCE_AGENT_SUPPLY_v0.22.0.md",
+  "docs/IMPLEMENTATION_REPORT_REFERENCE_AGENT_ERC8004_RECONCILIATION_v0.22.2.md",
   ".env.example",
   ".gitignore",
 ];
@@ -569,6 +570,25 @@ if (!evidence.includes("REFERENCE_AGENT_CATALOG") || !evidence.includes("REFEREN
   throw new Error("Evidence Engine must expose versioned reference-agent catalog/runtime methodologies.");
 }
 
+// v0.22.2 — deployment-configured canonical ERC-8004 reconciliation for first-party references.
+const configSource = await readFile(path.join(root, "packages/config/src/index.ts"), "utf8");
+for (const marker of ["REFERENCE_AGENT_REGISTRY_CHAIN_ID", "REFERENCE_AGENT_RANGEKEEPER_ID", "REFERENCE_AGENT_GRIDPILOT_ID", "REFERENCE_AGENT_YIELDPILOT_ID", "REFERENCE_AGENT_VENUSGUARD_ID"]) {
+  if (!configSource.includes(marker)) throw new Error(`v0.22.2 reference identity configuration is missing ${marker}.`);
+}
+for (const marker of ["ReferenceAgentIdentityBinding", "assessReferenceAgentIdentityBinding", "registrationBacklinkMatches", "samePublicEndpoint", "erc8004Verified"]) {
+  if (!referenceAgents.includes(marker)) throw new Error(`v0.22.2 reference identity reconciliation is missing ${marker}.`);
+}
+if (!apiApp.includes("referenceIdentityBindings") || !apiApp.includes("agentRegistry.verifyIdentity") || !apiApp.includes("referenceAgentRegistryChainId")) {
+  throw new Error("v0.22.2 API startup must canonically verify configured first-party ERC-8004 identities before catalog binding.");
+}
+if (!marketplaceSupply.includes('const verification = agent.canonicalVerification?.state ?? "NOT_CHECKED"') || !marketplaceSupply.includes("first-party service is bound to a canonically verified ERC-8004 identity")) {
+  throw new Error("v0.22.2 readiness must consume canonical identity evidence for first-party references.");
+}
+const envExample = await readFile(path.join(root, ".env.example"), "utf8");
+if (!envExample.includes("REFERENCE_AGENT_RANGEKEEPER_ID") || !envExample.includes("REFERENCE_AGENT_REGISTRY_CHAIN_ID=97")) {
+  throw new Error(".env.example must document first-party ERC-8004 reconciliation variables.");
+}
+
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const output = [];
@@ -584,8 +604,8 @@ const manifests = await collectPackageJson(root);
 if (manifests.length !== 25) throw new Error(`v0.22 expects 25 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.22.1") throw new Error(`${path.relative(root, manifestPath)} must be version 0.22.1.`);
+  if (manifest.version !== "0.22.2") throw new Error(`${path.relative(root, manifestPath)} must be version 0.22.2.`);
 }
 
-console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing execution stack + Activity/Outcomes + AgentService task-origin proof + live four-category first-party reference AgentService supply verification passed.");
+console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing execution stack + Activity/Outcomes + AgentService task-origin proof + live four-category reference supply + first-party ERC-8004 identity reconciliation verification passed.");
 

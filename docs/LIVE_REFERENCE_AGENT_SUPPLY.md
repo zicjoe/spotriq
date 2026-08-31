@@ -166,3 +166,24 @@ It does **not** prove that the four services are already:
 - activated.
 
 Those distinctions are intentional.
+
+## v0.22.2 identity-reconciliation update
+
+The runtime/marketplace distinction above remains unchanged, but Spotriq can now consume real post-deployment ERC-8004 proof rather than leaving first-party identity permanently `UNKNOWN`.
+
+Configure the registry chain independently from external discovery:
+
+```env
+AGENT_DISCOVERY_CHAIN_ID=56
+REFERENCE_AGENT_REGISTRY_CHAIN_ID=97
+REFERENCE_AGENT_RANGEKEEPER_ID=2017
+REFERENCE_AGENT_GRIDPILOT_ID=
+REFERENCE_AGENT_YIELDPILOT_ID=
+REFERENCE_AGENT_VENUSGUARD_ID=
+```
+
+For each configured ID, API startup performs direct canonical verification. A first-party binding is accepted only if the canonical identity is verified, the registration backlink is consistent, the registration name matches the expected reference service, and its `A2A` registration endpoint exactly matches the expected public Spotriq Agent Card.
+
+A successful binding keeps the stable marketplace service ID (`svc:reference:<slug>`) so existing Test Lab evidence remains attached, while the service's agent reference becomes the real `erc8004:<chainId>:<agentId>` identity.
+
+RangeKeeper is the first externally proven case: BSC Testnet Agent ID `2017` has already been independently returned by Spotriq with canonical owner/backlink and the expected public A2A endpoint. After deployment with the binding variable, its service-level readiness should show `CANONICAL_IDENTITY = PASS`, overall `TESTNET_ONLY`, and `activationEligible = false`.

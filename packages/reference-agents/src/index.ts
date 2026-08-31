@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type {
   AgentCapabilityClaim,
+  AgentCanonicalVerification,
   AgentCategoryHint,
   AgentListing,
   AgentRegistryChainId,
@@ -95,9 +96,16 @@ export const REFERENCE_AGENT_DEFINITIONS: readonly ReferenceAgentDefinition[] = 
   },
 ] as const;
 
+export interface ReferenceAgentIdentityBinding {
+  chainId: AgentRegistryChainId;
+  agentId: string;
+  verification: AgentCanonicalVerification;
+}
+
 export interface ReferenceAgentCatalogOptions {
   publicBaseUrl: string;
   chainId: AgentRegistryChainId;
+  identityBindings?: Partial<Record<ReferenceAgentSlug, ReferenceAgentIdentityBinding>>;
   now?: () => Date;
 }
 
@@ -117,8 +125,10 @@ export function referenceAgentRpcPath(slug: ReferenceAgentSlug): string {
   return `/v1/reference-agents/${slug}/a2a`;
 }
 
-export function referenceAgentCard(definition: ReferenceAgentDefinition, publicBaseUrl: string) {
+export function referenceAgentCard(definition: ReferenceAgentDefinition, publicBaseUrl: string, binding?: ReferenceAgentIdentityBinding) {
   const base = cleanBaseUrl(publicBaseUrl);
+  const expectedAgentCardUrl = `${base}${referenceAgentCardPath(definition.slug)}`;
+  const bindingState = assessReferenceAgentIdentityBinding(definition, binding, expectedAgentCardUrl);
   return {
     name: definition.name,
     description: definition.description,
@@ -150,9 +160,39 @@ export function referenceAgentCard(definition: ReferenceAgentDefinition, publicB
       category: definition.category,
       safeMode: "READ_ONLY",
       methodVersion: REFERENCE_AGENT_RUNTIME_METHOD,
-      erc8004Registration: "REQUIRED_AFTER_PUBLIC_DEPLOYMENT",
+      erc8004Registration: bindingState.verified ? "REGISTERED_VERIFIED" : bindingState.configured ? "CONFIGURED_UNVERIFIED" : "REQUIRED_AFTER_PUBLIC_DEPLOYMENT",
+      ...(bindingState.verified && binding ? { erc8004Identity: { chainId: binding.chainId, agentId: binding.agentId, registryAddress: binding.verification.registryAddress, ownerAddress: binding.verification.ownerAddress } } : {}),
     },
   };
+}
+
+function samePublicEndpoint(left: string | undefined, right: string): boolean {
+  if (!left) return false;
+  try {
+    const a = new URL(left);
+    const b = new URL(right);
+    a.hash = ""; a.search = ""; b.hash = ""; b.search = "";
+    a.pathname = a.pathname.replace(/\/+$/, "");
+    b.pathname = b.pathname.replace(/\/+$/, "");
+    return a.toString().replace(/\/$/, "") === b.toString().replace(/\/$/, "");
+  } catch {
+    return false;
+  }
+}
+
+export function assessReferenceAgentIdentityBinding(definition: ReferenceAgentDefinition, binding: ReferenceAgentIdentityBinding | undefined, expectedAgentCardUrl: string) {
+  if (!binding) return { configured: false, verified: false, detail: "No ERC-8004 identity binding is configured for this reference service." };
+  const registration = binding.verification.registrationFile;
+  const nameMatches = registration?.name?.trim() === definition.name;
+  const endpointMatches = registration?.services.some((service) => service.name.trim().toUpperCase() === "A2A" && samePublicEndpoint(service.endpoint, expectedAgentCardUrl)) ?? false;
+  const verified = binding.verification.state === "VERIFIED"
+    && binding.verification.registrationBacklinkMatches !== false
+    && nameMatches
+    && endpointMatches;
+  const detail = verified
+    ? `ERC-8004 agent ${binding.agentId} is canonically verified and its registration metadata names ${definition.name} and points to the expected public A2A Agent Card.`
+    : `Configured ERC-8004 agent ${binding.agentId} did not satisfy every first-party binding check (canonical state, registration backlink, exact reference-agent name, and expected A2A Agent Card endpoint).`;
+  return { configured: true, verified, nameMatches, endpointMatches, detail };
 }
 
 function referenceEvidence(definition: ReferenceAgentDefinition, observedAt: string, runtimeEndpoint: string): EvidenceEnvelope[] {
@@ -180,6 +220,7 @@ function referenceReadiness(input: {
   chainId: AgentRegistryChainId;
   runtimeEndpoint: string;
   observedAt: string;
+  canonicalVerification?: AgentCanonicalVerification;
 }): ReadinessSnapshot {
   const checks: ReadinessCheck[] = [
     {
@@ -194,9 +235,13 @@ function referenceReadiness(input: {
     {
       code: "CANONICAL_IDENTITY",
       label: "Canonical ERC-8004 identity",
-      state: "UNKNOWN",
+      state: input.canonicalVerification?.state === "VERIFIED" ? "PASS" : input.canonicalVerification?.state === "MISMATCH" ? "FAIL" : "UNKNOWN",
       requiredForActivation: true,
-      detail: "The first-party runtime is registration-ready, but no ERC-8004 agentId is bundled or fabricated. Register it after deployment and reconcile the resulting identity before activation.",
+      detail: input.canonicalVerification?.state === "VERIFIED"
+        ? "The first-party runtime is bound to a canonically verified ERC-8004 identity whose registration metadata matches the expected Spotriq reference service."
+        : input.canonicalVerification?.state === "MISMATCH"
+          ? "The configured first-party ERC-8004 identity failed canonical reconciliation."
+          : "The first-party runtime is registration-ready, but no reconciled ERC-8004 identity is currently bound.",
     },
     {
       code: "ACTIVE_METADATA",
@@ -256,13 +301,16 @@ function definitionRecord(definition: ReferenceAgentDefinition, options: Referen
   const base = cleanBaseUrl(options.publicBaseUrl);
   const serviceId = `svc:reference:${definition.slug}`;
   const listingId = `listing:reference:${definition.slug}`;
-  const agentId = `reference:${definition.slug}`;
+  const binding = options.identityBindings?.[definition.slug];
   // The marketplace-advertised A2A endpoint is the discovery document itself.
   // This matches A2A/ERC-8004 discovery semantics and lets Test Lab fetch the
   // card directly; the card then points at the JSON-RPC interaction URL.
   const runtimeEndpoint = `${base}${referenceAgentCardPath(definition.slug)}`;
   const rpcEndpoint = `${base}${referenceAgentRpcPath(definition.slug)}`;
   const cardEndpoint = runtimeEndpoint;
+  const bindingState = assessReferenceAgentIdentityBinding(definition, binding, cardEndpoint);
+  const canonicalDiscoveryId = bindingState.verified && binding ? `erc8004:${binding.chainId}:${binding.agentId}` : undefined;
+  const agentId = canonicalDiscoveryId ?? `reference:${definition.slug}`;
   const hint: AgentCategoryHint = {
     category: definition.category,
     confidence: "high",
@@ -270,32 +318,63 @@ function definitionRecord(definition: ReferenceAgentDefinition, options: Referen
     provenance: "operator-claimed",
     note: "First-party capability declaration from the versioned Spotriq reference-agent catalog; Marketplace Test Lab remains an independent runtime gate.",
   };
-  const identity: DiscoveredAgent = {
-    discoveryId: agentId,
-    sourceKind: "MARKETPLACE_REFERENCE",
-    identity: {
-      namespace: "marketplace",
-      chainId: options.chainId,
-      agentId: definition.slug,
-      identifier: `marketplace:spotriq:reference:${definition.slug}`,
-    },
-    name: definition.name,
-    description: definition.description,
-    supportedProtocols: [...definition.protocols],
-    categoryHints: [hint],
-    active: true,
-    x402Support: false,
-    supportedTrust: ["spotriq-first-party-runtime"],
-    registrationServices: [{ name: "A2A", endpoint: runtimeEndpoint, version: REFERENCE_AGENT_PROTOCOL_VERSION, skills: [definition.skillName], domains: definition.protocols }],
-    externalReputation: { source: "none", totalFeedbacks: 0, note: "First-party reference service; external reputation is not fabricated." },
-    evidence: referenceEvidence(definition, observedAt, runtimeEndpoint),
-    listingState: "DISCOVERED",
-    marketplaceServiceState: "NOT_CREATED",
-    limitations: [
-      "This identity is a Spotriq first-party reference identity, not an ERC-8004 identity until an operator performs on-chain registration after public deployment.",
-      "External feedback is intentionally absent rather than synthesized.",
-    ],
-  };
+  const canonicalVerification = bindingState.verified ? binding?.verification : undefined;
+  const identity: DiscoveredAgent = bindingState.verified && binding && canonicalVerification
+    ? {
+        discoveryId: agentId,
+        sourceKind: "MARKETPLACE_REFERENCE",
+        identity: {
+          namespace: "eip155",
+          chainId: binding.chainId,
+          registryAddress: canonicalVerification.registryAddress,
+          agentId: binding.agentId,
+          identifier: `eip155:${binding.chainId}:${canonicalVerification.registryAddress}:${binding.agentId}`,
+        },
+        name: definition.name,
+        description: definition.description,
+        ownerAddress: canonicalVerification.ownerAddress,
+        supportedProtocols: [...definition.protocols],
+        categoryHints: [hint],
+        active: true,
+        x402Support: false,
+        supportedTrust: canonicalVerification.registrationFile?.supportedTrust ?? [],
+        registrationServices: canonicalVerification.registrationFile?.services ?? [{ name: "A2A", endpoint: runtimeEndpoint, version: REFERENCE_AGENT_PROTOCOL_VERSION, skills: [definition.skillName], domains: definition.protocols }],
+        externalReputation: { source: "none", totalFeedbacks: 0, note: "First-party reference service; external reputation is not fabricated." },
+        canonicalVerification,
+        evidence: [...referenceEvidence(definition, observedAt, runtimeEndpoint), ...canonicalVerification.evidence],
+        listingState: "DISCOVERED",
+        marketplaceServiceState: "NOT_CREATED",
+        limitations: [
+          "This first-party reference service is bound to a canonically verified ERC-8004 identity; identity proof remains distinct from capability, runtime, authority, commercial, and outcome evidence.",
+          "External feedback is intentionally absent rather than synthesized.",
+        ],
+      }
+    : {
+        discoveryId: agentId,
+        sourceKind: "MARKETPLACE_REFERENCE",
+        identity: {
+          namespace: "marketplace",
+          chainId: options.chainId,
+          agentId: definition.slug,
+          identifier: `marketplace:spotriq:reference:${definition.slug}`,
+        },
+        name: definition.name,
+        description: definition.description,
+        supportedProtocols: [...definition.protocols],
+        categoryHints: [hint],
+        active: true,
+        x402Support: false,
+        supportedTrust: ["spotriq-first-party-runtime"],
+        registrationServices: [{ name: "A2A", endpoint: runtimeEndpoint, version: REFERENCE_AGENT_PROTOCOL_VERSION, skills: [definition.skillName], domains: definition.protocols }],
+        externalReputation: { source: "none", totalFeedbacks: 0, note: "First-party reference service; external reputation is not fabricated." },
+        evidence: referenceEvidence(definition, observedAt, runtimeEndpoint),
+        listingState: "DISCOVERED",
+        marketplaceServiceState: "NOT_CREATED",
+        limitations: [
+          bindingState.configured ? bindingState.detail : "This identity is a Spotriq first-party reference identity, not an ERC-8004 identity until an operator performs on-chain registration after public deployment.",
+          "External feedback is intentionally absent rather than synthesized.",
+        ],
+      };
   const listing: AgentListing = {
     listingId,
     agentId,
@@ -330,7 +409,7 @@ function definitionRecord(definition: ReferenceAgentDefinition, options: Referen
     source: "operator-claimed",
     note: "v0.22 establishes real callable supply, not commercial hiring. No price is inferred or fabricated.",
   };
-  const readiness = referenceReadiness({ definition, serviceId, chainId: options.chainId, runtimeEndpoint, observedAt });
+  const readiness = referenceReadiness({ definition, serviceId, chainId: identity.identity.chainId, runtimeEndpoint, observedAt, canonicalVerification: identity.canonicalVerification });
   const claim: AgentCapabilityClaim = {
     capabilityClaimId: `claim:${serviceId}:${definition.category}`,
     serviceId,
@@ -359,7 +438,7 @@ function definitionRecord(definition: ReferenceAgentDefinition, options: Referen
     automationMode: "Read-only deterministic analysis",
     evidenceSummary: { marketplaceObserved: "First-party runtime shipped; public Test Lab observation pending", operatorClaimed: claim.claim, testsPassed: 0 },
     operator: "Spotriq Reference Agents",
-    erc8004Verified: false,
+    erc8004Verified: identity.canonicalVerification?.state === "VERIFIED",
     origin: "REFERENCE",
     marketplaceActivationEligible: false,
     runtimeEndpoints,
@@ -377,7 +456,9 @@ function definitionRecord(definition: ReferenceAgentDefinition, options: Referen
     normalizedAt: observedAt,
     limitations: [
       "This is a genuine first-party callable reference service, not frontend sample inventory.",
-      "ERC-8004 registration must be performed after a public endpoint exists; Spotriq does not fabricate an on-chain agentId.",
+      identity.canonicalVerification?.state === "VERIFIED"
+        ? `Canonical ERC-8004 identity ${identity.identity.agentId} is bound to this first-party service only after registration-name and A2A endpoint reconciliation.`
+        : "ERC-8004 registration must be performed after a public endpoint exists; Spotriq does not fabricate an on-chain agentId.",
       "Commercial hiring/payment and financial activation remain disabled in v0.22.",
     ],
   };

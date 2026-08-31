@@ -22,6 +22,8 @@ const config: ServerConfig = {
   serviceTaskTimeoutMs: 10000,
   serviceTaskMaxResponseBytes: 384000,
   serviceTaskMaxRedirects: 2,
+  referenceAgentRegistryChainId: 97,
+  referenceAgentIds: {},
 };
 
 function rpcResponse(id: number, result: unknown): Response {
@@ -390,5 +392,62 @@ test("GET /v1/services returns all four first-party reference services even when
   assert.equal(page.services.length, 4);
   assert.deepEqual(new Set(page.services.map((record: any) => record.service.name)), new Set(["RangeKeeper", "GridPilot", "YieldPilot", "VenusGuard"]));
   assert.ok(page.services.every((record: any) => record.service.origin === "REFERENCE" && record.service.marketplaceActivationEligible === false));
+  await app.close();
+});
+
+test("reference AgentService consumes a canonically reconciled ERC-8004 identity binding", async () => {
+  const boundConfig: ServerConfig = {
+    ...config,
+    referenceAgentRegistryChainId: 97,
+    referenceAgentIds: { rangekeeper: "2017" },
+  };
+  const registry = {
+    getStatus: async () => ({ provider: "8004scan + ERC-8004", defaultDiscoveryChainId: 56, apiBaseUrl: "https://8004scan.example", apiKeyConfigured: false, indexState: "AVAILABLE", canonicalVerification: "ENABLED", registries: [], checkedAt: new Date().toISOString(), limitations: [] }),
+    listAgents: async (input: any = {}) => ({ agents: [], chainId: input.chainId ?? 56, page: 1, limit: input.limit ?? 20, total: 0, hasMore: false, source: "8004scan", fetchedAt: new Date().toISOString(), limitations: [] }),
+    searchAgents: async (_query: string, input: any = {}) => ({ agents: [], chainId: input.chainId ?? 56, page: 1, limit: input.limit ?? 20, total: 0, hasMore: false, source: "8004scan", fetchedAt: new Date().toISOString(), limitations: [] }),
+    getAgent: async () => { throw new Error("not needed"); },
+    getAgentsByOwner: async (_owner: string, input: any = {}) => ({ agents: [], chainId: input.chainId ?? 56, page: 1, limit: 20, total: 0, hasMore: false, source: "8004scan", fetchedAt: new Date().toISOString(), limitations: [] }),
+    getFeedback: async () => ({ feedback: [], chainId: 97, agentId: "2017", page: 1, limit: 20, total: 0, hasMore: false, fetchedAt: new Date().toISOString() }),
+    verifyIdentity: async (chainId: number, agentId: string) => {
+      assert.equal(chainId, 97);
+      assert.equal(agentId, "2017");
+      return {
+        state: "VERIFIED" as const,
+        checkedAt: "2026-08-29T20:43:23.143Z",
+        registryAddress: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+        ownerAddress: "0x08a594e828133d18a43918cc804754f46daf44db",
+        registrationMetadataState: "PARSED_DATA_URI" as const,
+        registrationBacklinkMatches: true,
+        registrationFile: {
+          name: "RangeKeeper",
+          services: [{ name: "A2A", endpoint: "https://api.spotriq.example/v1/reference-agents/rangekeeper/.well-known/agent-card.json" }],
+          registrations: [{ agentId: "2017", agentRegistry: "eip155:97:0x8004A818BFB912233c491871b3d84c89A494BD9e" }],
+          supportedTrust: [],
+        },
+        evidence: [],
+        limitations: [],
+      };
+    },
+  } as any;
+  const app = await buildServer({ config: boundConfig, chain: makeChain(), agentRegistry: registry, logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/services/svc:reference:rangekeeper/readiness" });
+  assert.equal(response.statusCode, 200);
+  const readiness = response.json().data.readiness;
+  assert.equal(readiness.state, "TESTNET_ONLY");
+  assert.equal(readiness.checks.find((check: any) => check.code === "CANONICAL_IDENTITY")?.state, "PASS");
+  assert.equal(readiness.activationEligible, false);
+  await app.close();
+});
+
+test("Fastify request parsing errors preserve their client status instead of becoming INTERNAL_ERROR", async () => {
+  const app = await buildServer({ config, chain: makeChain(), logger: false });
+  const response = await app.inject({
+    method: "POST",
+    url: "/v1/services/svc:reference:rangekeeper/tests",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    payload: "x=1",
+  });
+  assert.equal(response.statusCode, 415);
+  assert.equal(response.json().error.code, "FST_ERR_CTP_INVALID_MEDIA_TYPE");
   await app.close();
 });

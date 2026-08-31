@@ -1,8 +1,8 @@
-# Spotriq Foundation → v0.22.0 Drift Audit
+# Spotriq Foundation → v0.22.2 Drift Audit
 
 **Audit date:** 2026-08-29  
 **Foundation:** `SPOTRIQ_FOUNDATION.md`  
-**Implementation:** Spotriq v0.22.0
+**Implementation:** Spotriq v0.22.2
 
 ## Status vocabulary
 
@@ -480,7 +480,7 @@ Do not roll back the evidence/readiness/authority/execution safety work already 
 
 ## P1 — complete public proof for four-category reference supply
 
-The repository runtimes now exist. Deploy them behind truthful HTTPS Agent Cards, run Marketplace Test Lab, and register/reconcile genuine ERC-8004 identities without weakening the same marketplace evidence/readiness contracts used for external agents.
+The repository runtimes are publicly deployed and all four have passed Marketplace Test Lab. RangeKeeper has additionally been registered on BSC Testnet as ERC-8004 Agent ID `2017` and independently canonically verified by Spotriq. v0.22.2 adds the generic deployment-configured identity binding required to attach that proof to the stable first-party AgentService. Complete the same registration/binding for GridPilot, YieldPilot and VenusGuard without weakening the marketplace evidence/readiness contracts used for external agents.
 
 ## P2 — truthful commercial hiring + Activation kernel
 
@@ -512,4 +512,4 @@ Supply lifecycle, moderation, observability, incident response, rate limiting, A
 
 **The foundational handoff checkpoint confirms that Spotriq has veered mainly in roadmap sequence and category emphasis, not in its core truth/safety architecture.**
 
-v0.12 and v0.13 followed the intended plan. v0.14–v0.21 then invested heavily in a sophisticated Rebalancing authority/execution spine before the planned four-reference-agent layer. v0.22 corrects that missing repository supply layer. The remaining correction is to obtain real public/identity evidence, then build truthful commercial Activation and end-to-end parity for Grid, Yield and Health before another Rebalancing-only detour.
+v0.12 and v0.13 followed the intended plan. v0.14–v0.21 then invested heavily in a sophisticated Rebalancing authority/execution spine before the planned four-reference-agent layer. v0.22 corrects that missing repository supply layer; public/Test Lab acceptance is now complete for all four and canonical ERC-8004 proof is complete for RangeKeeper. The remaining near-term correction is to bind RangeKeeper at service level and repeat ERC-8004 registration/binding for the other three, then build truthful commercial Activation and end-to-end parity for Grid, Yield and Health before another Rebalancing-only detour.
