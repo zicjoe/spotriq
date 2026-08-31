@@ -1,5 +1,5 @@
 {
-  "name": "@spotriq/protocol-pancakeswap",
+  "name": "@spotriq/commercial",
   "private": true,
   "version": "0.23.0",
   "type": "module",
@@ -10,6 +10,7 @@
     "@spotriq/chain": "workspace:*",
     "@spotriq/domain": "workspace:*",
     "@spotriq/evidence": "workspace:*",
+    "@spotriq/marketplace-supply": "workspace:*",
     "viem": "2.55.11"
   },
   "scripts": {

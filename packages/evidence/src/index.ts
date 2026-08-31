@@ -49,6 +49,15 @@ export const DATA_SOURCES = {
     networks: ["testnet", "mainnet"],
     description: "Canonical onchain agent identity/registry evidence.",
   },
+  ERC8183: {
+    sourceId: "erc8183",
+    name: "ERC-8183 Commerce Contract",
+    truthLayer: "CANONICAL_ONCHAIN",
+    provider: "ERC-8183",
+    chain: "BSC",
+    networks: ["testnet", "mainnet"],
+    description: "Canonical onchain ERC-8183 job and funding state observed by Spotriq for commercial reconciliation.",
+  },
   SCAN8004: {
     sourceId: "8004scan",
     name: "8004scan",
@@ -208,6 +217,27 @@ export const EVIDENCE_METHODS = {
     description: "Records server-originated A2A task/message exchange evidence bound to the selected AgentService, a fresh service-owned authority binding, and the exact Job Intent request-context hash. It proves invocation/proposal origin only; it does not prove hiring, payment, financial authority, or performance.",
     inputMetrics: ["service.authority_session_key_control", "service.protocol_contract", "service.task_request_context", "service.task_response"],
   },
+  COMMERCIAL_QUOTE: {
+    methodId: "marketplace.commercial-quote",
+    version: "1.0.0",
+    name: "Spotriq immutable commercial quote snapshot",
+    description: "Captures an immutable versioned snapshot of marketplace Offer terms for one buyer and expiry window. It does not prove payment, permission, activation, execution, or outcome.",
+    inputMetrics: ["service.offer", "buyer.address", "offer.terms_version"],
+  },
+  COMMERCIAL_ACTIVATION: {
+    methodId: "marketplace.commercial-activation",
+    version: "1.0.0",
+    name: "Spotriq marketplace activation gate",
+    description: "Deterministically activates a hired service relationship only after current service availability plus required payment and permission gates pass. A read-only activation grants no wallet signing or financial execution authority.",
+    inputMetrics: ["commercial.hire", "commercial.payment", "permission.state", "service.current_availability"],
+  },
+  ERC8183_PAYMENT: {
+    methodId: "marketplace.erc8183-payment-reconciliation",
+    version: "1.0.0",
+    name: "ERC-8183 funding reconciliation",
+    description: "Reads ERC-8183 job and payment-token facts from BSC and compares client, provider, budget, token, contract and job state with the immutable Spotriq Quote. Client-supplied paid flags are never trusted.",
+    inputMetrics: ["erc8183.getJob", "erc8183.paymentToken", "commercial.quote"],
+  },
 } satisfies Record<string, EvidenceMethodDefinition>;
 
 const DEFAULT_FRESHNESS_POLICY: FreshnessPolicy = {
@@ -242,6 +272,9 @@ const FRESHNESS_POLICIES: Record<string, FreshnessPolicy> = {
   "service.category_capability": { metric: "service.category_capability", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
   "service.task_origin": { metric: "service.task_origin", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
   "service.task_proposal": { metric: "service.task_proposal", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
+  "commercial.quote": { metric: "commercial.quote", targetAgeSeconds: 300, warnAgeSeconds: 600, hardExpirySeconds: 1800 },
+  "commercial.payment": { metric: "commercial.payment", targetAgeSeconds: 30, warnAgeSeconds: 60, hardExpirySeconds: 180 },
+  "commercial.activation": { metric: "commercial.activation", targetAgeSeconds: 300, warnAgeSeconds: 900, hardExpirySeconds: 3600 },
 };
 
 export function listDataSources(): DataSourceDefinition[] {

@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, FindingServiceMatch, FindingServiceMatchPage, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution, ExecutionActivityOutcomeBundle, ServiceTask,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution, ExecutionActivityOutcomeBundle, ServiceTask, MarketplaceActivation,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -38,6 +38,7 @@ import { executionPlanRepository } from "../repositories/executionPlanRepository
 import { controlledExecutionRepository } from "../repositories/controlledExecutionRepository";
 import { activityOutcomesRepository } from "../repositories/activityOutcomesRepository";
 import { serviceTaskRepository } from "../repositories/serviceTaskRepository";
+import { commercialRepository } from "../repositories/commercialRepository";
 
 const {
   services: SERVICES,
@@ -692,7 +693,7 @@ function HomePage({ navigate, hasActivations }: { navigate: (r: Route, p?: Parti
 
 
 
-function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, testing }: { record: MarketplaceServiceRecord; onInspect: () => void; inspecting: boolean; onRunTests: () => void; testing: boolean }) {
+function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, testing, onHireFreeReadOnly, hiring, activation, commercialError }: { record: MarketplaceServiceRecord; onInspect: () => void; inspecting: boolean; onRunTests: () => void; testing: boolean; onHireFreeReadOnly?: () => void; hiring?: boolean; activation?: MarketplaceActivation; commercialError?: string }) {
   const service = record.service;
   const isReference = service.origin === "REFERENCE" || record.identity.sourceKind === "MARKETPLACE_REFERENCE" || record.identity.identity.namespace === "marketplace";
   const failedOrUnknown = (record.readiness.checks ?? []).filter((check) => check.state !== "PASS");
@@ -709,7 +710,7 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
             <CategoryPill category={service.category} />
             <Badge variant="teal">{isReference ? "Live reference service" : "Normalized service"}</Badge>
           </div>
-          <div className="text-[11px] text-[#6b7d99] font-mono mt-1">{isReference ? `Spotriq first-party · ERC-8004 registration pending · ${record.listing.status}` : `ERC-8004 #${record.identity.identity.agentId} · ${record.listing.status}`}</div>
+          <div className="text-[11px] text-[#6b7d99] font-mono mt-1">{isReference ? `Spotriq first-party · ${record.identity.canonicalVerification?.state === "VERIFIED" ? `ERC-8004 #${record.identity.identity.agentId} verified` : "ERC-8004 identity not reconciled"} · ${record.listing.status}` : `ERC-8004 #${record.identity.identity.agentId} · ${record.listing.status}`}</div>
         </div>
         <ReadinessPill state={service.readiness} />
       </div>
@@ -725,12 +726,12 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
         <div>
           <div className="text-[#6b7d99] mb-0.5">Authority</div>
           <div className={isReference ? "text-[#4ade80]" : "text-[#f59e0b]"}>{isReference ? "Read-only declared" : "Undeclared"}</div>
-          <div className="text-[10px] text-[#6b7d99]">{isReference ? "No wallet signing authority in v0.22" : "Permission profile required"}</div>
+          <div className="text-[10px] text-[#6b7d99]">{isReference ? "No wallet signing authority in v0.23 read-only activation" : "Permission profile required"}</div>
         </div>
         <div>
           <div className="text-[#6b7d99] mb-0.5">Commercial terms</div>
-          <div className="text-[#9aacc4]">{record.offer.state === "AVAILABLE" ? "Offer available" : "Not declared"}</div>
-          <div className="text-[10px] text-[#6b7d99]">No inferred pricing</div>
+          <div className={record.offer.terms?.commercialModel === "FREE" ? "text-[#4ade80]" : "text-[#9aacc4]"}>{record.offer.terms?.commercialModel === "FREE" ? "Free read-only offer" : record.offer.state === "AVAILABLE" ? "Offer available" : "Not declared"}</div>
+          <div className="text-[10px] text-[#6b7d99]">{record.offer.terms ? `${record.offer.terms.serviceType.replaceAll("_", " ")} · ${record.offer.terms.paymentRail}` : "No inferred pricing"}</div>
         </div>
         <div>
           <div className="text-[#6b7d99] mb-0.5">Marketplace tests</div>
@@ -746,7 +747,7 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
       )}
 
       <div className="rounded-md border border-white/6 bg-white/[0.02] px-3 py-2">
-        <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-1">Activation gates</div>
+        <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-1">Financial / execution readiness gates</div>
         <div className="space-y-1">
           {failedOrUnknown.slice(0, 3).map((check) => (
             <div key={check.code} className="flex items-start gap-2 text-[11px] text-[#8090a8]">
@@ -757,16 +758,23 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
         </div>
       </div>
 
+      {commercialError && <div className="rounded-md border border-[#f87171]/20 bg-[#f87171]/5 px-3 py-2 text-[11px] text-[#fca5a5]">{commercialError}</div>}
+      {activation && <div className="rounded-md border border-[#4ade80]/20 bg-[#4ade80]/5 px-3 py-2 text-[11px] text-[#86efac]"><div className="font-medium">Read-only relationship active</div><div className="mt-1 text-[#9aacc4] font-mono break-all">{activation.activationId}</div><div className="mt-1 text-[#6b7d99]">No wallet signing, transaction, or financial execution authority was granted.</div></div>}
+
       <div className="flex items-center justify-between pt-1 gap-3">
-        <div className="text-[11px] text-[#6b7d99]">{isReference ? "First-party runtime ≠ ERC-8004 identity ≠ activation" : "Identity ≠ service readiness · deterministic gates"}</div>
+        <div className="text-[11px] text-[#6b7d99]">{isReference ? "Payment ≠ permission ≠ activation ≠ execution" : "Identity ≠ service readiness · deterministic gates"}</div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <Btn variant="ghost" size="sm" onClick={onInspect} disabled={inspecting || testing} className="text-[#2dd4bf]">
+          <Btn variant="ghost" size="sm" onClick={onInspect} disabled={inspecting || testing || hiring} className="text-[#2dd4bf]">
             {inspecting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Checking</> : <><ShieldCheck className="w-3.5 h-3.5" /> Check readiness</>}
           </Btn>
-          <Btn variant="teal-outline" size="sm" onClick={onRunTests} disabled={testing || inspecting || machineEndpoints.length === 0}>
+          <Btn variant="teal-outline" size="sm" onClick={onRunTests} disabled={testing || inspecting || hiring || machineEndpoints.length === 0}>
             {testing ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Testing</> : <><FlaskConical className="w-3.5 h-3.5" /> Run Test Lab</>}
           </Btn>
-          <Badge variant="muted">Activation blocked</Badge>
+          {onHireFreeReadOnly && record.offer.terms?.commercialModel === "FREE" && record.offer.terms.serviceType === "READ_ONLY_SERVICE" ? (
+            activation ? <Badge variant="green">Read-only active</Badge> : <Btn variant="primary" size="sm" onClick={onHireFreeReadOnly} disabled={Boolean(hiring || inspecting || testing)}>
+              {hiring ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Activating</> : <><Wallet className="w-3.5 h-3.5" /> Hire free read-only</>}
+            </Btn>
+          ) : <Badge variant="muted">Financial activation gated</Badge>}
         </div>
       </div>
     </Card>
@@ -909,6 +917,9 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
   const [matchLoading, setMatchLoading] = useState(false);
   const [matchError, setMatchError] = useState<string>();
   const [preparingJobServiceId, setPreparingJobServiceId] = useState<string>();
+  const [commercialBusyServiceId, setCommercialBusyServiceId] = useState<string>();
+  const [commercialErrors, setCommercialErrors] = useState<Record<string, string>>({});
+  const [commercialActivations, setCommercialActivations] = useState<Record<string, MarketplaceActivation>>({});
   const registryChainId: AgentRegistryChainId = 56;
 
   const normalizedSearch = searchText.trim().toLowerCase();
@@ -1020,6 +1031,41 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
       setSupplyError(cause instanceof Error ? cause.message : "Spotriq Marketplace Test Lab could not complete the runtime verification.");
     } finally {
       setTestingServiceId(undefined);
+    }
+  };
+
+  const hireFreeReadOnly = async (record: MarketplaceServiceRecord) => {
+    const serviceId = record.service.serviceId;
+    setCommercialBusyServiceId(serviceId);
+    setCommercialErrors((current) => ({ ...current, [serviceId]: "" }));
+    try {
+      const terms = record.offer.terms;
+      if (record.offer.state !== "AVAILABLE" || !terms || terms.commercialModel !== "FREE" || terms.serviceType !== "READ_ONLY_SERVICE" || terms.paymentRail !== "FREE") {
+        throw new Error("This service does not currently publish a FREE read-only Spotriq Offer.");
+      }
+      const wallet = await walletHandlers.connectWallet();
+      const operationId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const quote = await commercialRepository.createQuote({
+        serviceId,
+        offerId: record.offer.offerId,
+        buyerAddress: wallet.address,
+        buyerChainId: wallet.chainId,
+        idempotencyKey: `web-free-quote:${serviceId}:${operationId}`,
+      });
+      const hire = await commercialRepository.createHire({
+        quoteId: quote.quoteId,
+        buyerAddress: wallet.address,
+        idempotencyKey: `web-free-hire:${serviceId}:${operationId}`,
+      });
+      const activation = await commercialRepository.activate(hire.hireId, {
+        buyerAddress: wallet.address,
+        idempotencyKey: `web-free-activation:${serviceId}:${operationId}`,
+      });
+      setCommercialActivations((current) => ({ ...current, [serviceId]: activation }));
+    } catch (cause) {
+      setCommercialErrors((current) => ({ ...current, [serviceId]: cause instanceof Error ? cause.message : "Spotriq could not complete the read-only hiring flow." }));
+    } finally {
+      setCommercialBusyServiceId(undefined);
     }
   };
 
@@ -1242,7 +1288,7 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
                   <h2 className="text-lg font-semibold text-[#dde3ef]">Live financial services</h2>
                   <Badge variant="teal">Reference + external supply</Badge>
                 </div>
-                <p className="text-xs text-[#6b7d99] max-w-2xl">Spotriq now combines four real first-party callable reference services with external ERC-8004 supply. External search relevance stays separate from capability proof, and every service remains independently gated by runtime tests, identity evidence and authority rules.</p>
+                <p className="text-xs text-[#6b7d99] max-w-2xl">Spotriq combines four real first-party callable reference services with external ERC-8004 supply. Accepted reference services can now be hired as FREE read-only relationships, while financial execution remains independently gated by runtime, identity, permission and authority evidence.</p>
               </div>
               <button onClick={() => void loadSupply(searchText)} disabled={supplyLoading} className="text-xs text-[#2dd4bf] flex items-center gap-1.5 shrink-0 disabled:opacity-50">
                 <RefreshCw className={cn("w-3.5 h-3.5", supplyLoading && "animate-spin")} /> Refresh
@@ -1306,7 +1352,7 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
                 <div className="flex items-center gap-2 text-[11px] text-[#6b7d99] mb-3">
                   <ShieldCheck className="w-3.5 h-3.5 text-[#2dd4bf]" />
                   <span>{serviceCandidates.length} live marketplace service{serviceCandidates.length === 1 ? "" : "s"}</span>
-                  <span>·</span><span>{serviceCandidates.filter((record) => record.service.marketplaceActivationEligible).length} activation-eligible</span>
+                  <span>·</span><span>{serviceCandidates.filter((record) => record.service.marketplaceActivationEligible).length} financial-execution eligible</span>
                   <span>·</span><span>{serviceCandidates.filter((record) => record.readiness.checks?.find((check) => check.code === "MARKETPLACE_TESTS")?.state === "PASS").length} contract-tested</span>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -1318,6 +1364,10 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
                       inspecting={inspectingServiceId === record.service.serviceId}
                       onRunTests={() => void runServiceTests(record.service.serviceId)}
                       testing={testingServiceId === record.service.serviceId}
+                      onHireFreeReadOnly={() => void hireFreeReadOnly(record)}
+                      hiring={commercialBusyServiceId === record.service.serviceId}
+                      activation={commercialActivations[record.service.serviceId]}
+                      commercialError={commercialErrors[record.service.serviceId]}
                     />
                   ))}
                 </div>

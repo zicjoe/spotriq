@@ -73,6 +73,13 @@ export interface CapabilityResponse {
   controlledBscTestnetExecutionEnabled: boolean;
   executionActivityOutcomesEnabled: boolean;
   serviceTaskOriginProofEnabled: boolean;
+  commercialOfferEnabled: boolean;
+  commercialQuoteEnabled: boolean;
+  commercialHireEnabled: boolean;
+  commercialPaymentReconciliationEnabled: boolean;
+  erc8183PaymentObservationEnabled: boolean;
+  x402B402PaymentAdaptersEnabled: boolean;
+  freeReadOnlyActivationEnabled: boolean;
   marketplaceActivationEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
@@ -250,6 +257,41 @@ export interface ReviseRebalancingJobIntentRequest {
 export interface RebalancingJobIntentResponse {
   intent: import("@spotriq/domain").RebalancingJobIntent;
 }
+
+export interface MarketplaceOffersResponse {
+  offers: import("@spotriq/domain").ServiceOffer[];
+}
+
+export interface CreateCommercialQuoteRequest {
+  serviceId: string;
+  offerId?: string;
+  buyerAddress: string;
+  buyerChainId: number;
+  idempotencyKey: string;
+}
+export interface CommercialQuoteResponse { quote: import("@spotriq/domain").CommercialQuote; }
+
+export interface CreateCommercialHireRequest {
+  quoteId: string;
+  buyerAddress: string;
+  idempotencyKey: string;
+}
+export interface CommercialHireResponse { hire: import("@spotriq/domain").CommercialHire; }
+
+export interface ReconcileCommercialPaymentRequest {
+  buyerAddress: string;
+  reference?: { jobId?: string };
+}
+export interface CommercialPaymentResponse { payment: import("@spotriq/domain").CommercialPaymentEvidence; }
+
+export interface ActivateCommercialHireRequest {
+  buyerAddress: string;
+  idempotencyKey: string;
+}
+export interface MarketplaceActivationResponse { activation: import("@spotriq/domain").MarketplaceActivation; }
+export interface BuyerCommercialStateResponse { state: import("@spotriq/domain").BuyerCommercialState; }
+
+export interface InvokeServiceTaskRequest { activationId?: string; }
 
 export interface ServiceTaskResponse {
   task: import("@spotriq/domain").ServiceTask;

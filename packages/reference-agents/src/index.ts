@@ -269,7 +269,7 @@ function referenceReadiness(input: {
       label: "Permission profile",
       state: "PASS",
       requiredForActivation: true,
-      detail: "v0.22 reference services are explicitly read-only and receive no wallet signing or financial authority through this runtime.",
+      detail: "Reference services are explicitly read-only and receive no wallet signing or financial authority through this runtime.",
     },
     {
       code: "MARKETPLACE_TESTS",
@@ -289,7 +289,7 @@ function referenceReadiness(input: {
     activationEligible: false,
     limitations: [
       "A real first-party runtime is not the same as an ERC-8004 on-chain identity; Spotriq will not invent registration evidence.",
-      "These v0.22 capabilities are read-only decision-support surfaces. Commercial hiring and financial activation remain separate later milestones.",
+      "These capabilities are read-only decision-support surfaces. v0.23 can commercially activate a FREE read-only service relationship, while wallet permission and financial activation remain separate gates.",
       "Marketplace Test Lab must observe the deployed HTTPS runtime before operational reachability can pass.",
     ],
     methodVersion: REFERENCE_AGENT_CATALOG_METHOD,
@@ -405,9 +405,27 @@ function definitionRecord(definition: ReferenceAgentDefinition, options: Referen
   const offer: ServiceOffer = {
     offerId: `offer:${serviceId}`,
     serviceId,
-    state: "UNDECLARED",
-    source: "operator-claimed",
-    note: "v0.22 establishes real callable supply, not commercial hiring. No price is inferred or fabricated.",
+    state: "AVAILABLE",
+    pricing: { pricingId: `pricing:${serviceId}:free-read-only`, serviceId, model: "FREE", amount: "0" },
+    terms: {
+      termsVersion: "spotriq-reference-free-read-only@1.0.0",
+      commercialModel: "FREE",
+      serviceType: "READ_ONLY_SERVICE",
+      price: { amount: "0", currency: "NONE", amountRaw: "0" },
+      network: "BSC",
+      chainId: identity.identity.chainId,
+      paymentRail: "FREE",
+      scope: {
+        summary: `Activate ${definition.name} as a read-only Spotriq service relationship for deterministic ${definition.category} analysis.`,
+        protocols: [...definition.protocols],
+        financialAuthorityRequired: false,
+        walletSigningRequired: false,
+      },
+      availability: "AVAILABLE",
+      quoteValiditySeconds: 900,
+    },
+    source: "marketplace-observed",
+    note: "Spotriq v0.23 publishes this first-party reference service as FREE / READ_ONLY_SERVICE. No payment, wallet signature, fund movement, or financial execution authority is implied.",
   };
   const readiness = referenceReadiness({ definition, serviceId, chainId: identity.identity.chainId, runtimeEndpoint, observedAt, canonicalVerification: identity.canonicalVerification });
   const claim: AgentCapabilityClaim = {
@@ -431,7 +449,7 @@ function definitionRecord(definition: ReferenceAgentDefinition, options: Referen
     readiness: readiness.state,
     readinessNote: readiness.reasons[0],
     permissionIntensity: "read-only",
-    pricing: { model: "UNDECLARED", amount: "Not declared", protocolCostsNote: "No commercial offer exists in v0.22. Protocol/network read costs are not converted into an agent fee." },
+    pricing: { model: "FREE", amount: "Free", period: "read-only service relationship", protocolCostsNote: "No Spotriq service fee is charged for the v0.23 reference read-only relationship. No payment or financial authority is implied." },
     supportedProtocols: [...definition.protocols],
     supportedAssets: [],
     supportedPairs: [],
@@ -459,7 +477,7 @@ function definitionRecord(definition: ReferenceAgentDefinition, options: Referen
       identity.canonicalVerification?.state === "VERIFIED"
         ? `Canonical ERC-8004 identity ${identity.identity.agentId} is bound to this first-party service only after registration-name and A2A endpoint reconciliation.`
         : "ERC-8004 registration must be performed after a public endpoint exists; Spotriq does not fabricate an on-chain agentId.",
-      "Commercial hiring/payment and financial activation remain disabled in v0.22.",
+      "v0.23 supports a real FREE read-only Quote → Hire → Activation relationship. Financial execution authority remains separately gated.",
     ],
   };
 }
@@ -614,7 +632,7 @@ export async function handleReferenceAgentJsonRpc(slug: string, body: unknown, d
       return { jsonrpc: "2.0", id, result: taskResult(definition, definition.action, output, (deps.now ?? (() => new Date()))()) };
     }
     if (method === "GetTask" || method === "tasks/get" || method === "CancelTask" || method === "tasks/cancel") {
-      return { jsonrpc: "2.0", id, error: { code: -32004, message: "Reference tasks are synchronous in v0.22 and are not persisted by the A2A runtime." } };
+      return { jsonrpc: "2.0", id, error: { code: -32004, message: "Reference tasks are synchronous in v0.23 and are not persisted by the A2A runtime." } };
     }
     return { jsonrpc: "2.0", id, error: { code: -32601, message: `Method ${method || "<missing>"} is not supported.` } };
   } catch (error) {

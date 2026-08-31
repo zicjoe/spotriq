@@ -120,8 +120,16 @@ const required = [
   "docs/LIVE_REFERENCE_AGENT_SUPPLY.md",
   "docs/IMPLEMENTATION_REPORT_LIVE_REFERENCE_AGENT_SUPPLY_v0.22.0.md",
   "docs/IMPLEMENTATION_REPORT_REFERENCE_AGENT_ERC8004_RECONCILIATION_v0.22.2.md",
-  "docs/SPOTRIQ_V0.22_EXTERNAL_ACCEPTANCE_REPORT.md",
-  "scripts/verify-reference-agent-acceptance.mjs",
+  "packages/commercial/package.json",
+  "packages/commercial/src/index.ts",
+  "packages/commercial/src/index.test.ts",
+  "packages/db/migrations/0016_commercial_hiring_activation.sql",
+  "apps/api/src/routes/commercial.ts",
+  "apps/web/src/repositories/commercialRepository.ts",
+  "scripts/verify-reference-acceptance.mjs",
+  "scripts/verify-commercial-acceptance.mjs",
+  "docs/COMMERCIAL_HIRING_ACTIVATION.md",
+  "docs/IMPLEMENTATION_REPORT_COMMERCIAL_HIRING_ACTIVATION_v0.23.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -135,18 +143,12 @@ for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper
   if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
 }
 const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
-if (!projectState.includes("live four-category reference-agent supply") || !projectState.includes("foundational roadmap reconciliation")) {
-  throw new Error("PROJECT_STATE.md must preserve the recovered foundational roadmap reconciliation and current corrective milestone.");
-}
-if (!projectState.includes("COMPLETE for RangeKeeper, GridPilot, YieldPilot and VenusGuard") || !projectState.includes("TESTNET_ONLY")) {
-  throw new Error("PROJECT_STATE.md must record completed four-agent external acceptance without claiming production activation.");
+if (!projectState.includes("all four first-party reference services") || !projectState.includes("v0.24 — Four-Category End-to-End Activation Parity")) {
+  throw new Error("PROJECT_STATE.md must preserve the accepted four-category supply state and the next parity milestone.");
 }
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
 if (!correctedRoadmap.includes("v0.22.0 — Live Four-Category Reference Agent Supply") || !correctedRoadmap.includes("v0.23.0 — Commercial Hiring + Marketplace Activation Kernel")) {
   throw new Error("Corrected roadmap must preserve four-category live supply before generalized commercial activation.");
-}
-if (!correctedRoadmap.includes("Status: COMPLETE") || !correctedRoadmap.includes("acceptance bridge — COMPLETE")) {
-  throw new Error("Corrected roadmap must mark v0.22 external acceptance complete before v0.23 begins.");
 }
 
 const workspace = await readFile(path.join(root, "pnpm-workspace.yaml"), "utf8");
@@ -265,8 +267,8 @@ for (const route of ["/v1/marketplace/status", "/v1/listings", "/v1/services", "
   if (!marketplaceRoutes.includes(route)) throw new Error(`Missing marketplace supply route ${route}.`);
 }
 const marketplaceUiRepo = await readFile(path.join(root, "apps/web/src/repositories/marketplaceSupplyRepository.ts"), "utf8");
-if (!marketplaceUiRepo.includes("ApiMarketplaceSupplyRepository") || !marketplaceUiRepo.includes("runTests") || !appUi.includes("Live financial services") || !appUi.includes("Activation blocked") || !appUi.includes("Run Test Lab")) {
-  throw new Error("Explore must render live first-party/external service candidates separately from legacy samples and keep activation gated.");
+if (!marketplaceUiRepo.includes("ApiMarketplaceSupplyRepository") || !marketplaceUiRepo.includes("runTests") || !appUi.includes("Live financial services") || !appUi.includes("Financial activation gated") || !appUi.includes("Run Test Lab")) {
+  throw new Error("Explore must render live first-party/external service candidates separately from legacy samples and keep financial activation independently gated.");
 }
 if (!appUi.includes("Targeted financial supply discovery") || !appUi.includes("Discovery lead only · not a service claim")) {
   throw new Error("Explore must expose targeted financial search coverage and keep search-only leads separate from normalized services.");
@@ -314,8 +316,8 @@ if (!appUi.includes("Prepare job") || !appUi.includes("Review the job before aut
 if (!appUi.includes("jobIntentRepository.prepare") || !appUi.includes("jobIntentId={nav.jobIntentId}")) {
   throw new Error("Explore and Checkout must be wired through the live Job Intent API handoff.");
 }
-if (!apiApp.includes("rebalancingJobIntentEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
-  throw new Error("System capabilities must expose Job Intent support while keeping marketplace activation disabled.");
+if (!apiApp.includes("rebalancingJobIntentEnabled: true")) {
+  throw new Error("System capabilities must expose Job Intent support while preserving marketplace activation as a separate resource.");
 }
 
 const authority = await readFile(path.join(root, "packages/authority/src/index.ts"), "utf8");
@@ -336,8 +338,8 @@ const authorityRoutes = await readFile(path.join(root, "apps/api/src/routes/auth
 for (const route of ["/v1/job-intents/:jobIntentId/permissions", "/v1/permissions/:permissionRequestId", "/v1/permissions/:permissionRequestId/reconcile", "/v1/permission-grants/:permissionGrantId", "/v1/permission-grants/:permissionGrantId/reverify"]) {
   if (!authorityRoutes.includes(route)) throw new Error(`Missing bounded authority route ${route}.`);
 }
-if (!apiApp.includes("boundedPermissionAuthorityEnabled: true") || !apiApp.includes("altanaKeystoreVerificationEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
-  throw new Error("API capabilities must expose bounded authority + Altana verification while keeping marketplace activation disabled.");
+if (!apiApp.includes("boundedPermissionAuthorityEnabled: true") || !apiApp.includes("altanaKeystoreVerificationEnabled: true")) {
+  throw new Error("API capabilities must expose bounded authority + Altana verification while preserving marketplace activation as a separate resource.");
 }
 for (const marker of ["Bounded authority · Altana", "Grant submission is deliberately blocked", "Re-check onchain authority", "Prepare bounded authority"]) {
   if (!appUi.includes(marker)) throw new Error(`Live authority review UI is missing ${marker}.`);
@@ -379,8 +381,8 @@ for (const marker of ["grantReadOnlyProbe", "revokeReadOnlyProbe", "positions(ui
 for (const marker of ["Verify service-owned key", "Run calldata guard", "Grant read-only testnet probe", "non-bypassable"]) {
   if (!appUi.includes(marker)) throw new Error(`v0.16 Job Intent authority UI is missing ${marker}.`);
 }
-if (!apiApp.includes("trustedAgentSessionKeyBindingEnabled: true") || !apiApp.includes("argumentLevelExecutionGuardEnabled: true") || !apiApp.includes("altanaTestnetProbeGrantEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
-  throw new Error("API capabilities must expose v0.16 binding/guard/testnet probe support while keeping marketplace activation disabled.");
+if (!apiApp.includes("trustedAgentSessionKeyBindingEnabled: true") || !apiApp.includes("argumentLevelExecutionGuardEnabled: true") || !apiApp.includes("altanaTestnetProbeGrantEnabled: true")) {
+  throw new Error("API capabilities must expose v0.16 binding/guard/testnet probe support while preserving marketplace activation as a separate resource.");
 }
 
 
@@ -406,8 +408,8 @@ for (const table of ["rebalancing_execution_plans", "financial_execution_boundar
 for (const marker of ["Prepare exact plan", "Review range + refresh quote", "Seal execution boundary", "Fresh preflight", "Nothing is signed or submitted."]) {
   if (!appUi.includes(marker)) throw new Error(`v0.17 live execution-plan UI is missing ${marker}.`);
 }
-if (!apiApp.includes("rebalancingExecutionPlanEnabled: true") || !apiApp.includes("nonBypassableExecutionBoundaryEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
-  throw new Error("API capabilities must preserve v0.17 plan/boundary support while keeping marketplace activation disabled.");
+if (!apiApp.includes("rebalancingExecutionPlanEnabled: true") || !apiApp.includes("nonBypassableExecutionBoundaryEnabled: true")) {
+  throw new Error("API capabilities must preserve v0.17 plan/boundary support while preserving marketplace activation as a separate resource.");
 }
 const pancakeSwapAdapter = await readFile(path.join(root, "packages/protocol-pancakeswap/src/index.ts"), "utf8");
 const chainAdapter = await readFile(path.join(root, "packages/chain/src/index.ts"), "utf8");
@@ -436,8 +438,8 @@ for (const marker of ["grantBoundaryFinancialSession", "revokeBoundaryFinancialS
 for (const marker of ["Boundary-controlled Altana financial session", "Grant boundary financial session", "Check balances & allowances", "Prepare exact approvals", "v0.19 can dispatch only the exact sealed plan"]) {
   if (!appUi.includes(marker)) throw new Error(`v0.18 Job Intent financial-authority UI is missing ${marker}.`);
 }
-if (!apiApp.includes("boundaryControlledAltanaFinancialSessionEnabled: true") || !apiApp.includes("financialAssetReadinessEnabled: true") || !apiApp.includes("liveFinancialSignerEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
-  throw new Error("API capabilities must expose v0.18 boundary financial-session/readiness support while keeping marketplace activation disabled.");
+if (!apiApp.includes("boundaryControlledAltanaFinancialSessionEnabled: true") || !apiApp.includes("financialAssetReadinessEnabled: true") || !apiApp.includes("liveFinancialSignerEnabled: true")) {
+  throw new Error("API capabilities must expose v0.18 boundary financial-session/readiness support while preserving marketplace activation as a separate resource.");
 }
 
 
@@ -481,8 +483,8 @@ for (const marker of ["executeExactApprovalPlan", "executeControlledBoundaryPlan
 for (const marker of ["Prepare exact approvals", "Execute exact reviewed plan on BSC Testnet", "Reconcile BSC receipt"]) {
   if (!appUi.includes(marker)) throw new Error(`v0.19 controlled-execution UI is missing ${marker}.`);
 }
-if (!apiApp.includes("boundedTokenApprovalFlowEnabled: true") || !apiApp.includes("controlledBscTestnetExecutionEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
-  throw new Error("API capabilities must expose v0.19 controlled execution while keeping marketplace agent activation explicitly separate/unproven.");
+if (!apiApp.includes("boundedTokenApprovalFlowEnabled: true") || !apiApp.includes("controlledBscTestnetExecutionEnabled: true")) {
+  throw new Error("API capabilities must expose v0.19 controlled execution while preserving marketplace agent activation as a distinct commercial resource.");
 }
 
 
@@ -503,8 +505,8 @@ const migration0014 = await readFile(path.join(root, "packages/db/migrations/001
 for (const marker of ["activity_events", "outcome_windows", "outcome_metrics", "controlled_execution_id"]) {
   if (!migration0014.includes(marker)) throw new Error(`v0.20 Activity & Outcomes migration is missing ${marker}.`);
 }
-if (!apiApp.includes("executionActivityOutcomesEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
-  throw new Error("API capabilities must expose execution-scoped Activity & Outcomes while keeping marketplace AgentService activation unproven.");
+if (!apiApp.includes("executionActivityOutcomesEnabled: true")) {
+  throw new Error("API capabilities must expose execution-scoped Activity & Outcomes while keeping marketplace AgentService activation distinct from execution evidence.");
 }
 for (const marker of ["Activity & Outcomes", "Performance claims remain unavailable", "Refresh evidence", "Example Portfolio / Sample Data"]) {
   if (!appUi.includes(marker)) throw new Error(`v0.20 Activity & Outcomes UI is missing ${marker}.`);
@@ -518,7 +520,7 @@ const serviceTasks = await readFile(path.join(root, "packages/service-tasks/src/
 for (const marker of [
   "SERVICE_TASK_METHOD", "SPOTRIQ_REBALANCING_PROPOSAL_SCHEMA", "requestContextHash",
   "exactA2aTestEndpoint", "marketplace.verifyAuthorityBinding", "SendMessage", "message/send", "message:send",
-  "GetTask", "CancelTask", "AUTH_REQUIRED", 'commercialState:"NOT_PROVEN"', "sameOrigin",
+  "GetTask", "CancelTask", "AUTH_REQUIRED", '"NOT_PROVEN"', "sameOrigin",
 ]) {
   if (!serviceTasks.replaceAll(" ", "").includes(marker.replaceAll(" ", ""))) throw new Error(`v0.21 service-task origin engine is missing ${marker}.`);
 }
@@ -533,7 +535,9 @@ for (const route of [
 ]) {
   if (!serviceTaskRoutes.includes(route)) throw new Error(`Missing v0.21 service-task route ${route}.`);
 }
-if (serviceTaskRoutes.includes("request.body")) throw new Error("v0.21 service-task origin routes must not trust browser-supplied runtime/proposal/origin payloads.");
+for (const forbidden of ["runtimeEndpoint:request.body", "proposal:request.body", "originProof:request.body", "financialSigner:request.body"]) {
+  if (serviceTaskRoutes.replaceAll(" ", "").includes(forbidden)) throw new Error("ServiceTask routes must not trust browser-supplied runtime/proposal/origin/financial-signer evidence.");
+}
 const serviceTaskRouteTests = await readFile(path.join(root, "apps/api/src/routes/service-tasks.test.ts"), "utf8");
 if (!serviceTaskRouteTests.includes("browser-fabricated") || !serviceTaskRouteTests.includes("financialSigner")) throw new Error("v0.21 must preserve an adversarial test proving browser-origin evidence cannot be fabricated.");
 const migration0015 = await readFile(path.join(root, "packages/db/migrations/0015_service_task_origin_proof.sql"), "utf8");
@@ -552,8 +556,8 @@ for (const marker of ["proposalOrigin", "AGENT_SERVICE", "USER_OVERRIDE"]) {
 for (const marker of ["Invoke selected service", "Real AgentService task origin", "Confirm stays locked", "serviceTaskRepository.invoke"]) {
   if (!appUi.includes(marker)) throw new Error(`v0.21 live task-origin UI is missing ${marker}.`);
 }
-if (!apiApp.includes("serviceTaskOriginProofEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
-  throw new Error("API capabilities must expose v0.21 service-task origin proof while keeping commercial marketplace activation unproven.");
+if (!apiApp.includes("serviceTaskOriginProofEnabled: true")) {
+  throw new Error("API capabilities must expose v0.21 service-task origin proof while keeping commercial marketplace activation distinct from task-origin proof.");
 }
 
 // v0.22 — genuine first-party reference AgentService supply across all four required categories.
@@ -568,11 +572,11 @@ for (const route of ["/v1/reference-agents", "/v1/reference-agents/:slug/.well-k
 if (!marketplaceSupply.includes("referenceServices") || !marketplaceSupply.includes("MARKETPLACE_REFERENCE") || !marketplaceSupply.includes("liveReferenceAgentSupply")) {
   throw new Error("Marketplace supply must integrate first-party reference services through the existing readiness pipeline.");
 }
-if (!appUi.includes("Live reference service") || !appUi.includes("First-party runtime ≠ ERC-8004 identity ≠ activation")) {
+if (!appUi.includes("Live reference service") || !appUi.includes("Payment ≠ permission ≠ activation ≠ execution")) {
   throw new Error("Explore must label first-party reference services truthfully and preserve identity/activation separation.");
 }
-if (!apiApp.includes("liveReferenceAgentSupplyEnabled: true") || !apiApp.includes("referenceAgentRuntimeEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: false")) {
-  throw new Error("v0.22 capabilities must expose live reference supply/runtime while commercial activation remains disabled.");
+if (!apiApp.includes("liveReferenceAgentSupplyEnabled: true") || !apiApp.includes("referenceAgentRuntimeEnabled: true")) {
+  throw new Error("v0.22 capabilities must expose live reference supply/runtime while preserving commercial activation as a distinct gate.");
 }
 if (!evidence.includes("REFERENCE_AGENT_CATALOG") || !evidence.includes("REFERENCE_AGENT_RUNTIME")) {
   throw new Error("Evidence Engine must expose versioned reference-agent catalog/runtime methodologies.");
@@ -597,6 +601,51 @@ if (!envExample.includes("REFERENCE_AGENT_RANGEKEEPER_ID") || !envExample.includ
   throw new Error(".env.example must document first-party ERC-8004 reconciliation variables.");
 }
 
+// v0.23 — Commercial Hiring + Marketplace Activation Kernel.
+const commercial = await readFile(path.join(root, "packages/commercial/src/index.ts"), "utf8");
+for (const marker of [
+  "COMMERCIAL_KERNEL_METHOD", "CommercialStore", "MemoryCommercialStore", "PostgresCommercialStore",
+  "createQuote", "createHire", "reconcilePayment", "activate", "BuyerCommercialState",
+  "createErc8183PaymentAdapter", "PAYMENT_ADAPTER_UNAVAILABLE", "IDEMPOTENCY_CONFLICT", "OFFER_STALE",
+  "walletSigningAuthorityGranted:false", "financialExecutionAuthorityGranted:false",
+]) {
+  if (!commercial.replaceAll(" ", "").includes(marker.replaceAll(" ", ""))) throw new Error(`v0.23 commercial kernel is missing ${marker}.`);
+}
+const commercialRoutes = await readFile(path.join(root, "apps/api/src/routes/commercial.ts"), "utf8");
+for (const route of [
+  "/v1/services/:serviceId/offers", "/v1/quotes", "/v1/quotes/:quoteId", "/v1/hires", "/v1/hires/:hireId",
+  "/v1/hires/:hireId/payment", "/v1/hires/:hireId/payment/reconcile", "/v1/hires/:hireId/activate",
+  "/v1/activations/:activationId", "/v1/accounts/:address/commercial-state",
+]) {
+  if (!commercialRoutes.includes(route)) throw new Error(`Missing v0.23 commercial route ${route}.`);
+}
+const migration0016 = await readFile(path.join(root, "packages/db/migrations/0016_commercial_hiring_activation.sql"), "utf8");
+for (const marker of ["commercial_quotes", "commercial_hires", "commercial_payment_evidence", "hire_id", "commercial_payload", "activation_id"]) {
+  if (!migration0016.includes(marker)) throw new Error(`v0.23 commercial migration is missing ${marker}.`);
+}
+for (const marker of ["CommercialOfferTerms", "CommercialQuote", "CommercialHire", "CommercialPaymentEvidence", "MarketplaceActivation", "BuyerCommercialState"]) {
+  if (!domain.includes(marker)) throw new Error(`v0.23 domain model is missing ${marker}.`);
+}
+if (!referenceAgents.includes('commercialModel: "FREE"') || !referenceAgents.includes('serviceType: "READ_ONLY_SERVICE"') || !referenceAgents.includes('paymentRail: "FREE"')) {
+  throw new Error("v0.23 reference agents must publish truthful FREE / READ_ONLY_SERVICE offers.");
+}
+if (!serviceTasks.includes("activationId") || !serviceTasks.includes("hireId") || !serviceTaskRoutes.includes("commercial.assertActivationForService")) {
+  throw new Error("v0.23 ServiceTask must support explicit binding to a legitimate Activation.");
+}
+const commercialRepo = await readFile(path.join(root, "apps/web/src/repositories/commercialRepository.ts"), "utf8");
+for (const marker of ["createQuote", "createHire", "activate", "getBuyerState"]) {
+  if (!commercialRepo.includes(marker)) throw new Error(`v0.23 web commercial repository is missing ${marker}.`);
+}
+for (const marker of ["Hire free read-only", "commercialRepository.createQuote", "commercialRepository.createHire", "commercialRepository.activate", "No wallet signing, transaction, or financial execution authority was granted"]) {
+  if (!appUi.includes(marker)) throw new Error(`v0.23 Explore commercial flow is missing ${marker}.`);
+}
+if (!apiApp.includes("commercialOfferEnabled: true") || !apiApp.includes("commercialQuoteEnabled: true") || !apiApp.includes("commercialHireEnabled: true") || !apiApp.includes("commercialPaymentReconciliationEnabled: true") || !apiApp.includes("marketplaceActivationEnabled: true")) {
+  throw new Error("API capabilities must expose the v0.23 commercial kernel.");
+}
+if (!evidence.includes("COMMERCIAL_QUOTE") || !evidence.includes("COMMERCIAL_ACTIVATION") || !evidence.includes("ERC8183_PAYMENT")) {
+  throw new Error("Evidence Engine must expose v0.23 commercial and ERC-8183 reconciliation methods.");
+}
+
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const output = [];
@@ -609,11 +658,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 25) throw new Error(`v0.22 expects 25 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 26) throw new Error(`v0.23 expects 26 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.22.2") throw new Error(`${path.relative(root, manifestPath)} must be version 0.22.2.`);
+  if (manifest.version !== "0.23.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.23.0.`);
 }
 
-console.log("Spotriq foundation + four-category financial data + targeted ERC-8004 supply + Marketplace Test Lab + Finding compatibility + Rebalancing execution stack + Activity/Outcomes + AgentService task-origin proof + live four-category reference supply + first-party ERC-8004 identity reconciliation verification passed.");
+console.log("Spotriq foundation + four-category financial data + ERC-8004 supply + Test Lab + execution stack + task-origin proof + external reference acceptance architecture + v0.23 commercial hiring/activation verification passed.");
 

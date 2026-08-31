@@ -192,10 +192,10 @@ export class PostgresMarketplaceSupplyStore implements MarketplaceSupplyStore {
       ]);
 
       await this.database.query(`
-        insert into service_offers (offer_id, service_id, state, pricing, source, note, observed_at)
-        values ($1,$2,$3,$4::jsonb,$5,$6,$7)
-        on conflict (offer_id) do update set state=excluded.state, pricing=excluded.pricing, source=excluded.source, note=excluded.note, observed_at=excluded.observed_at
-      `, [record.offer.offerId, service.serviceId, record.offer.state, JSON.stringify(record.offer.pricing ?? null), record.offer.source, record.offer.note, record.normalizedAt]);
+        insert into service_offers (offer_id, service_id, state, pricing, terms, terms_version, source, note, observed_at)
+        values ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9)
+        on conflict (offer_id) do update set state=excluded.state, pricing=excluded.pricing, terms=excluded.terms, terms_version=excluded.terms_version, source=excluded.source, note=excluded.note, observed_at=excluded.observed_at
+      `, [record.offer.offerId, service.serviceId, record.offer.state, JSON.stringify(record.offer.pricing ?? null), JSON.stringify(record.offer.terms ?? null), record.offer.terms?.termsVersion ?? null, record.offer.source, record.offer.note, record.normalizedAt]);
 
       await this.database.query(`
         insert into permission_profiles (permission_profile_id, service_id, declaration_state, execution_mode, intensity, protocols, assets, provenance, observed_at)
@@ -504,7 +504,7 @@ function readinessFor(
       state: permissionProfile.declarationState === "DECLARED" ? "PASS" : "UNKNOWN",
       requiredForActivation: true,
       detail: permissionProfile.declarationState === "DECLARED"
-        ? (reference && permissionProfile.executionMode === "READ_ONLY" ? "The reference runtime explicitly declares read-only authority and receives no wallet signing capability in v0.22." : "Required authority has been explicitly declared.")
+        ? (reference && permissionProfile.executionMode === "READ_ONLY" ? "The reference runtime explicitly declares read-only authority and receives no wallet signing capability." : "Required authority has been explicitly declared.")
         : "Protocols, assets, execution mode, spend limits and authority scope have not yet been declared as a Spotriq permission profile.",
     },
     {
@@ -1298,7 +1298,7 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
         activation: false,
       },
       limitations: [
-        "Spotriq v0.22 ships first-party callable reference services across Rebalancing, Grid Trading, Yield Optimisation and Health Factor Monitoring; they remain non-activatable until public runtime tests and ERC-8004 registration/reconciliation are complete.",
+        "Spotriq ships first-party callable reference services across Rebalancing, Grid Trading, Yield Optimisation and Health Factor Monitoring. v0.23 permits a separate FREE read-only commercial relationship only after current runtime, Test Lab and canonical identity gates pass; financial activation remains independently gated.",
         "ERC-8004 identity proves portable identity/discovery, not functional or safe financial capability.",
         "Spotriq performs bounded targeted registry discovery across all four supported financial categories; search relevance is never treated as capability proof.",
         "Only supported-category candidates are normalized into services; search-relevant identities without matching operator metadata remain discovery leads.",

@@ -1,7 +1,7 @@
 # Spotriq Corrected Roadmap
 
-**Reconciled:** 2026-08-28  
-**Starting implementation:** v0.21.0  
+**Reconciled:** 2026-08-31  
+**Current implementation:** v0.23.0  
 **Historical baseline added:** foundational Master Product + Engineering Continuation checkpoint
 
 This roadmap is derived from `SPOTRIQ_FOUNDATION.md`, `PROJECT_STATE.md`, `SPOTRIQ_DRIFT_AUDIT.md`, the recovered foundational handoff checkpoint and the current repository.
@@ -24,9 +24,9 @@ Each completed milestone must update `PROJECT_STATE.md`. Foundational doctrine c
 
 ## v0.22.0 — Live Four-Category Reference Agent Supply
 
-**Status: COMPLETE — repository implementation + public deployment + Test Lab + ERC-8004 identity reconciliation for all four reference agents.**
+**Status: COMPLETE — repository, public runtime/Test Lab and ERC-8004 Testnet reconciliation acceptance are complete for all four reference services.**
 
-The repository contains four first-party deterministic A2A services integrated into normal Spotriq supply/readiness/matching. All four are publicly deployed, passed Marketplace Test Lab, and completed canonical ERC-8004 service reconciliation on BSC Testnet. The final audit confirmed `REGISTERED_VERIFIED`, `CANONICAL_IDENTITY = PASS`, `RUNTIME_REACHABILITY = PASS`, `MARKETPLACE_TESTS = PASS`, `TESTNET_ONLY`, and `activationEligible = false` across RangeKeeper, GridPilot, YieldPilot and VenusGuard. See `docs/SPOTRIQ_V0.22_EXTERNAL_ACCEPTANCE_REPORT.md`.
+The repository contains four first-party deterministic A2A services integrated into normal Spotriq supply/readiness/matching. All four are publicly deployed, Marketplace Test Lab accepted and canonically reconciled to real BSC Testnet ERC-8004 identities. RangeKeeper is explicitly known as Agent ID `2017`; this roadmap does not invent the other numeric IDs.
 
 ### Goal
 
@@ -67,18 +67,18 @@ For every category:
 - Yield: bounded opportunity/strategy task contract; no realised-yield claim without measurement.
 - Health: read-only monitoring/alert task first; protective write actions remain separately gated.
 
-### v0.22.2 acceptance bridge — COMPLETE
+### v0.22.2 acceptance closure
 
-The acceptance bridge has been completed for all four reference agents. Deployment-specific ERC-8004 IDs remain environment configuration rather than source-code constants; the API canonically verifies the configured identity, registration backlink, registration name and expected A2A endpoint before accepting a binding.
-
-Re-run `pnpm verify:reference-acceptance` whenever the deployment, identity bindings or public runtime changes. Do not repeat ERC-8004 registration merely because an index or temporary provider is unavailable; diagnose canonical state first.
-
-This closes v0.22. The active roadmap moves to v0.23.
+External acceptance is complete for all four services. The retained contract is: canonical identity + runtime + Marketplace Test Lab can pass while financial readiness remains `TESTNET_ONLY` and financial `activationEligible = false`. v0.23 commercial read-only Activation is a separate resource and does not change that financial gate.
 
 
 ---
 
 ## v0.23.0 — Commercial Hiring + Marketplace Activation Kernel
+
+**Repository implementation status: COMPLETE CANDIDATE; local dependency-aware validation and external deployment acceptance PENDING.**
+
+Implemented in the repository: structured FREE reference Offers, immutable Quotes, idempotent Hires, independent payment/funding evidence, read-only Marketplace Activation, buyer commercial state, optional Activation-bound ServiceTask, PostgreSQL migration 0016, API routes, Explore hiring flow, provider-neutral payment adapters and an ERC-8183 read-only observer. X402/B402 remain adapter rails without live v0.23 adapters.
 
 ### Goal
 
@@ -100,14 +100,16 @@ Use where the real service exposes per-call/payment semantics. Do not infer paym
 
 ### Acceptance criteria
 
-- live service can expose evidence-backed commercial terms/offer;
-- quote has expiry/limitations and cannot silently mutate;
-- hiring/commercial state is persisted and idempotent;
-- free task invocation remains distinguishable from paid/hired invocation;
-- `Activation` is created only when its explicit contract is satisfied;
-- Activation and PermissionGrant remain independent;
-- runtime tasks/activity can reference the real Activation;
-- no external service receives unrestricted financial signer access.
+- [x] live reference service exposes structured evidence-backed FREE read-only terms/offer;
+- [x] Quote has expiry/limitations and immutable terms hash;
+- [x] hiring/commercial state is persisted and idempotent;
+- [x] FREE payment is `NOT_REQUIRED`, distinguishable from paid/hired funding evidence;
+- [x] `Activation` is created only when explicit commercial/readiness gates pass;
+- [x] Activation and PermissionGrant remain independent;
+- [x] ServiceTask can reference a legitimate Activation;
+- [x] no external service receives unrestricted financial signer access;
+- [ ] authoritative local `pnpm check` passes;
+- [ ] Railway migration/deployment + live v0.23 commercial acceptance pass.
 
 ---
 

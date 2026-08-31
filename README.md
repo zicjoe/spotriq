@@ -28,6 +28,7 @@ packages/
   agent-registry/  ERC-8004 canonical identity + 8004scan indexed discovery
   marketplace-supply/ financial service normalization, Test Lab, matching, trusted runtime evidence
   reference-agents/ first-party four-category deterministic A2A services
+  commercial/       Offer → Quote → Hire → payment evidence → Marketplace Activation
   job-intents/      reviewable Rebalancing job intent lifecycle
   authority/        bounded permission requests, Altana verification and safety prerequisites
   execution-guard/  deterministic PancakeSwap V3 calldata validation
@@ -160,17 +161,35 @@ Default discovery uses BSC Mainnet (`AGENT_DISCOVERY_CHAIN_ID=56`) so the market
 
 Remote HTTPS/IPFS registration URIs are intentionally not fetched server-side in this milestone. `data:` registration files can be parsed and backlink-checked safely; remote URIs remain visible but are marked as not fetched until Spotriq adds a hardened metadata-fetch subsystem.
 
-## v0.22 External acceptance — COMPLETE
+## v0.23.0 Commercial Hiring + Marketplace Activation Kernel
 
-The accepted public Railway deployment now has all four first-party reference agents — RangeKeeper, GridPilot, YieldPilot and VenusGuard — passing Marketplace Test Lab and canonically reconciled to BSC Testnet ERC-8004 identities. The final audit requires `REGISTERED_VERIFIED`, Test Lab `PASS`, `CANONICAL_IDENTITY = PASS`, `RUNTIME_REACHABILITY = PASS`, `MARKETPLACE_TESTS = PASS`, `TESTNET_ONLY`, and `activationEligible = false` for every agent.
+Spotriq now implements the first real commercial relationship lifecycle while preserving `Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome`. The four accepted reference services publish structured zero-price `FREE / READ_ONLY_SERVICE / FREE` offers. Explore can execute a real connected-wallet API flow: `Offer → immutable Quote → idempotent Hire → FREE payment state NOT_REQUIRED → read-only Marketplace Activation`. This Activation grants no wallet signing or financial execution authority and does not change the separate financial `marketplaceActivationEligible` readiness flag.
 
-Re-check the live deployment at any time with:
+Commercial APIs:
 
-```bash
-pnpm verify:reference-acceptance
+```text
+GET  http://localhost:3001/v1/services/:serviceId/offers
+POST http://localhost:3001/v1/quotes
+GET  http://localhost:3001/v1/quotes/:quoteId
+POST http://localhost:3001/v1/hires
+GET  http://localhost:3001/v1/hires/:hireId
+GET  http://localhost:3001/v1/hires/:hireId/payment
+POST http://localhost:3001/v1/hires/:hireId/payment/reconcile
+POST http://localhost:3001/v1/hires/:hireId/activate
+GET  http://localhost:3001/v1/activations/:activationId
+GET  http://localhost:3001/v1/accounts/:address/commercial-state
 ```
 
-See `docs/SPOTRIQ_V0.22_EXTERNAL_ACCEPTANCE_REPORT.md`. v0.23 is now the active product milestone.
+The provider-neutral payment adapter seam includes a read-only ERC-8183 on-chain observer/reconciler. X402/B402 are represented payment rails but do not yet have live adapters. A browser cannot make a Hire paid by submitting a trusted `paid=true` flag.
+
+Verification commands added/restored in this release:
+
+```powershell
+pnpm verify:reference-acceptance
+pnpm verify:commercial-acceptance
+```
+
+See `docs/COMMERCIAL_HIRING_ACTIVATION.md` and `docs/IMPLEMENTATION_REPORT_COMMERCIAL_HIRING_ACTIVATION_v0.23.0.md`.
 
 ## v0.22.2 Reference-agent ERC-8004 identity reconciliation
 
@@ -188,14 +207,14 @@ Configuration:
 REFERENCE_AGENT_REGISTRY_CHAIN_ID=97
 
 REFERENCE_AGENT_RANGEKEEPER_ID=2017
-REFERENCE_AGENT_GRIDPILOT_ID=
-REFERENCE_AGENT_YIELDPILOT_ID=
-REFERENCE_AGENT_VENUSGUARD_ID=
+REFERENCE_AGENT_GRIDPILOT_ID=   # set to the real accepted Testnet ID in deployment
+REFERENCE_AGENT_YIELDPILOT_ID=   # set to the real accepted Testnet ID in deployment
+REFERENCE_AGENT_VENUSGUARD_ID=   # set to the real accepted Testnet ID in deployment
 ```
 
-`AGENT_DISCOVERY_CHAIN_ID=56` may remain unchanged for live external marketplace discovery. First-party reference services remain visible even when their current identity is BSC Testnet-only, and each record exposes its own identity chain/readiness state. A verified first-party identity can make `CANONICAL_IDENTITY = PASS`, but `marketplaceActivationEligible` remains false because commercial hiring/Activation is a separate later gate.
+`AGENT_DISCOVERY_CHAIN_ID=56` may remain unchanged for live external marketplace discovery. First-party reference services remain visible even when their current identity is BSC Testnet-only, and each record exposes its own identity chain/readiness state. A verified first-party identity can make `CANONICAL_IDENTITY = PASS`, while financial `marketplaceActivationEligible` remains false because financial authority/execution remains a separate gate from v0.23 read-only commercial Activation.
 
-The first externally accepted binding is RangeKeeper: BSC Testnet ERC-8004 Agent ID `2017`, with Spotriq-observed canonical owner/backlink/registration metadata and the public RangeKeeper A2A Agent Card all matching.
+External v0.22 acceptance is complete for all four reference services. RangeKeeper is explicitly known as BSC Testnet ERC-8004 Agent ID `2017`, with Spotriq-observed canonical owner/backlink/registration metadata and the public RangeKeeper A2A Agent Card all matching. This README intentionally does not invent the other numeric IDs; use the real deployment configuration accepted for those services.
 
 ## v0.22.1 Railway TypeScript Build Hotfix
 
@@ -221,7 +240,7 @@ GET  http://localhost:3001/v1/reference-agents/venusguard/.well-known/agent-card
 POST http://localhost:3001/v1/reference-agents/:slug/a2a
 ```
 
-These records flow through the normal Spotriq listing/service/readiness/Test Lab/Finding-matching pipeline with `origin = REFERENCE`. They remain `READ_ONLY`, commercially `UNDECLARED`, and non-activatable. `erc8004Verified` becomes true only for a deployment-configured reference identity that passes v0.22.2 canonical name/backlink/A2A endpoint reconciliation. A first-party callable runtime is never treated as an ERC-8004 identity merely because Spotriq ships it, and ERC-8004 verification is never treated as marketplace Activation.
+These records flow through the normal Spotriq listing/service/readiness/Test Lab/Finding-matching pipeline with `origin = REFERENCE`. In v0.23 they remain `READ_ONLY` but now publish truthful structured `FREE / READ_ONLY_SERVICE / FREE` commercial terms and can form a read-only Spotriq Marketplace Activation. Their separate financial execution readiness remains gated. `erc8004Verified` becomes true only for a deployment-configured reference identity that passes canonical name/backlink/A2A endpoint reconciliation. A first-party callable runtime is never treated as an ERC-8004 identity merely because Spotriq ships it, and ERC-8004 verification is never treated as financial permission or execution authority.
 
 Local runtime calls work on `127.0.0.1`; Marketplace Test Lab intentionally refuses private/localhost addresses. For a deployed environment set `PUBLIC_API_BASE_URL=https://YOUR_PUBLIC_API_HOST`. Production requires this value and HTTPS. After public deployment, run Test Lab and perform genuine ERC-8004 registration/reconciliation rather than embedding fake agent IDs.
 
@@ -251,7 +270,7 @@ pnpm db:health
 pnpm db:migrate
 ```
 
-Migration `0002_chain_evidence_spine.sql` introduces Spotriq's data-source, evidence-method, raw-observation, freshness, and conflict schema. Migration `0003_smart_money_rebalancing.sql` adds check-event persistence and the additional Smart Money finding fields. Migration `0004_venus_health_positions.sql` adds normalized Venus pool/market lending snapshots. Migration `0005_yield_opportunities.sql` persists Yield opportunity snapshots. Migration `0006_grid_market_context.sql` persists Grid market-context snapshots plus Grid evidence methods. Migration `0007_agent_registry_discovery.sql` extends canonical agent identity fields, discovery cache, external feedback records, and registry sync history. Migration `0008_marketplace_service_readiness.sql` persists service offers, permission profiles, readiness snapshots, capability claims and normalized service cache. Migration `0009_marketplace_test_lab.sql` persists immutable Marketplace Test Lab runs and coverage payloads. Migration `0015_service_task_origin_proof.sql` persists real AgentService task invocation/origin/proposal evidence separately from commercial activation.
+Migration `0002_chain_evidence_spine.sql` introduces Spotriq's data-source, evidence-method, raw-observation, freshness, and conflict schema. Migration `0003_smart_money_rebalancing.sql` adds check-event persistence and the additional Smart Money finding fields. Migration `0004_venus_health_positions.sql` adds normalized Venus pool/market lending snapshots. Migration `0005_yield_opportunities.sql` persists Yield opportunity snapshots. Migration `0006_grid_market_context.sql` persists Grid market-context snapshots plus Grid evidence methods. Migration `0007_agent_registry_discovery.sql` extends canonical agent identity fields, discovery cache, external feedback records, and registry sync history. Migration `0008_marketplace_service_readiness.sql` persists service offers, permission profiles, readiness snapshots, capability claims and normalized service cache. Migration `0009_marketplace_test_lab.sql` persists immutable Marketplace Test Lab runs and coverage payloads. Migration `0015_service_task_origin_proof.sql` persists real AgentService task invocation/origin/proposal evidence. Migration `0016_commercial_hiring_activation.sql` adds structured Offer terms, immutable Quotes, Hires, independent payment evidence, commercial fields on the existing Activation resource, and optional ServiceTask → Activation binding.
 
 ## Run one process only
 
@@ -263,8 +282,8 @@ pnpm dev:worker
 
 ## Current product-data state
 
-- Reference financial-service cards remain clearly labelled sample data; Explore now also displays a separate live ERC-8004 registry discovery surface.
-- Live discovered ERC-8004 identities remain distinct from normalized AgentServices; search relevance alone never creates a service claim. Eligible normalized A2A/MCP candidates can be contract-tested, live Smart Money Findings can be matched/ranked against normalized services using explicit context rules, a selected Rebalancing match can become a PREPARE_ONLY Job Intent, and a confirmed V3 intent can now produce an exact bounded permission request plus independently verified Altana grant state. Activation/execution remain separately gated.
+- Four first-party reference AgentServices are live and suppress duplicate legacy sample cards; Explore also displays a separate live ERC-8004 registry discovery surface.
+- Live discovered ERC-8004 identities remain distinct from normalized AgentServices; search relevance alone never creates a service claim. Eligible normalized A2A/MCP candidates can be contract-tested, live Smart Money Findings can be matched/ranked against normalized services using explicit context rules, a selected Rebalancing match can become a PREPARE_ONLY Job Intent, and a confirmed V3 intent can now produce an exact bounded permission request plus independently verified Altana grant state. Read-only commercial Activation is live for the four FREE reference offers; financial permission/execution remains separately gated.
 - BSC chain status, block, transaction, native balance, and requested ERC-20 balance APIs are now real provider-backed reads.
 - Those chain reads return normalized evidence/provenance/freshness structures.
 - PancakeSwap V3 and Infinity CL current-state normalization is live at the API layer.
@@ -290,6 +309,8 @@ pnpm dev:worker
 - `docs/IMPLEMENTATION_REPORT_YIELD_FOUNDATION.md`
 - `docs/GRID_MARKET_CONTEXT.md`
 - `docs/IMPLEMENTATION_REPORT_GRID_MARKET_CONTEXT.md`
+- `docs/COMMERCIAL_HIRING_ACTIVATION.md`
+- `docs/IMPLEMENTATION_REPORT_COMMERCIAL_HIRING_ACTIVATION_v0.23.0.md`
 - `docs/ERC8004_AGENT_REGISTRY_DISCOVERY.md`
 - `docs/IMPLEMENTATION_REPORT_AGENT_REGISTRY_DISCOVERY.md`
 - `docs/IMPLEMENTATION_REPORT_MARKETPLACE_SUPPLY_v0.10.0.md`
@@ -465,7 +486,7 @@ GET  /v1/controlled-executions/:executionId/activity
 GET  /v1/controlled-executions/:executionId/outcome
 ```
 
-v0.21.0 closes the task-origin gap that remained after Activity & Outcomes: the selected external service must now be genuinely invoked and return attributable proposal evidence before the Job Intent can advance. Commercial hiring/payment/activation remains a separate later gap.
+v0.21.0 closed the task-origin gap that remained after Activity & Outcomes: the selected external service must be genuinely invoked and return attributable proposal evidence before the Job Intent can advance. At that release, commercial hiring/payment/activation was still a separate later gap; v0.23 now implements that separate kernel.
 
 
 ## v0.21.0 Real AgentService Task Invocation / Origin Proof
@@ -474,7 +495,7 @@ A selected live Rebalancing AgentService must now be genuinely contacted before 
 
 The browser cannot provide trusted proposal/origin data. A returned range only pre-fills the existing user review. Exact acceptance is attributed to `AGENT_SERVICE`; changed ticks are explicitly `USER_OVERRIDE` and that attribution is sealed into the execution plan hash. The external service remains proposer-only and never receives the boundary financial signer.
 
-A2A invocation is deliberately **not** called paid hiring or marketplace activation. `marketplaceActivationEnabled` remains false until real commerce/activation semantics are proven. See `docs/AGENTSERVICE_TASK_ORIGIN_PROOF.md`.
+In v0.21, A2A invocation was deliberately **not** called paid hiring or marketplace activation. v0.23 now adds separate commerce/Activation semantics without changing the v0.21 origin-proof meaning. See `docs/AGENTSERVICE_TASK_ORIGIN_PROOF.md`.
 
 ## v0.22.0 Live Four-Category Reference Agent Supply
 
@@ -482,5 +503,5 @@ A2A invocation is deliberately **not** called paid hiring or marketplace activat
 
 The four services are injected into normal marketplace supply/readiness/matching rather than a demo-only path. Explore identifies them as **Live reference service**, while preserving the explicit boundary `First-party runtime ≠ ERC-8004 identity ≠ activation`.
 
-Public HTTPS Test Lab evidence and ERC-8004 registration are deployment-bound acceptance steps. `marketplaceActivationEnabled` remains false because v0.22 proves callable supply, not hiring/payment/Activation. See `docs/IMPLEMENTATION_REPORT_LIVE_REFERENCE_AGENT_SUPPLY_v0.22.0.md`.
+Public HTTPS Test Lab evidence and ERC-8004 registration were deployment-bound v0.22 acceptance steps and are now complete for all four reference services. v0.23 adds a separate FREE read-only commercial Activation path while leaving financial execution eligibility independently gated. See `docs/IMPLEMENTATION_REPORT_LIVE_REFERENCE_AGENT_SUPPLY_v0.22.0.md`.
 

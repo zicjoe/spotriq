@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import type {
   AgentAuthorityBinding,
+  MarketplaceActivation,
   MarketplaceServiceRecord,
   MarketplaceServiceTestCoverage,
   RebalancingJobIntent,
@@ -62,10 +63,10 @@ export class PostgresServiceTaskStore implements ServiceTaskStore {
   constructor(private readonly database: SqlQueryExecutor) {}
   async save(task: ServiceTask): Promise<void> {
     await this.database.query(
-      `insert into service_tasks (service_task_id,job_intent_id,finding_id,service_id,agent_id,state,protocol,protocol_binding,protocol_version,runtime_endpoint,request_context_hash,remote_task_id,remote_message_id,proposal_state,origin_proof_state,commercial_state,payload,created_at,updated_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19)
-       on conflict (service_task_id) do update set state=excluded.state,protocol_binding=excluded.protocol_binding,protocol_version=excluded.protocol_version,runtime_endpoint=excluded.runtime_endpoint,remote_task_id=excluded.remote_task_id,remote_message_id=excluded.remote_message_id,proposal_state=excluded.proposal_state,origin_proof_state=excluded.origin_proof_state,commercial_state=excluded.commercial_state,payload=excluded.payload,updated_at=excluded.updated_at`,
-      [task.serviceTaskId,task.jobIntentId,task.findingId,task.serviceId,task.agentId,task.state,task.protocol,task.protocolBinding??null,task.protocolVersion??null,task.runtimeEndpoint??null,task.requestContextHash,task.remoteTaskId??null,task.remoteMessageId??null,task.proposalState,task.originProof.state,task.commercialState,JSON.stringify(task),task.createdAt,task.updatedAt],
+      `insert into service_tasks (service_task_id,job_intent_id,finding_id,service_id,agent_id,state,protocol,protocol_binding,protocol_version,runtime_endpoint,request_context_hash,remote_task_id,remote_message_id,proposal_state,origin_proof_state,commercial_state,activation_id,payload,created_at,updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19,$20)
+       on conflict (service_task_id) do update set state=excluded.state,protocol_binding=excluded.protocol_binding,protocol_version=excluded.protocol_version,runtime_endpoint=excluded.runtime_endpoint,remote_task_id=excluded.remote_task_id,remote_message_id=excluded.remote_message_id,proposal_state=excluded.proposal_state,origin_proof_state=excluded.origin_proof_state,commercial_state=excluded.commercial_state,activation_id=excluded.activation_id,payload=excluded.payload,updated_at=excluded.updated_at`,
+      [task.serviceTaskId,task.jobIntentId,task.findingId,task.serviceId,task.agentId,task.state,task.protocol,task.protocolBinding??null,task.protocolVersion??null,task.runtimeEndpoint??null,task.requestContextHash,task.remoteTaskId??null,task.remoteMessageId??null,task.proposalState,task.originProof.state,task.commercialState,task.activationId??null,JSON.stringify(task),task.createdAt,task.updatedAt],
     );
   }
   async get(serviceTaskId: string): Promise<ServiceTask | undefined> {
@@ -89,8 +90,8 @@ export interface ServiceTaskOptions {
 }
 
 export interface ServiceTaskEngine {
-  invoke(job: RebalancingJobIntent): Promise<ServiceTask>;
-  retry(job: RebalancingJobIntent, serviceTaskId: string): Promise<ServiceTask>;
+  invoke(job: RebalancingJobIntent, activation?: MarketplaceActivation): Promise<ServiceTask>;
+  retry(job: RebalancingJobIntent, serviceTaskId: string, activation?: MarketplaceActivation): Promise<ServiceTask>;
   reconcile(serviceTaskId: string): Promise<ServiceTask>;
   cancel(serviceTaskId: string): Promise<ServiceTask>;
   get(serviceTaskId: string): Promise<ServiceTask>;
@@ -349,14 +350,18 @@ export function createServiceTaskEngine(options:{store?:ServiceTaskStore;marketp
     const proposalEvidence=normalized.proposal?createEvidenceEnvelope({subjectType:"service_task",subjectId:base.serviceTaskId,metric:"service.task_proposal",value:normalized.proposal.proposalHash,provenance:"marketplace-observed",source:DATA_SOURCES.MARKETPLACE,sourceRef:remote.finalUrl,observedAt,confidence:"high",method:EVIDENCE_METHODS.SERVICE_TASK_ORIGIN,methodInputs:[base.requestContextHash],limitation:"The structured proposal is attributable to the invoked A2A runtime and exact request context, but its financial content remains untrusted until user review and the existing Spotriq execution guard/boundary pipeline independently validates it."}):undefined;
     const updatedAttempt:ServiceTaskAttempt={...attempt,respondedAt:observedAt,state:mapped.state,remoteTaskId,remoteMessageId,remoteStatus:mapped.remoteStatus,detail:normalized.detail};
     const originProof:ServiceTaskOriginProof={state:attributable?"VERIFIED":normalized.state==="STRUCTURED"?"FAILED":"UNVERIFIED",serviceId:base.serviceId,agentId:base.agentId,runtimeEndpoint:selected.url,agentCardUrl:selected.agentCardUrl,protocol:"A2A",protocolBinding:selected.binding,protocolVersion:selected.version,tenant:selected.tenant,authorityBindingId:binding.bindingId,serviceSessionKeyAddress:binding.sessionKeyAddress,requestId:attempt.requestId,messageId:attempt.messageId,requestContextHash:base.requestContextHash,remoteTaskId,remoteMessageId,observedAt,evidenceIds:[originEvidence?.evidenceId,proposalEvidence?.evidenceId].filter((v):v is string=>Boolean(v)),detail:attributable?"Spotriq observed the exact-context A2A proposal from the same runtime origin whose service-owned key control was freshly verified.":normalized.detail};
-    return {...base,state:mapped.state,protocolBinding:selected.binding,protocolVersion:selected.version,runtimeEndpoint:selected.url,agentCardUrl:selected.agentCardUrl,tenant:selected.tenant,remoteTaskId,remoteMessageId,remoteStatus:mapped.remoteStatus,proposalState:normalized.state,proposal:normalized.proposal,originProof,evidence:[...base.evidence,...[originEvidence,proposalEvidence].filter((v):v is NonNullable<typeof v>=>Boolean(v))],attempts:[...base.attempts.slice(0,-1),updatedAttempt],updatedAt:observedAt,limitations:["A real A2A invocation is distinct from commercial hiring, payment and marketplace activation.","The external AgentService remains an authenticated proposer only and never receives Spotriq's boundary-controlled financial signer.","Agent-proposed ticks remain untrusted until explicit user review and the existing execution-plan/guard/boundary pipeline independently validates them.",...(originProof.state==="VERIFIED"?["Origin attribution relies on a fresh service-key challenge plus a same-origin TLS A2A exchange; the A2A response itself is not required to carry a separate cryptographic proposal signature."]:[])]};
+    return {...base,state:mapped.state,protocolBinding:selected.binding,protocolVersion:selected.version,runtimeEndpoint:selected.url,agentCardUrl:selected.agentCardUrl,tenant:selected.tenant,remoteTaskId,remoteMessageId,remoteStatus:mapped.remoteStatus,proposalState:normalized.state,proposal:normalized.proposal,originProof,evidence:[...base.evidence,...[originEvidence,proposalEvidence].filter((v):v is NonNullable<typeof v>=>Boolean(v))],attempts:[...base.attempts.slice(0,-1),updatedAttempt],updatedAt:observedAt,limitations:[...base.limitations,"A real A2A invocation remains distinct from commercial hiring, payment and marketplace activation even when an Activation is linked.","The external AgentService remains an authenticated proposer only and never receives Spotriq's boundary-controlled financial signer.","Agent-proposed ticks remain untrusted until explicit user review and the existing execution-plan/guard/boundary pipeline independently validates them.",...(originProof.state==="VERIFIED"?["Origin attribution relies on a fresh service-key challenge plus a same-origin TLS A2A exchange; the A2A response itself is not required to carry a separate cryptographic proposal signature."]:[])]};
   }
 
-  async function execute(job:RebalancingJobIntent,forceAttempt:boolean):Promise<ServiceTask>{
-    assertInvokableJob(job,now().getTime()); const id=serviceTaskId(job),existing=await store.get(id); if(existing&&!forceAttempt)return existing;
+  async function execute(job:RebalancingJobIntent,forceAttempt:boolean,activation?:MarketplaceActivation):Promise<ServiceTask>{
+    assertInvokableJob(job,now().getTime());
+    if (activation) {
+      if (activation.state !== "ACTIVE" || activation.serviceId !== job.selectedService.serviceId || activation.buyerAddress.toLowerCase() !== job.walletAddress.toLowerCase()) throw new ServiceTaskError("The supplied marketplace Activation is not active for this Job Intent buyer and selected AgentService.","INVALID_STATE");
+    }
+    const id=serviceTaskId(job),existing=await store.get(id); if(existing&&!forceAttempt)return existing;
     const context=buildServiceTaskRequestContext(job),contextHash=serviceTaskRequestContextHash(job),attemptNumber=(existing?.attempt??0)+1; const requestIdValue=requestId(id,attemptNumber),messageIdValue=messageId(id,attemptNumber),requestedAt=now().toISOString();
     const attempt:ServiceTaskAttempt={attempt:attemptNumber,requestId:requestIdValue,messageId:messageIdValue,idempotencyKey:`${id}:attempt:${attemptNumber}`,requestedAt,state:"READY_TO_INVOKE"};
-    let base:ServiceTask=existing?{...existing,state:"READY_TO_INVOKE",attempt:attemptNumber,attempts:[...existing.attempts,attempt],proposalState:"NONE",proposal:undefined,requestContext:context,requestContextHash:contextHash,updatedAt:requestedAt}:{serviceTaskId:id,jobIntentId:job.jobIntentId,findingId:job.findingId,serviceId:job.selectedService.serviceId,agentId:job.selectedService.agentId,state:"READY_TO_INVOKE",protocol:"A2A",requestContextHash:contextHash,requestContext:context,attempt:attemptNumber,attempts:[attempt],proposalState:"NONE",originProof:blankOrigin({serviceId:job.selectedService.serviceId,agentId:job.selectedService.agentId,requestContextHash:contextHash},requestIdValue,messageIdValue),commercialState:"NOT_PROVEN",evidence:[],createdAt:requestedAt,updatedAt:requestedAt,limitations:["Task invocation is not commercial hiring, payment or marketplace activation."]};
+    let base:ServiceTask=existing?{...existing,state:"READY_TO_INVOKE",attempt:attemptNumber,attempts:[...existing.attempts,attempt],proposalState:"NONE",proposal:undefined,requestContext:context,requestContextHash:contextHash,updatedAt:requestedAt}:{serviceTaskId:id,jobIntentId:job.jobIntentId,findingId:job.findingId,serviceId:job.selectedService.serviceId,agentId:job.selectedService.agentId,state:"READY_TO_INVOKE",protocol:"A2A",requestContextHash:contextHash,requestContext:context,attempt:attemptNumber,attempts:[attempt],proposalState:"NONE",originProof:blankOrigin({serviceId:job.selectedService.serviceId,agentId:job.selectedService.agentId,requestContextHash:contextHash},requestIdValue,messageIdValue),commercialState:activation?(activation.paymentRequired?"PAYMENT_PROVEN":"HIRING_PROVEN"):"NOT_PROVEN",activationId:activation?.activationId,hireId:activation?.hireId,evidence:[],createdAt:requestedAt,updatedAt:requestedAt,limitations:activation?["This ServiceTask is bound to an ACTIVE Spotriq marketplace Activation for the same buyer and AgentService.",activation.paymentRequired?"Independent payment evidence was required by the Activation; ServiceTask binding still does not imply permission, execution or outcome.":"The bound FREE read-only Activation required no payment and grants no wallet signing or transaction authority."]:["Task invocation is not commercial hiring, payment or marketplace activation."]};
     await store.save(base);
     try{
       const [record,tests,binding]=await Promise.all([marketplace.getService(job.selectedService.serviceId),marketplace.getTests(job.selectedService.serviceId),marketplace.verifyAuthorityBinding(job.selectedService.serviceId)]);
@@ -389,8 +394,8 @@ export function createServiceTaskEngine(options:{store?:ServiceTaskStore;marketp
   }
 
   return {
-    invoke:(job)=>execute(job,false),
-    async retry(job,serviceTaskIdValue){const previous=await get(serviceTaskIdValue);if(previous.jobIntentId!==job.jobIntentId)throw new ServiceTaskError("The retry task does not belong to this Job Intent.","INVALID_INPUT");return execute(job,true);},
+    invoke:(job,activation)=>execute(job,false,activation),
+    async retry(job,serviceTaskIdValue,activation){const previous=await get(serviceTaskIdValue);if(previous.jobIntentId!==job.jobIntentId)throw new ServiceTaskError("The retry task does not belong to this Job Intent.","INVALID_INPUT");return execute(job,true,activation);},
     reconcile:async(id)=>refresh(await get(id),"get"),
     cancel:async(id)=>refresh(await get(id),"cancel"),
     get,

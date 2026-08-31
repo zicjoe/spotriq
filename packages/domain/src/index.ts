@@ -151,13 +151,162 @@ export interface AgentCapabilityClaim {
   note: string;
 }
 
+export type CommercialServiceType = "READ_ONLY_SERVICE" | "TASK_SERVICE" | "MONITORING_SERVICE" | "FINANCIAL_EXECUTION_SERVICE";
+export type CommercialPaymentRail = "FREE" | "ERC8183" | "X402" | "B402";
+export type CommercialAvailability = "AVAILABLE" | "PAUSED" | "UNAVAILABLE";
+
+export interface CommercialOfferTerms {
+  termsVersion: string;
+  commercialModel: PricingModel["model"];
+  serviceType: CommercialServiceType;
+  price: {
+    amount: string;
+    currency: string;
+    tokenAddress?: string;
+    amountRaw?: string;
+    decimals?: number;
+  };
+  network: "BSC";
+  chainId: AgentRegistryChainId;
+  paymentRail: CommercialPaymentRail;
+  payment?: {
+    contractAddress?: string;
+    providerAddress?: string;
+  };
+  scope: {
+    summary: string;
+    protocols: string[];
+    financialAuthorityRequired: boolean;
+    walletSigningRequired: boolean;
+  };
+  availability: CommercialAvailability;
+  quoteValiditySeconds: number;
+}
+
 export interface ServiceOffer {
   offerId: string;
   serviceId: string;
   state: "UNDECLARED" | "AVAILABLE" | "UNAVAILABLE";
   pricing?: PricingModel;
+  terms?: CommercialOfferTerms;
   source: "operator-claimed" | "marketplace-observed";
   note: string;
+}
+
+export type CommercialQuoteState = "OPEN" | "EXPIRED";
+export interface CommercialQuote {
+  quoteId: string;
+  offerId: string;
+  serviceId: string;
+  buyerAddress: string;
+  buyerChainId: AgentRegistryChainId;
+  state: CommercialQuoteState;
+  termsSnapshot: CommercialOfferTerms;
+  termsHash: string;
+  idempotencyKey: string;
+  quotedAt: string;
+  expiresAt: string;
+  methodVersion: string;
+  evidence: EvidenceEnvelope[];
+  limitations: string[];
+}
+
+export type CommercialHireState = "AWAITING_PAYMENT" | "AWAITING_PERMISSION" | "READY_TO_ACTIVATE" | "ACTIVATED" | "CANCELLED";
+export interface CommercialHire {
+  hireId: string;
+  quoteId: string;
+  offerId: string;
+  serviceId: string;
+  buyerAddress: string;
+  buyerChainId: AgentRegistryChainId;
+  state: CommercialHireState;
+  termsHash: string;
+  paymentRequired: boolean;
+  permissionRequired: boolean;
+  paymentEvidenceId?: string;
+  activationId?: string;
+  idempotencyKey: string;
+  acceptedAt: string;
+  updatedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export type CommercialPaymentEvidenceState = "NOT_REQUIRED" | "PENDING" | "VERIFIED" | "MISMATCH" | "FAILED";
+export interface Erc8183PaymentObservation {
+  chainId: AgentRegistryChainId;
+  contractAddress: string;
+  jobId: string;
+  client: string;
+  provider: string;
+  evaluator: string;
+  description: string;
+  budgetRaw: string;
+  paymentToken: string;
+  expiredAtUnix: string;
+  status: "OPEN" | "FUNDED" | "SUBMITTED" | "COMPLETED" | "REJECTED" | "EXPIRED";
+  fundingSatisfied: boolean;
+  settlementObserved: boolean;
+  blockNumber: string;
+}
+
+export interface CommercialPaymentEvidence {
+  paymentEvidenceId: string;
+  hireId: string;
+  serviceId: string;
+  buyerAddress: string;
+  requirement: "NOT_REQUIRED" | "REQUIRED";
+  state: CommercialPaymentEvidenceState;
+  rail: CommercialPaymentRail;
+  chainId: AgentRegistryChainId;
+  amount: string;
+  currency: string;
+  tokenAddress?: string;
+  providerRef?: string;
+  observation?: Erc8183PaymentObservation;
+  observedAt: string;
+  methodVersion: string;
+  provenance: EvidenceProvenance;
+  evidence: EvidenceEnvelope[];
+  limitations: string[];
+}
+
+export type MarketplaceActivationState = "ACTIVE" | "SUSPENDED" | "REVOKED" | "ENDED";
+export interface MarketplaceActivation {
+  activationId: string;
+  hireId: string;
+  quoteId: string;
+  serviceId: string;
+  buyerAddress: string;
+  buyerChainId: AgentRegistryChainId;
+  serviceChainId: AgentRegistryChainId;
+  state: MarketplaceActivationState;
+  activationKind: "READ_ONLY_SERVICE_RELATIONSHIP" | "FINANCIAL_SERVICE_RELATIONSHIP";
+  termsSnapshot: CommercialOfferTerms;
+  termsHash: string;
+  paymentRequired: boolean;
+  paymentEvidenceId?: string;
+  permissionRequired: boolean;
+  permissionGrantId?: string;
+  walletSigningAuthorityGranted: boolean;
+  financialExecutionAuthorityGranted: boolean;
+  idempotencyKey: string;
+  activatedAt: string;
+  updatedAt: string;
+  methodVersion: string;
+  evidence: EvidenceEnvelope[];
+  limitations: string[];
+}
+
+export interface BuyerCommercialState {
+  buyerAddress: string;
+  quotes: CommercialQuote[];
+  hires: CommercialHire[];
+  payments: CommercialPaymentEvidence[];
+  activations: MarketplaceActivation[];
+  generatedAt: string;
+  methodVersion: string;
+  limitations: string[];
 }
 
 export interface ReadinessCheck {
@@ -1628,6 +1777,8 @@ export interface ServiceTask {
   proposal?: RebalancingServiceProposal;
   originProof: ServiceTaskOriginProof;
   commercialState: ServiceTaskCommercialState;
+  activationId?: string;
+  hireId?: string;
   evidence: EvidenceEnvelope[];
   createdAt: string;
   updatedAt: string;
@@ -1645,6 +1796,8 @@ export interface JobIntentServiceTaskLink {
   proposedTickLower?: number;
   proposedTickUpper?: number;
   commercialState: ServiceTaskCommercialState;
+  activationId?: string;
+  hireId?: string;
   linkedAt: string;
 }
 

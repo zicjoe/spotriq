@@ -1,16 +1,19 @@
 import type { FastifyInstance } from "fastify";
-import type { ApiEnvelope, ServiceTaskForJobResponse, ServiceTaskResponse } from "@spotriq/api-contracts";
+import type { ApiEnvelope, InvokeServiceTaskRequest, ServiceTaskForJobResponse, ServiceTaskResponse } from "@spotriq/api-contracts";
 import type { JobIntentEngine } from "@spotriq/job-intents";
 import type { ServiceTaskEngine } from "@spotriq/service-tasks";
+import type { CommercialEngine } from "@spotriq/commercial";
 import { ApiInputError } from "../errors.js";
 
 function id(value:string|undefined,label:string):string { const v=value?.trim(); if(!v||v.length>1024) throw new ApiInputError(`${label} is required.`,"INVALID_ID"); return v; }
 function envelope<T>(data:T,requestId:string):ApiEnvelope<T>{return{data,meta:{requestId,generatedAt:new Date().toISOString()}};}
 
-export async function registerServiceTaskRoutes(app:FastifyInstance,tasks:ServiceTaskEngine,jobs:JobIntentEngine):Promise<void>{
-  app.post<{Params:{jobIntentId:string}}>('/v1/job-intents/:jobIntentId/service-tasks',async(request,reply)=>{
+export async function registerServiceTaskRoutes(app:FastifyInstance,tasks:ServiceTaskEngine,jobs:JobIntentEngine,commercial:CommercialEngine):Promise<void>{
+  app.post<{Params:{jobIntentId:string};Body?:InvokeServiceTaskRequest}>('/v1/job-intents/:jobIntentId/service-tasks',async(request,reply)=>{
     const job=await jobs.get(id(request.params.jobIntentId,'jobIntentId'));
-    const task=await tasks.invoke(job);
+    const activationId=request.body?.activationId?.trim();
+    const activation=activationId?await commercial.assertActivationForService({activationId,serviceId:job.selectedService.serviceId,buyerAddress:job.walletAddress}):undefined;
+    const task=await tasks.invoke(job,activation);
     const intent=await jobs.linkServiceTask(job.jobIntentId,task);
     const data:ServiceTaskResponse={task,intent};
     return reply.code(201).send(envelope(data,request.id));

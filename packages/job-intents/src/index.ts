@@ -362,13 +362,17 @@ export function createJobIntentEngine(store: JobIntentStore = new MemoryJobInten
           proposedTickLower: task.proposal?.targetTickLower,
           proposedTickUpper: task.proposal?.targetTickUpper,
           commercialState: task.commercialState,
+          activationId: task.activationId,
+          hireId: task.hireId,
           linkedAt: new Date().toISOString(),
         },
         updatedAt: new Date().toISOString(),
         limitations: [
           ...intent.limitations.filter((item) => !item.includes("selected service match is compatibility evidence only")),
           task.originProof.state === "VERIFIED" && task.proposalState === "STRUCTURED"
-            ? "Spotriq observed a real selected AgentService task/proposal origin. Invocation is proven, but commercial hiring/payment/marketplace activation remain separate and unproven."
+            ? task.activationId
+              ? "Spotriq observed a real selected AgentService task/proposal origin and linked it to a legitimate marketplace Activation. Invocation and commercial relationship evidence remain separate from financial permission, execution, and outcome."
+              : "Spotriq observed a real selected AgentService task/proposal origin. Invocation is proven, but commercial hiring/payment/marketplace activation remain separate and unproven."
             : "The selected AgentService task exists, but verified proposal origin is not yet sufficient for Job Intent confirmation.",
         ],
       };

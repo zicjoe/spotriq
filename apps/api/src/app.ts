@@ -27,6 +27,7 @@ import { createExecutionBoundaryEngine, ExecutionBoundaryError, MemoryExecutionB
 import { ControlledExecutionError, createControlledExecutionEngine, MemoryControlledExecutionStore, PostgresControlledExecutionStore, type ControlledExecutionEngine } from "@spotriq/controlled-execution";
 import { ActivityOutcomesError, createActivityOutcomesEngine, MemoryActivityOutcomesStore, PostgresActivityOutcomesStore, type ActivityOutcomesEngine } from "@spotriq/activity-outcomes";
 import { createServiceTaskEngine, MemoryServiceTaskStore, PostgresServiceTaskStore, ServiceTaskError, type ServiceTaskEngine } from "@spotriq/service-tasks";
+import { CommercialError, createCommercialEngine, createErc8183PaymentAdapter, MemoryCommercialStore, PostgresCommercialStore, type CommercialEngine } from "@spotriq/commercial";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
@@ -44,6 +45,7 @@ import { registerControlledExecutionRoutes } from "./routes/controlled-execution
 import { registerActivityOutcomeRoutes } from "./routes/activity-outcomes.js";
 import { registerServiceTaskRoutes } from "./routes/service-tasks.js";
 import { registerReferenceAgentRoutes } from "./routes/reference-agents.js";
+import { registerCommercialRoutes } from "./routes/commercial.js";
 import { createReferenceAgentCatalog, type ReferenceAgentIdentityBinding, type ReferenceAgentSlug } from "@spotriq/reference-agents";
 
 export interface BuildServerOptions {
@@ -63,6 +65,7 @@ export interface BuildServerOptions {
   controlledExecution?: ControlledExecutionEngine;
   activityOutcomes?: ActivityOutcomesEngine;
   serviceTasks?: ServiceTaskEngine;
+  commercial?: CommercialEngine;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -137,6 +140,15 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       maxRedirects: config.marketplaceTestMaxRedirects,
     }),
   });
+  const commercialStore = sqlDatabase
+    ? new PostgresCommercialStore(sqlDatabase)
+    : new MemoryCommercialStore();
+  const commercial = options.commercial ?? createCommercialEngine({
+    marketplace: marketplaceSupply,
+    store: commercialStore,
+    paymentAdapters: [createErc8183PaymentAdapter({ chain })],
+  });
+
   const smartMoneyStore = sqlDatabase
     ? new PostgresSmartMoneyStore(sqlDatabase)
     : new MemorySmartMoneyStore();
@@ -201,7 +213,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.22.2",
+      version: "0.23.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -260,7 +272,14 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       controlledBscTestnetExecutionEnabled: true,
       executionActivityOutcomesEnabled: true,
       serviceTaskOriginProofEnabled: true,
-      marketplaceActivationEnabled: false,
+      commercialOfferEnabled: true,
+      commercialQuoteEnabled: true,
+      commercialHireEnabled: true,
+      commercialPaymentReconciliationEnabled: true,
+      erc8183PaymentObservationEnabled: true,
+      x402B402PaymentAdaptersEnabled: false,
+      freeReadOnlyActivationEnabled: true,
+      marketplaceActivationEnabled: true,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
@@ -289,6 +308,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "v0.19 can prepare a short-lived one-shot controlled BSC Testnet dispatch only after fresh Altana Keystore verification, financial readiness, LP/quote preflight, and exact call-hash/order authorization. Confirmed receipt evidence consumes the sealed boundary to prevent replay.",
         "v0.20 persists execution-scoped Activity & Outcomes evidence from the confirmed controlled dispatch: lifecycle events, BSC receipt/gas evidence, replacement LP state, boundary consumption, Job Intent completion and current Altana revocation state. It does not fabricate PnL, fees earned or marketplace agent activation.",
         "v0.21 invokes a selected, tested AgentService through its supported A2A task/message interface, binds the exact server-derived Job Intent context to the request, requires a fresh service-owned key proof, persists the remote task/message and structured proposal, and blocks Job confirmation until proposal origin is verified. Invocation remains distinct from hiring, payment and activation.",
+        "v0.23 adds explicit Offer → immutable Quote → idempotent Hire → Payment/Funding Evidence → Marketplace Activation resources. The four accepted first-party services publish FREE / READ_ONLY_SERVICE offers that can be commercially activated without fabricating payment or permission.",
+        "Marketplace activation in v0.23 means an ACTIVE read-only Spotriq service relationship. It does not grant wallet signing, financial execution, autonomous transaction, or fund-movement authority; existing financial readiness/permission/execution gates remain independent.",
+        "Paid rails are provider-neutral adapters. ERC-8183 is observed from BSC job/funding state; X402/B402 are represented in the domain but no live adapter is enabled yet, so Spotriq cannot falsely mark those payments verified.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
       ],
@@ -305,9 +327,10 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerCheckRoutes(app, smartMoney, marketplaceSupply);
   await registerAgentRoutes(app, agentRegistry, config.agentDiscoveryChainId);
   await registerMarketplaceRoutes(app, marketplaceSupply, config.agentDiscoveryChainId);
+  await registerCommercialRoutes(app, commercial);
   await registerReferenceAgentRoutes(app, { publicBaseUrl: config.publicApiBaseUrl, pancakeSwap, venus, marketContext, identityBindings: referenceIdentityBindings });
   await registerJobIntentRoutes(app, smartMoney, marketplaceSupply, jobIntents);
-  await registerServiceTaskRoutes(app, serviceTasks, jobIntents);
+  await registerServiceTaskRoutes(app, serviceTasks, jobIntents, commercial);
   await registerAuthorityRoutes(app, authority, jobIntents, marketplaceSupply);
   await registerExecutionPlanRoutes(app, executionPlans, executionBoundary, authority, jobIntents);
   await registerControlledExecutionRoutes(app, controlledExecution, jobIntents, activityOutcomes);
@@ -363,6 +386,16 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
 
     if (error instanceof JobIntentError) {
       const statusCode = error.code === "JOB_INTENT_NOT_FOUND" ? 404 : error.code === "MATCH_REQUIRED" || error.code === "UNSUPPORTED_FINDING" || error.code === "INVALID_STATE" ? 422 : 400;
+      const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
+      return reply.code(statusCode).send(body);
+    }
+
+    if (error instanceof CommercialError) {
+      const statusCode = error.code === "OFFER_NOT_FOUND" || error.code === "QUOTE_NOT_FOUND" || error.code === "HIRE_NOT_FOUND" || error.code === "ACTIVATION_NOT_FOUND" ? 404
+        : error.code === "IDEMPOTENCY_CONFLICT" || error.code === "OFFER_STALE" ? 409
+          : error.code === "ONCHAIN_OBSERVATION_FAILED" ? 502
+            : error.code === "QUOTE_EXPIRED" || error.code === "NETWORK_MISMATCH" || error.code === "PAYMENT_REQUIRED" || error.code === "PAYMENT_MISMATCH" || error.code === "PAYMENT_ADAPTER_UNAVAILABLE" || error.code === "PERMISSION_REQUIRED" || error.code === "SERVICE_NOT_READY" || error.code === "WRONG_BUYER" || error.code === "WRONG_SERVICE" ? 422
+              : 400;
       const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
       return reply.code(statusCode).send(body);
     }
