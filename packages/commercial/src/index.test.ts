@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { CommercialOfferTerms, CommercialPaymentEvidence, MarketplaceServiceRecord } from "@spotriq/domain";
 import type { MarketplaceSupplyReader } from "@spotriq/marketplace-supply";
-import { createCommercialEngine, type CommercialPaymentAdapter } from "./index.js";
+import { createCommercialEngine, MemoryCommercialStore, type CommercialPaymentAdapter } from "./index.js";
 
 const BUYER = "0x1111111111111111111111111111111111111111";
 const OTHER = "0x2222222222222222222222222222222222222222";
@@ -53,9 +53,49 @@ function serviceRecord(terms: CommercialOfferTerms = freeTerms()): MarketplaceSe
   } as unknown as MarketplaceServiceRecord;
 }
 
+
+class ForeignKeyMemoryStore extends MemoryCommercialStore {
+  override async savePayment(payment: CommercialPaymentEvidence): Promise<void> {
+    const hire = await this.getHire(payment.hireId);
+    if (!hire) throw new Error("commercial_payment_evidence_hire_id_fkey");
+    await super.savePayment(payment);
+  }
+}
+
+class RetryRepairStore extends ForeignKeyMemoryStore {
+  private failOnce = true;
+  override async savePayment(payment: CommercialPaymentEvidence): Promise<void> {
+    if (this.failOnce) {
+      this.failOnce = false;
+      throw new Error("simulated payment persistence interruption");
+    }
+    await super.savePayment(payment);
+  }
+}
 function marketplace(get: () => MarketplaceServiceRecord): MarketplaceSupplyReader {
   return { getService: async () => get() } as unknown as MarketplaceSupplyReader;
 }
+
+test("FREE Hire is persisted before NOT_REQUIRED payment evidence so PostgreSQL-style foreign keys are respected", async () => {
+  const store = new ForeignKeyMemoryStore();
+  const engine = createCommercialEngine({ marketplace: marketplace(() => serviceRecord()), store, now: () => new Date("2026-08-31T12:00:00.000Z") });
+  const quote = await engine.createQuote({ serviceId: SERVICE, buyerAddress: BUYER, buyerChainId: 97, idempotencyKey: "q-fk-order" });
+  const hire = await engine.createHire({ quoteId: quote.quoteId, buyerAddress: BUYER, idempotencyKey: "h-fk-order" });
+  const payment = await engine.getPayment(hire.hireId);
+  assert.equal(payment.state, "NOT_REQUIRED");
+  assert.equal(payment.hireId, hire.hireId);
+});
+
+test("FREE Hire retry repairs missing NOT_REQUIRED evidence after an interrupted payment write", async () => {
+  const store = new RetryRepairStore();
+  const engine = createCommercialEngine({ marketplace: marketplace(() => serviceRecord()), store, now: () => new Date("2026-08-31T12:00:00.000Z") });
+  const quote = await engine.createQuote({ serviceId: SERVICE, buyerAddress: BUYER, buyerChainId: 97, idempotencyKey: "q-repair" });
+  await assert.rejects(() => engine.createHire({ quoteId: quote.quoteId, buyerAddress: BUYER, idempotencyKey: "h-repair" }), /simulated payment persistence interruption/);
+  const repaired = await engine.createHire({ quoteId: quote.quoteId, buyerAddress: BUYER, idempotencyKey: "h-repair" });
+  const payment = await engine.getPayment(repaired.hireId);
+  assert.equal(payment.state, "NOT_REQUIRED");
+  assert.equal(repaired.paymentEvidenceId, payment.paymentEvidenceId);
+});
 
 test("FREE read-only Offer creates immutable Quote, Hire, NOT_REQUIRED payment evidence and read-only Activation", async () => {
   const engine = createCommercialEngine({ marketplace: marketplace(() => serviceRecord()), now: () => new Date("2026-08-31T12:00:00.000Z") });

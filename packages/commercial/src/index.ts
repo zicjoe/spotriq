@@ -261,18 +261,35 @@ export function createCommercialEngine(options:{marketplace:MarketplaceSupplyRea
     return saved??quote;
   }
 
+  async function ensureFreePaymentEvidence(hire:CommercialHire,q:CommercialQuote,observedAt?:string):Promise<CommercialHire>{
+    if(hire.paymentRequired)return hire;
+    const paymentId=hire.paymentEvidenceId??deterministicId("payment",hire.hireId,"FREE");
+    const existing=await store.getPayment(paymentId);
+    if(!existing){
+      const payment:CommercialPaymentEvidence={paymentEvidenceId:paymentId,hireId:hire.hireId,serviceId:q.serviceId,buyerAddress:hire.buyerAddress,requirement:"NOT_REQUIRED",state:"NOT_REQUIRED",rail:"FREE",chainId:q.termsSnapshot.chainId,amount:"0",currency:q.termsSnapshot.price.currency,observedAt:observedAt??now().toISOString(),methodVersion:COMMERCIAL_KERNEL_METHOD,provenance:"marketplace-derived",evidence:[],limitations:["No payment is required for this FREE Offer. NOT_REQUIRED is not the same as PAID."]};
+      await store.savePayment(payment);
+    }
+    if(hire.paymentEvidenceId===paymentId)return hire;
+    const updated:CommercialHire={...hire,paymentEvidenceId:paymentId,updatedAt:now().toISOString()};
+    await store.saveHire(updated);
+    return updated;
+  }
+
   async function createHire(input:{quoteId:string;buyerAddress:string;idempotencyKey:string}):Promise<CommercialHire>{
     const buyer=normalizedAddress(input.buyerAddress,"buyerAddress"),key=nonempty(input.idempotencyKey,"idempotencyKey",160),quoteId=nonempty(input.quoteId,"quoteId",1024);
-    const prior=await store.findHireByIdempotency(buyer,key); if(prior){if(prior.quoteId!==quoteId)throw new CommercialError("This hire idempotency key was already used for a different Quote.","IDEMPOTENCY_CONFLICT");return prior;}
+    const prior=await store.findHireByIdempotency(buyer,key);
+    if(prior){
+      if(prior.quoteId!==quoteId)throw new CommercialError("This hire idempotency key was already used for a different Quote.","IDEMPOTENCY_CONFLICT");
+      return ensureFreePaymentEvidence(prior,await getQuote(prior.quoteId));
+    }
     const q=await getQuote(quoteId); if(q.buyerAddress!==buyer)throw new CommercialError("Only the Quote buyer can create this Hire.","WRONG_BUYER"); if(q.state==="EXPIRED")throw new CommercialError("This Quote expired before acceptance. Request a fresh Quote.","QUOTE_EXPIRED");
     const paymentRequired=isPaymentRequired(q.termsSnapshot),permissionRequired=isPermissionRequired(q.termsSnapshot); const acceptedAt=now().toISOString(); const hireId=deterministicId("hire",buyer,key);
-    const paymentId=paymentRequired?undefined:deterministicId("payment",hireId,"FREE");
-    if(paymentId){const p:CommercialPaymentEvidence={paymentEvidenceId:paymentId,hireId,serviceId:q.serviceId,buyerAddress:buyer,requirement:"NOT_REQUIRED",state:"NOT_REQUIRED",rail:"FREE",chainId:q.termsSnapshot.chainId,amount:"0",currency:q.termsSnapshot.price.currency,observedAt:acceptedAt,methodVersion:COMMERCIAL_KERNEL_METHOD,provenance:"marketplace-derived",evidence:[],limitations:["No payment is required for this FREE Offer. NOT_REQUIRED is not the same as PAID."]};await store.savePayment(p);}
     const state:CommercialHire["state"]=paymentRequired?"AWAITING_PAYMENT":permissionRequired?"AWAITING_PERMISSION":"READY_TO_ACTIVATE";
-    const hire:CommercialHire={hireId,quoteId:q.quoteId,offerId:q.offerId,serviceId:q.serviceId,buyerAddress:buyer,buyerChainId:q.buyerChainId,state,termsHash:q.termsHash,paymentRequired,permissionRequired,paymentEvidenceId:paymentId,idempotencyKey:key,acceptedAt,updatedAt:acceptedAt,methodVersion:COMMERCIAL_KERNEL_METHOD,limitations:["Hire proves buyer acceptance of the immutable Quote. It is not payment, permission, activation, execution, or outcome."]};
-    await store.saveHire(hire); const saved=await store.getHire(hireId);
+    const hire:CommercialHire={hireId,quoteId:q.quoteId,offerId:q.offerId,serviceId:q.serviceId,buyerAddress:buyer,buyerChainId:q.buyerChainId,state,termsHash:q.termsHash,paymentRequired,permissionRequired,idempotencyKey:key,acceptedAt,updatedAt:acceptedAt,methodVersion:COMMERCIAL_KERNEL_METHOD,limitations:["Hire proves buyer acceptance of the immutable Quote. It is not payment, permission, activation, execution, or outcome."]};
+    await store.saveHire(hire);
+    const saved=await store.getHire(hireId);
     if(saved&&(saved.quoteId!==q.quoteId||saved.buyerAddress!==buyer||saved.termsHash!==q.termsHash)) throw new CommercialError("This hire idempotency key raced with a different Quote.","IDEMPOTENCY_CONFLICT");
-    return saved??hire;
+    return ensureFreePaymentEvidence(saved??hire,q,acceptedAt);
   }
 
   async function getPayment(hireId:string):Promise<CommercialPaymentEvidence>{const hire=await getHire(hireId); const payment=hire.paymentEvidenceId?await store.getPayment(hire.paymentEvidenceId):await store.getLatestPaymentForHire(hire.hireId); if(payment)return payment; const q=await getQuote(hire.quoteId); return {paymentEvidenceId:deterministicId("payment-pending",hire.hireId),hireId:hire.hireId,serviceId:hire.serviceId,buyerAddress:hire.buyerAddress,requirement:"REQUIRED",state:"PENDING",rail:q.termsSnapshot.paymentRail,chainId:q.termsSnapshot.chainId,amount:q.termsSnapshot.price.amount,currency:q.termsSnapshot.price.currency,tokenAddress:q.termsSnapshot.price.tokenAddress,observedAt:now().toISOString(),methodVersion:COMMERCIAL_KERNEL_METHOD,provenance:"marketplace-derived",evidence:[],limitations:["No independently reconciled payment/funding evidence exists yet."]};}
