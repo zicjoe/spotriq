@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, FindingServiceMatch, FindingServiceMatchPage, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution, ExecutionActivityOutcomeBundle, ServiceTask, MarketplaceActivation,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution, ExecutionActivityOutcomeBundle, ServiceTask, MarketplaceActivation, ActivationControlProfile, ActivationRuntimeState,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -693,8 +693,12 @@ function HomePage({ navigate, hasActivations }: { navigate: (r: Route, p?: Parti
 
 
 
-function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, testing, onHireFreeReadOnly, hiring, activation, commercialError }: { record: MarketplaceServiceRecord; onInspect: () => void; inspecting: boolean; onRunTests: () => void; testing: boolean; onHireFreeReadOnly?: () => void; hiring?: boolean; activation?: MarketplaceActivation; commercialError?: string }) {
+function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, testing, onHireFreeReadOnly, hiring, activation, control, runtimeState, runtimeBusy, onRunActivationTask, onRevokeActivation, commercialError }: { record: MarketplaceServiceRecord; onInspect: () => void; inspecting: boolean; onRunTests: () => void; testing: boolean; onHireFreeReadOnly?: () => void; hiring?: boolean; activation?: MarketplaceActivation; control?: ActivationControlProfile; runtimeState?: ActivationRuntimeState; runtimeBusy?: boolean; onRunActivationTask?: (input:{tokenId?:string;poolAddress?:string;capitalAsset?:string;capitalAmount?:string}) => void; onRevokeActivation?: () => void; commercialError?: string }) {
   const service = record.service;
+  const [tokenId,setTokenId]=useState("");
+  const [poolAddress,setPoolAddress]=useState("");
+  const [capitalAsset,setCapitalAsset]=useState("");
+  const [capitalAmount,setCapitalAmount]=useState("");
   const isReference = service.origin === "REFERENCE" || record.identity.sourceKind === "MARKETPLACE_REFERENCE" || record.identity.identity.namespace === "marketplace";
   const failedOrUnknown = (record.readiness.checks ?? []).filter((check) => check.state !== "PASS");
   const machineEndpoints = (service.runtimeEndpoints ?? []).filter((endpoint) => endpoint.machineCallable);
@@ -726,7 +730,7 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
         <div>
           <div className="text-[#6b7d99] mb-0.5">Authority</div>
           <div className={isReference ? "text-[#4ade80]" : "text-[#f59e0b]"}>{isReference ? "Read-only declared" : "Undeclared"}</div>
-          <div className="text-[10px] text-[#6b7d99]">{isReference ? "No wallet signing authority in v0.23 read-only activation" : "Permission profile required"}</div>
+          <div className="text-[10px] text-[#6b7d99]">{isReference ? "No wallet signing authority in this read-only activation" : "Permission profile required"}</div>
         </div>
         <div>
           <div className="text-[#6b7d99] mb-0.5">Commercial terms</div>
@@ -759,7 +763,18 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
       </div>
 
       {commercialError && <div className="rounded-md border border-[#f87171]/20 bg-[#f87171]/5 px-3 py-2 text-[11px] text-[#fca5a5]">{commercialError}</div>}
-      {activation && <div className="rounded-md border border-[#4ade80]/20 bg-[#4ade80]/5 px-3 py-2 text-[11px] text-[#86efac]"><div className="font-medium">Read-only relationship active</div><div className="mt-1 text-[#9aacc4] font-mono break-all">{activation.activationId}</div><div className="mt-1 text-[#6b7d99]">No wallet signing, transaction, or financial execution authority was granted.</div></div>}
+      {activation && <div className={cn("rounded-md border px-3 py-3 text-[11px] space-y-2",activation.state==="ACTIVE"?"border-[#4ade80]/20 bg-[#4ade80]/5":"border-white/8 bg-white/[0.02]")}>
+        <div className="flex items-center justify-between gap-2"><div className={activation.state==="ACTIVE"?"font-medium text-[#86efac]":"font-medium text-[#9aacc4]"}>{activation.state==="ACTIVE"?"Read-only relationship active":"Read-only relationship revoked"}</div><Badge variant={activation.state==="ACTIVE"?"green":"muted"}>{activation.state}</Badge></div>
+        <div className="text-[#9aacc4] font-mono break-all">{activation.activationId}</div>
+        <div className="text-[#6b7d99]">No wallet signing, transaction, or financial execution authority was granted.</div>
+        {control && <div className="rounded border border-white/6 bg-black/10 px-2.5 py-2 text-[#8090a8]"><span className="text-[#dde3ef]">Control:</span> {control.runtimeCapability.label}. {control.permissions.readOnly[0]}</div>}
+        {activation.state==="ACTIVE" && onRunActivationTask && <div className="space-y-2 pt-1">
+          {service.category==="rebalancing" && <input value={tokenId} onChange={(event)=>setTokenId(event.target.value)} placeholder="PancakeSwap position token ID" className="w-full bg-[#151d2a] border border-white/8 rounded-md px-3 py-2 text-[11px] text-[#dde3ef] focus:outline-none focus:border-[#2dd4bf]/40" />}
+          {service.category==="grid" && <div className="space-y-2"><input value={poolAddress} onChange={(event)=>setPoolAddress(event.target.value)} placeholder="PancakeSwap V3 pool address" className="w-full bg-[#151d2a] border border-white/8 rounded-md px-3 py-2 text-[11px] font-mono text-[#dde3ef] focus:outline-none focus:border-[#2dd4bf]/40" /><div className="grid grid-cols-2 gap-2"><input value={capitalAsset} onChange={(event)=>setCapitalAsset(event.target.value)} placeholder="Capital asset (optional)" className="bg-[#151d2a] border border-white/8 rounded-md px-3 py-2 text-[11px] text-[#dde3ef] focus:outline-none"/><input value={capitalAmount} onChange={(event)=>setCapitalAmount(event.target.value)} placeholder="Amount (descriptive)" className="bg-[#151d2a] border border-white/8 rounded-md px-3 py-2 text-[11px] text-[#dde3ef] focus:outline-none"/></div></div>}
+          <div className="flex items-center gap-2 flex-wrap"><Btn variant="teal-outline" size="sm" onClick={()=>onRunActivationTask({tokenId:tokenId||undefined,poolAddress:poolAddress||undefined,capitalAsset:capitalAsset||undefined,capitalAmount:capitalAmount||undefined})} disabled={runtimeBusy}>{runtimeBusy?<><RefreshCw className="w-3.5 h-3.5 animate-spin"/> Running</>:<><Play className="w-3.5 h-3.5"/> {service.category==="health"?"Refresh health snapshot":"Run read-only task"}</>}</Btn>{onRevokeActivation&&<Btn variant="ghost" size="sm" onClick={onRevokeActivation} disabled={runtimeBusy} className="text-[#f59e0b]">Revoke relationship</Btn>}</div>
+        </div>}
+        {runtimeState && <div className="rounded border border-white/6 bg-black/10 px-2.5 py-2"><div className="flex items-center gap-2"><span className="text-[#dde3ef]">Runtime state</span><Badge variant={runtimeState.observationState==="OBSERVED"?"green":runtimeState.observationState==="FAILED"?"amber":"muted"}>{runtimeState.observationState}</Badge></div><div className="mt-1 text-[#8090a8]">{runtimeState.activity.summary}</div>{runtimeState.monitoring&&<div className="mt-1 text-[#6b7d99]">Monitoring: {runtimeState.monitoring.state} · {runtimeState.monitoring.detail}</div>}<div className="mt-1 text-[#6b7d99]">Outcome: {runtimeState.outcome.state} · {runtimeState.outcome.detail}</div></div>}
+      </div>}
 
       <div className="flex items-center justify-between pt-1 gap-3">
         <div className="text-[11px] text-[#6b7d99]">{isReference ? "Payment ≠ permission ≠ activation ≠ execution" : "Identity ≠ service readiness · deterministic gates"}</div>
@@ -771,7 +786,7 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
             {testing ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Testing</> : <><FlaskConical className="w-3.5 h-3.5" /> Run Test Lab</>}
           </Btn>
           {onHireFreeReadOnly && record.offer.terms?.commercialModel === "FREE" && record.offer.terms.serviceType === "READ_ONLY_SERVICE" ? (
-            activation ? <Badge variant="green">Read-only active</Badge> : <Btn variant="primary" size="sm" onClick={onHireFreeReadOnly} disabled={Boolean(hiring || inspecting || testing)}>
+            activation ? <Badge variant={activation.state==="ACTIVE"?"green":"muted"}>{activation.state==="ACTIVE"?"Read-only active":"Relationship revoked"}</Badge> : <Btn variant="primary" size="sm" onClick={onHireFreeReadOnly} disabled={Boolean(hiring || inspecting || testing)}>
               {hiring ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Activating</> : <><Wallet className="w-3.5 h-3.5" /> Hire free read-only</>}
             </Btn>
           ) : <Badge variant="muted">Financial activation gated</Badge>}
@@ -920,6 +935,9 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
   const [commercialBusyServiceId, setCommercialBusyServiceId] = useState<string>();
   const [commercialErrors, setCommercialErrors] = useState<Record<string, string>>({});
   const [commercialActivations, setCommercialActivations] = useState<Record<string, MarketplaceActivation>>({});
+  const [activationControls, setActivationControls] = useState<Record<string, ActivationControlProfile>>({});
+  const [activationRuntimeStates, setActivationRuntimeStates] = useState<Record<string, ActivationRuntimeState>>({});
+  const [runtimeBusyServiceId, setRuntimeBusyServiceId] = useState<string>();
   const registryChainId: AgentRegistryChainId = 56;
 
   const normalizedSearch = searchText.trim().toLowerCase();
@@ -1061,12 +1079,49 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
         buyerAddress: wallet.address,
         idempotencyKey: `web-free-activation:${serviceId}:${operationId}`,
       });
+      const [control,runtimeState]=await Promise.all([commercialRepository.getActivationControl(activation.activationId),serviceTaskRepository.getActivationRuntimeState(activation.activationId)]);
       setCommercialActivations((current) => ({ ...current, [serviceId]: activation }));
+      setActivationControls((current)=>({...current,[serviceId]:control}));
+      setActivationRuntimeStates((current)=>({...current,[serviceId]:runtimeState}));
     } catch (cause) {
       setCommercialErrors((current) => ({ ...current, [serviceId]: cause instanceof Error ? cause.message : "Spotriq could not complete the read-only hiring flow." }));
     } finally {
       setCommercialBusyServiceId(undefined);
     }
+  };
+
+  const runActivationTask = async (record:MarketplaceServiceRecord,input:{tokenId?:string;poolAddress?:string;capitalAsset?:string;capitalAmount?:string}) => {
+    const serviceId=record.service.serviceId;
+    const activation=commercialActivations[serviceId];
+    if(!activation||activation.state!=="ACTIVE")return;
+    setRuntimeBusyServiceId(serviceId);
+    setCommercialErrors((current)=>({...current,[serviceId]:""}));
+    try{
+      const wallet=await walletHandlers.connectWallet();
+      await serviceTaskRepository.invokeActivation(activation.activationId,{buyerAddress:wallet.address,...input});
+      const state=await serviceTaskRepository.getActivationRuntimeState(activation.activationId);
+      setActivationRuntimeStates((current)=>({...current,[serviceId]:state}));
+    }catch(cause){
+      setCommercialErrors((current)=>({...current,[serviceId]:cause instanceof Error?cause.message:"Spotriq could not run the activation-bound read-only task."}));
+    }finally{setRuntimeBusyServiceId(undefined);}
+  };
+
+  const revokeCommercialActivation = async (record:MarketplaceServiceRecord) => {
+    const serviceId=record.service.serviceId;
+    const activation=commercialActivations[serviceId];
+    if(!activation||activation.state!=="ACTIVE")return;
+    setRuntimeBusyServiceId(serviceId);
+    setCommercialErrors((current)=>({...current,[serviceId]:""}));
+    try{
+      const wallet=await walletHandlers.connectWallet();
+      const revoked=await commercialRepository.revokeActivation(activation.activationId,{buyerAddress:wallet.address});
+      const [control,state]=await Promise.all([commercialRepository.getActivationControl(revoked.activationId),serviceTaskRepository.getActivationRuntimeState(revoked.activationId)]);
+      setCommercialActivations((current)=>({...current,[serviceId]:revoked}));
+      setActivationControls((current)=>({...current,[serviceId]:control}));
+      setActivationRuntimeStates((current)=>({...current,[serviceId]:state}));
+    }catch(cause){
+      setCommercialErrors((current)=>({...current,[serviceId]:cause instanceof Error?cause.message:"Spotriq could not revoke this marketplace relationship."}));
+    }finally{setRuntimeBusyServiceId(undefined);}
   };
 
   const prepareRebalancingJob = async (match: FindingServiceMatch) => {
@@ -1367,6 +1422,11 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
                       onHireFreeReadOnly={() => void hireFreeReadOnly(record)}
                       hiring={commercialBusyServiceId === record.service.serviceId}
                       activation={commercialActivations[record.service.serviceId]}
+                      control={activationControls[record.service.serviceId]}
+                      runtimeState={activationRuntimeStates[record.service.serviceId]}
+                      runtimeBusy={runtimeBusyServiceId===record.service.serviceId}
+                      onRunActivationTask={(input)=>void runActivationTask(record,input)}
+                      onRevokeActivation={()=>void revokeCommercialActivation(record)}
                       commercialError={commercialErrors[record.service.serviceId]}
                     />
                   ))}

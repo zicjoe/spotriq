@@ -161,6 +161,27 @@ Default discovery uses BSC Mainnet (`AGENT_DISCOVERY_CHAIN_ID=56`) so the market
 
 Remote HTTPS/IPFS registration URIs are intentionally not fetched server-side in this milestone. `data:` registration files can be parsed and backlink-checked safely; remote URIs remain visible but are marked as not fetched until Spotriq adds a hardened metadata-fetch subsystem.
 
+## v0.24.0 Four-Category End-to-End Activation Parity
+
+v0.24 extends the accepted FREE read-only marketplace relationship into category-aware runtime parity for all four first-party services without pretending Grid/Yield/Health share Rebalancing's financial execution semantics.
+
+The supported Activation-bound read-only capabilities are:
+
+- RangeKeeper → `ANALYZE_POSITION`
+- GridPilot → `ANALYZE_GRID_MARKET`
+- YieldPilot → `SCAN_YIELD_OPPORTUNITIES`
+- VenusGuard → `INSPECT_HEALTH`
+
+Each Activation exposes an explicit control profile. Current reference relationships grant no wallet-signing authority, no financial-execution authority and no financial writes. Marketplace relationship revocation is separate from PermissionGrant revocation. Runtime observations are kept separate from financial outcomes; Health exposes a monitoring snapshot rather than pretending an intervention occurred.
+
+New verification command:
+
+```powershell
+pnpm verify:activation-parity
+```
+
+See `docs/IMPLEMENTATION_REPORT_FOUR_CATEGORY_ACTIVATION_PARITY_v0.24.0.md`.
+
 ## v0.23.0 Commercial Hiring + Marketplace Activation Kernel
 
 Spotriq now implements the first real commercial relationship lifecycle while preserving `Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome`. The four accepted reference services publish structured zero-price `FREE / READ_ONLY_SERVICE / FREE` offers. Explore can execute a real connected-wallet API flow: `Offer → immutable Quote → idempotent Hire → FREE payment state NOT_REQUIRED → read-only Marketplace Activation`. This Activation grants no wallet signing or financial execution authority and does not change the separate financial `marketplaceActivationEligible` readiness flag.

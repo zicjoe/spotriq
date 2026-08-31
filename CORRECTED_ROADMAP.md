@@ -1,7 +1,7 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-08-31  
-**Current implementation:** v0.23.0  
+**Current implementation:** v0.24.0  
 **Historical baseline added:** foundational Master Product + Engineering Continuation checkpoint
 
 This roadmap is derived from `SPOTRIQ_FOUNDATION.md`, `PROJECT_STATE.md`, `SPOTRIQ_DRIFT_AUDIT.md`, the recovered foundational handoff checkpoint and the current repository.
@@ -76,7 +76,7 @@ External acceptance is complete for all four services. The retained contract is:
 
 ## v0.23.0 — Commercial Hiring + Marketplace Activation Kernel
 
-**Repository implementation status: COMPLETE CANDIDATE; local dependency-aware validation and external deployment acceptance PENDING.**
+**Status: COMPLETE — local validation, Railway deployment/migration, four-service commercial acceptance and v0.22 regression acceptance passed.**
 
 Implemented in the repository: structured FREE reference Offers, immutable Quotes, idempotent Hires, independent payment/funding evidence, read-only Marketplace Activation, buyer commercial state, optional Activation-bound ServiceTask, PostgreSQL migration 0016, API routes, Explore hiring flow, provider-neutral payment adapters and an ERC-8183 read-only observer. X402/B402 remain adapter rails without live v0.23 adapters.
 
@@ -108,12 +108,17 @@ Use where the real service exposes per-call/payment semantics. Do not infer paym
 - [x] Activation and PermissionGrant remain independent;
 - [x] ServiceTask can reference a legitimate Activation;
 - [x] no external service receives unrestricted financial signer access;
-- [ ] authoritative local `pnpm check` passes;
-- [ ] Railway migration/deployment + live v0.23 commercial acceptance pass.
+- [x] authoritative local `pnpm check` passes;
+- [x] Railway migration/deployment + live v0.23 commercial acceptance pass;
+- [x] post-deployment v0.22 external reference regression acceptance passes.
 
 ---
 
 ## v0.24.0 — Four-Category End-to-End Activation Parity
+
+**Repository implementation status: COMPLETE CANDIDATE; local dependency-aware validation and external v0.24 acceptance PENDING.**
+
+Implemented in the repository: category-aware Activation controls/revocation, generalized Activation-bound ServiceTask contracts for all four categories, first-party reference-runtime attribution without fabricated authority keys, explicit observational/runtime state, Health monitoring snapshots, migration 0017, API/UI integration and a live parity verifier. The current parity tier is read-only; it does not pretend Grid/Yield/Health have Rebalancing's financial execution depth.
 
 ### Goal
 
@@ -139,11 +144,18 @@ Support a genuine monitoring/alert activation first. Protective interventions ar
 
 ### Acceptance criteria
 
-- every category has real live supply or a clearly truthful no-supply state;
-- every category has category-specific profile/compare evidence;
-- compatible live supply can reach a real Activation/runtime state;
-- category-specific permissions are visible and revocable;
-- missing authority/payment/performance evidence stays unavailable rather than synthesized.
+- [x] every category has real live first-party supply or a clearly truthful no-supply state;
+- [x] every category retains category-specific profile/evidence semantics;
+- [x] compatible reference supply has a real category-aware Activation → runtime task contract;
+- [x] category-specific read-only controls are visible and marketplace relationships are revocable;
+- [x] missing financial authority/payment/performance evidence stays unavailable rather than synthesized;
+- [x] Health has a genuine monitoring-snapshot state before any protective-write tier;
+- [x] Grid context is not promoted into profit/drawdown/fill outcomes;
+- [x] Yield current rates/opportunities are not promoted into realised yield;
+- [ ] authoritative local `pnpm check` + API package build pass;
+- [ ] Railway migration 0017/deployment passes;
+- [ ] live `verify:activation-parity` passes all four services;
+- [ ] v0.22/v0.23 production regression verifiers still pass after deployment.
 
 ---
 

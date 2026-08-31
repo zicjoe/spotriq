@@ -1,5 +1,6 @@
 import type {
   ActivateCommercialHireRequest,
+  ActivationControlResponse,
   ApiEnvelope,
   BuyerCommercialStateResponse,
   CommercialHireResponse,
@@ -10,8 +11,10 @@ import type {
   MarketplaceActivationResponse,
   MarketplaceOffersResponse,
   ReconcileCommercialPaymentRequest,
+  RevokeMarketplaceActivationRequest,
 } from "@spotriq/api-contracts";
 import type {
+  ActivationControlProfile,
   BuyerCommercialState,
   CommercialHire,
   CommercialPaymentEvidence,
@@ -33,6 +36,8 @@ export interface CommercialRepository {
   reconcilePayment(hireId: string, input: ReconcileCommercialPaymentRequest): Promise<CommercialPaymentEvidence>;
   activate(hireId: string, input: ActivateCommercialHireRequest): Promise<MarketplaceActivation>;
   getActivation(activationId: string): Promise<MarketplaceActivation>;
+  getActivationControl(activationId: string): Promise<ActivationControlProfile>;
+  revokeActivation(activationId: string, input: RevokeMarketplaceActivationRequest): Promise<MarketplaceActivation>;
   getBuyerState(address: string): Promise<BuyerCommercialState>;
 }
 
@@ -83,6 +88,17 @@ export class ApiCommercialRepository implements CommercialRepository {
 
   async getActivation(activationId: string) {
     return unwrap(await apiRequest<ApiEnvelope<MarketplaceActivationResponse>>(`/v1/activations/${encodeURIComponent(activationId)}`)).activation;
+  }
+
+  async getActivationControl(activationId: string) {
+    return unwrap(await apiRequest<ApiEnvelope<ActivationControlResponse>>(`/v1/activations/${encodeURIComponent(activationId)}/control`)).control;
+  }
+
+  async revokeActivation(activationId: string, input: RevokeMarketplaceActivationRequest) {
+    return unwrap(await apiRequest<ApiEnvelope<MarketplaceActivationResponse>>(`/v1/activations/${encodeURIComponent(activationId)}/revoke`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    })).activation;
   }
 
   async getBuyerState(address: string) {

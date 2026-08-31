@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { AgentAuthorityBinding, MarketplaceServiceRecord, MarketplaceServiceTestCoverage, RebalancingJobIntent } from "@spotriq/domain";
+import type { AgentAuthorityBinding, MarketplaceActivation, MarketplaceServiceRecord, MarketplaceServiceTestCoverage, RebalancingJobIntent, ServiceCategory } from "@spotriq/domain";
 import type { MarketplaceSupplyReader } from "@spotriq/marketplace-supply";
 import { createServiceTaskEngine, SPOTRIQ_REBALANCING_PROPOSAL_SCHEMA } from "./index.js";
 
@@ -110,6 +110,8 @@ test("explicit retry after revised server-derived constraints creates a new task
   const second = await engine.retry(revised, first.serviceTaskId);
   assert.notEqual(second.serviceTaskId, first.serviceTaskId);
   assert.notEqual(second.requestContextHash, first.requestContextHash);
+  assert.equal(second.requestContext.originKind, "JOB_INTENT");
+  if (second.requestContext.originKind !== "JOB_INTENT") assert.fail("Expected a Job Intent request context.");
   assert.equal(second.requestContext.constraints.maxSlippageBps, 75);
   assert.equal(second.originProof.state, "VERIFIED");
 });
@@ -138,4 +140,72 @@ test("supports historical A2A 0.3 JSON-RPC without pretending it is 1.0", async 
   const body = JSON.parse(String(call.init.body)) as Record<string, any>;
   assert.equal(body.method, "message/send");
   assert.equal(body.params.message.role, "user");
+});
+
+
+function referenceActivation(category: ServiceCategory): MarketplaceActivation {
+  const serviceId = `svc:reference:${category}`;
+  return {
+    activationId: `activation:${category}`, hireId: `hire:${category}`, quoteId: `quote:${category}`, serviceId,
+    buyerAddress: "0x1111111111111111111111111111111111111111", buyerChainId: 97, serviceChainId: 97,
+    state: "ACTIVE", activationKind: "READ_ONLY_SERVICE_RELATIONSHIP",
+    termsSnapshot: { termsVersion:"reference-free@1",commercialModel:"FREE",serviceType:"READ_ONLY_SERVICE",price:{amount:"0",amountRaw:"0",currency:"NONE"},network:"BSC",chainId:97,paymentRail:"FREE",scope:{summary:"read only",protocols:category==="yield"||category==="health"?["Venus"]:["PancakeSwap"],financialAuthorityRequired:false,walletSigningRequired:false},availability:"AVAILABLE",quoteValiditySeconds:900 },
+    termsHash:"sha256:terms",paymentRequired:false,permissionRequired:false,walletSigningAuthorityGranted:false,financialExecutionAuthorityGranted:false,
+    idempotencyKey:`activation-${category}`,activatedAt:fixedNow.toISOString(),updatedAt:fixedNow.toISOString(),methodVersion:"commercial@1",evidence:[],limitations:[],
+  } as MarketplaceActivation;
+}
+
+function referenceMarketplace(category: ServiceCategory): MarketplaceSupplyReader {
+  const serviceId=`svc:reference:${category}`;
+  return {
+    getService: async () => ({
+      service:{serviceId,agentId:`agent-${category}`,name:`${category} reference`,category,origin:"REFERENCE",runtimeEndpoints:[{name:"A2A",endpoint,interactionKind:"A2A",machineCallable:true,provenance:"marketplace-observed"}]},
+      identity:{discoveryId:`erc8004:97:${category}`,sourceKind:"MARKETPLACE_REFERENCE",identity:{agentId:`agent-${category}`,chainId:97},canonicalVerification:{state:"VERIFIED",evidence:[{evidenceId:`identity:${category}`}]}},
+    } as unknown as MarketplaceServiceRecord),
+    getTests: async () => ({...tests(),serviceId}),
+    verifyAuthorityBinding: async () => { throw new Error("First-party reference activation must not require a fabricated service-owned signing key."); },
+  } as unknown as MarketplaceSupplyReader;
+}
+
+function activationEngine(category: ServiceCategory) {
+  const runtimeAction:Record<ServiceCategory,string>={rebalancing:"analyze_position",grid:"analyze_market",yield:"scan_opportunities",health:"inspect_health"};
+  const fetcher:typeof fetch=async(input,init={})=>{
+    const url=String(input);
+    if(url.includes(".well-known/agent-card.json"))return json(v1Card);
+    const request=JSON.parse(String(init.body??"{}")) as Record<string,any>;
+    return json({jsonrpc:"2.0",id:request.id,result:{id:`remote-${category}`,status:{state:"TASK_STATE_COMPLETED"},artifacts:[{artifactId:`result-${category}`,parts:[{data:{capability:category,action:runtimeAction[category],observed:"deterministic-test"}}]}]}});
+  };
+  return createServiceTaskEngine({marketplace:referenceMarketplace(category),http:{fetcher,resolver:async()=>["1.1.1.1"],now:()=>fixedNow}});
+}
+
+for (const scenario of [
+  {category:"rebalancing" as const,input:{tokenId:"77"},kind:"REBALANCING_ANALYSIS"},
+  {category:"grid" as const,input:{poolAddress:"0x2222222222222222222222222222222222222222",capitalAsset:"USDT",capitalAmount:"100"},kind:"GRID_MARKET_CONTEXT"},
+  {category:"yield" as const,input:{},kind:"YIELD_OPPORTUNITY_SNAPSHOT"},
+  {category:"health" as const,input:{},kind:"HEALTH_MONITORING_SNAPSHOT"},
+]) {
+  test(`activation-bound ${scenario.category} runtime creates structured read-only observation without financial authority`, async () => {
+    const activation=referenceActivation(scenario.category);
+    const engine=activationEngine(scenario.category);
+    const task=await engine.invokeActivation(activation,scenario.input);
+    assert.equal(task.originKind,"ACTIVATION");
+    assert.equal(task.activationId,activation.activationId);
+    assert.equal(task.category,scenario.category);
+    assert.equal(task.state,"COMPLETED");
+    assert.equal(task.originProof.state,"VERIFIED");
+    assert.equal(task.result.state,"STRUCTURED");
+    assert.equal(task.result.kind,scenario.kind);
+    assert.equal(task.commercialState,"HIRING_PROVEN");
+    const runtime=await engine.getActivationRuntimeState(activation);
+    assert.equal(runtime.observationState,"OBSERVED");
+    assert.notEqual(runtime.outcome.state,"MEASURED");
+    if(scenario.category==="health")assert.equal(runtime.monitoring?.state,"SNAPSHOT_OBSERVED");
+  });
+}
+
+test("reference activation origin uses canonical ERC-8004 + fresh Test Lab rather than inventing an authority key", async () => {
+  const task=await activationEngine("yield").invokeActivation(referenceActivation("yield"),{});
+  assert.equal(task.originProof.state,"VERIFIED");
+  assert.equal(task.originProof.serviceSessionKeyAddress,undefined);
+  assert.match(task.originProof.detail,/first-party/i);
 });

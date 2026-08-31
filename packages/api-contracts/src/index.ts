@@ -289,9 +289,20 @@ export interface ActivateCommercialHireRequest {
   idempotencyKey: string;
 }
 export interface MarketplaceActivationResponse { activation: import("@spotriq/domain").MarketplaceActivation; }
+export interface ActivationControlResponse { control: import("@spotriq/domain").ActivationControlProfile; }
+export interface RevokeMarketplaceActivationRequest { buyerAddress: string; }
 export interface BuyerCommercialStateResponse { state: import("@spotriq/domain").BuyerCommercialState; }
 
 export interface InvokeServiceTaskRequest { activationId?: string; }
+export interface InvokeActivationServiceTaskRequest {
+  buyerAddress: string;
+  tokenId?: string;
+  poolAddress?: string;
+  capitalAsset?: string;
+  capitalAmount?: string;
+}
+export interface ServiceTaskForActivationResponse { task: import("@spotriq/domain").ServiceTask | null; }
+export interface ActivationRuntimeStateResponse { state: import("@spotriq/domain").ActivationRuntimeState; }
 
 export interface ServiceTaskResponse {
   task: import("@spotriq/domain").ServiceTask;

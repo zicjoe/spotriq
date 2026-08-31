@@ -130,6 +130,9 @@ const required = [
   "scripts/verify-commercial-acceptance.mjs",
   "docs/COMMERCIAL_HIRING_ACTIVATION.md",
   "docs/IMPLEMENTATION_REPORT_COMMERCIAL_HIRING_ACTIVATION_v0.23.0.md",
+  "packages/db/migrations/0017_four_category_activation_tasks.sql",
+  "scripts/verify-activation-parity.mjs",
+  "docs/IMPLEMENTATION_REPORT_FOUR_CATEGORY_ACTIVATION_PARITY_v0.24.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -143,12 +146,12 @@ for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper
   if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
 }
 const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
-if (!projectState.includes("all four first-party reference services") || !projectState.includes("v0.24 — Four-Category End-to-End Activation Parity")) {
-  throw new Error("PROJECT_STATE.md must preserve the accepted four-category supply state and the next parity milestone.");
+if (!projectState.includes("v0.23 commercial acceptance — COMPLETE") || !projectState.includes("v0.24.0 implementation candidate") || !projectState.includes("Four-Category End-to-End Activation Parity")) {
+  throw new Error("PROJECT_STATE.md must record accepted v0.23 commercial state and the current v0.24 parity candidate.");
 }
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
-if (!correctedRoadmap.includes("v0.22.0 — Live Four-Category Reference Agent Supply") || !correctedRoadmap.includes("v0.23.0 — Commercial Hiring + Marketplace Activation Kernel")) {
-  throw new Error("Corrected roadmap must preserve four-category live supply before generalized commercial activation.");
+if (!correctedRoadmap.includes("v0.22.0 — Live Four-Category Reference Agent Supply") || !correctedRoadmap.includes("v0.23.0 — Commercial Hiring + Marketplace Activation Kernel") || !correctedRoadmap.includes("v0.24.0 — Four-Category End-to-End Activation Parity")) {
+  throw new Error("Corrected roadmap must preserve v0.22 supply, v0.23 commerce and the current v0.24 parity milestone.");
 }
 
 const workspace = await readFile(path.join(root, "pnpm-workspace.yaml"), "utf8");
@@ -646,6 +649,40 @@ if (!evidence.includes("COMMERCIAL_QUOTE") || !evidence.includes("COMMERCIAL_ACT
   throw new Error("Evidence Engine must expose v0.23 commercial and ERC-8183 reconciliation methods.");
 }
 
+// v0.24 — Four-Category End-to-End Activation Parity.
+const migration0017 = await readFile(path.join(root, "packages/db/migrations/0017_four_category_activation_tasks.sql"), "utf8");
+for (const marker of ["origin_kind", "category", "result_state", "service_tasks_activation_category_idx", "service_tasks_activation_context_idx"]) {
+  if (!migration0017.includes(marker)) throw new Error(`v0.24 activation-task migration is missing ${marker}.`);
+}
+for (const marker of ["ActivationControlProfile", "ActivationRuntimeState", "ACTIVATION", "ANALYZE_POSITION", "ANALYZE_GRID_MARKET", "SCAN_YIELD_OPPORTUNITIES", "INSPECT_HEALTH", "SNAPSHOT_OBSERVED"]) {
+  if (!domain.includes(marker)) throw new Error(`v0.24 domain model is missing ${marker}.`);
+}
+for (const marker of ["getActivationControl", "revokeActivation", "financialWrite:[]", "walletSigningAuthorityGranted", "financialExecutionAuthorityGranted"]) {
+  if (!commercial.replaceAll(" ", "").includes(marker.replaceAll(" ", ""))) throw new Error(`v0.24 commercial control layer is missing ${marker}.`);
+}
+for (const marker of ["invokeActivation", "retryActivation", "getForActivation", "getActivationRuntimeState", 'originKind:"ACTIVATION"', "ANALYZE_GRID_MARKET", "SCAN_YIELD_OPPORTUNITIES", "INSPECT_HEALTH"]) {
+  if (!serviceTasks.replaceAll(" ", "").includes(marker.replaceAll(" ", ""))) throw new Error(`v0.24 ServiceTask parity is missing ${marker}.`);
+}
+for (const route of ["/v1/activations/:activationId/control", "/v1/activations/:activationId/revoke"]) {
+  if (!commercialRoutes.includes(route)) throw new Error(`Missing v0.24 Activation control route ${route}.`);
+}
+for (const route of ["/v1/activations/:activationId/service-tasks", "/v1/activations/:activationId/service-task", "/v1/activations/:activationId/service-task/retry", "/v1/activations/:activationId/runtime-state"]) {
+  if (!serviceTaskRoutes.includes(route)) throw new Error(`Missing v0.24 Activation task route ${route}.`);
+}
+for (const marker of ["getActivationControl", "revokeActivation"]) {
+  if (!commercialRepo.includes(marker)) throw new Error(`v0.24 web commercial repository is missing ${marker}.`);
+}
+const activationParityVerifier = await readFile(path.join(root, "scripts/verify-activation-parity.mjs"), "utf8");
+for (const marker of ["rangekeeper", "gridpilot", "yieldpilot", "venusguard", "verify:activation-parity", "SNAPSHOT_OBSERVED", "/runtime-state", "/revoke"]) {
+  if (marker === "verify:activation-parity") continue;
+  if (!activationParityVerifier.includes(marker)) throw new Error(`v0.24 live parity verifier is missing ${marker}.`);
+}
+const rootManifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+if (rootManifest.scripts?.["verify:activation-parity"] !== "node scripts/verify-activation-parity.mjs") {
+  throw new Error("Root package.json must expose pnpm verify:activation-parity.");
+}
+if (!apiApp.includes('version: "0.24.0"')) throw new Error("API metadata must report v0.24.0.");
+
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const output = [];
@@ -658,11 +695,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 26) throw new Error(`v0.23 expects 26 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 26) throw new Error(`v0.24 expects 26 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.23.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.23.0.`);
+  if (manifest.version !== "0.24.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.24.0.`);
 }
 
-console.log("Spotriq foundation + four-category financial data + ERC-8004 supply + Test Lab + execution stack + task-origin proof + external reference acceptance architecture + v0.23 commercial hiring/activation verification passed.");
+console.log("Spotriq foundation + four-category financial data + ERC-8004 supply + Test Lab + execution stack + task-origin proof + accepted v0.23 commerce + v0.24 four-category activation/runtime parity verification passed.");
 

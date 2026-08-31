@@ -1,8 +1,8 @@
 # Spotriq Engineering Status
 
-**Release candidate:** v0.23.0  
+**Release candidate:** v0.24.0  
 **Date:** 2026-08-31  
-**State:** Commercial Hiring + Marketplace Activation Kernel implemented; local dependency-aware validation and external acceptance pending.
+**State:** Four-Category End-to-End Activation Parity implemented; dependency-aware local validation and external v0.24 acceptance pending.
 
 ## Current system spine
 
@@ -10,168 +10,122 @@ Spotriq remains a BSC-focused TypeScript/pnpm monorepo:
 
 `apps/web → apps/api → domain/service packages → evidence + chain/protocol adapters → PostgreSQL`
 
-The authoritative product boundary remains:
+The governing boundary remains:
 
 `Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome`
 
-The new commerce work extends the existing `AgentService`, `ServiceOffer`, `activations` and `ServiceTask` architecture rather than creating a parallel marketplace state machine.
+v0.24 extends the existing `MarketplaceActivation` and `ServiceTask` architecture. It does not create a second marketplace state machine or force Grid/Yield/Health through the Rebalancing execution model.
 
-## Supply and identity
+## Accepted baselines
 
-Four first-party deterministic reference AgentServices are live in the repository and were externally accepted in v0.22:
+### v0.22
 
-- RangeKeeper / Rebalancing
-- GridPilot / Grid Trading
-- YieldPilot / Yield Optimisation
-- VenusGuard / Health Factor Monitoring
+RangeKeeper, GridPilot, YieldPilot and VenusGuard have public first-party A2A runtimes, Marketplace Test Lab evidence and reconciled BSC Testnet ERC-8004 identities. Their financial readiness remains `TESTNET_ONLY`.
 
-They have public A2A runtimes, Marketplace Test Lab evidence and reconciled BSC Testnet ERC-8004 identities. Their financial readiness remains `TESTNET_ONLY`; canonical identity does not equal financial activation eligibility.
+### v0.23
 
-External ERC-8004/8004scan discovery remains separate from first-party supply. Search relevance remains discovery evidence, not capability proof. External reputation remains external evidence.
+The production FREE commercial path is externally accepted for all four:
 
-## v0.23 commercial architecture
+`Offer → immutable Quote → idempotent Hire → NOT_REQUIRED payment → ACTIVE read-only MarketplaceActivation`
 
-New workspace package:
+The post-v0.23 v0.22 reference regression verifier also passed.
 
-`packages/commercial`
+## v0.24 architecture
 
-Core resources:
+### 1. Activation control profile
 
-1. `ServiceOffer` — reusable structured commercial terms.
-2. `CommercialQuote` — immutable buyer-specific snapshot with terms hash and expiry.
-3. `CommercialHire` — idempotent acceptance of one Quote.
-4. `CommercialPaymentEvidence` — independent funding/payment evidence.
-5. `MarketplaceActivation` — enabled service relationship after commercial gates.
-6. `BuyerCommercialState` — wallet-scoped commercial state aggregation.
+`@spotriq/commercial` now derives `ActivationControlProfile` from the real Activation + AgentService category. Current reference Activations expose only read operations and explicitly report no financial-write, wallet-signing or financial-execution authority.
 
-Four reference offers are structured `FREE / READ_ONLY_SERVICE / FREE` offers with zero price and no financial/wallet signing authority requirement.
+Buyer-bound marketplace revocation is idempotent and preserves historical commercial/task evidence. Separate permission grants remain separate resources.
 
-### Activation semantics
+### 2. Category-aware ServiceTask
 
-The v0.23 live activation path is deliberately limited to read-only service relationships. It checks current service/Offer coherence and readiness but does not use the existing financial `marketplaceActivationEligible` flag as a shortcut.
+`ServiceTask.originKind` is explicit:
 
-A successful reference activation records no signing or financial execution authority.
+- `JOB_INTENT` keeps the existing Rebalancing proposal path;
+- `ACTIVATION` supports bounded read-only runtime observations from an ACTIVE commercial relationship.
 
-### Payment adapters
+Activation capabilities:
 
-`CommercialPaymentAdapter` is provider-neutral.
+- RangeKeeper — `ANALYZE_POSITION`
+- GridPilot — `ANALYZE_GRID_MARKET`
+- YieldPilot — `SCAN_YIELD_OPPORTUNITIES`
+- VenusGuard — `INSPECT_HEALTH`
 
-- `FREE` — handled natively as payment `NOT_REQUIRED`.
-- `ERC8183` — read-only BSC observer/reconciliation adapter implemented.
-- `X402` — rail represented; live adapter not implemented.
-- `B402` — rail represented; live adapter not implemented.
+Grid capital context is descriptive only. Yield uses current supported opportunity/rate evidence, not realised yield. Health begins with an observational monitoring snapshot and does not imply protective-write permission.
 
-ERC-8183 reconciliation reads on-chain job/payment-token facts and compares client/provider/budget/token/status against the immutable Quote. A frontend payment claim cannot make a Hire paid.
+### 3. Runtime attribution
 
-## API
+Reference-service Activation tasks accept origin attribution only after current first-party service identity/runtime conditions are reconciled, including fresh Marketplace Test Lab evidence. External AgentServices retain service-owned key-control proof. No authority key is fabricated for first-party services.
 
-v0.23 adds:
+### 4. Runtime / monitoring / outcome state
 
-- `GET /v1/services/:serviceId/offers`
-- `POST /v1/quotes`
-- `GET /v1/quotes/:quoteId`
-- `POST /v1/hires`
-- `GET /v1/hires/:hireId`
-- `GET /v1/hires/:hireId/payment`
-- `POST /v1/hires/:hireId/payment/reconcile`
-- `POST /v1/hires/:hireId/activate`
-- `GET /v1/activations/:activationId`
-- `GET /v1/accounts/:address/commercial-state`
+`ActivationRuntimeState` prevents technical observations from becoming fake performance claims. It exposes observational activity and health monitoring state while keeping financial outcomes `INSUFFICIENT_DATA` or `NOT_APPLICABLE` until genuine measurement/activity evidence exists.
 
-Fastify error handling preserves framework/client 4xx responses from v0.22.2. Commercial errors have explicit mappings instead of becoming generic 500s.
+### 5. Persistence
 
-## Frontend
+New immutable migration:
 
-Explore now supports a real connected-wallet **Hire free read-only** sequence:
+`0017_four_category_activation_tasks.sql`
 
-`connect wallet → create Quote → create Hire → create Activation`
+It:
 
-The success UI exposes the Activation ID and explicitly states that no wallet signing, transaction or financial execution authority was granted.
+- allows Activation-bound ServiceTasks without invented Rebalancing JobIntent/Finding references;
+- persists `origin_kind`, `category` and `result_state`;
+- adds Activation/category and Activation/context indexes.
 
-Financial/execution readiness is labelled separately so a FREE read-only commercial relationship is not visually confused with financial execution eligibility.
+No previous migration is mutated.
 
-## ServiceTask integration
+## API surface
 
-`ServiceTask` now supports optional commercial binding:
+v0.24 adds/extends:
 
-`Hire → ACTIVE MarketplaceActivation → ServiceTask`
+- `GET /v1/activations/:activationId/control`
+- `POST /v1/activations/:activationId/revoke`
+- `POST /v1/activations/:activationId/service-tasks`
+- `GET /v1/activations/:activationId/service-task`
+- `POST /v1/activations/:activationId/service-task/retry`
+- `GET /v1/activations/:activationId/runtime-state`
 
-The API validates that the Activation is active, belongs to the same buyer and targets the same AgentService before binding it. Origin-proof semantics remain intact.
+Existing v0.23 commercial endpoints and the deeper Rebalancing JobIntent/authority/execution endpoints remain intact.
 
-## Database
+## UX
 
-Latest migration:
+Explore now continues beyond Hire/Activation for the four reference services. The connected buyer can:
 
-`0016_commercial_hiring_activation.sql`
+`Hire free read-only → inspect controls → run supported read-only service observation → inspect runtime/monitoring/outcome state → revoke marketplace relationship`
 
-Adds:
+The UI explicitly separates read-only service activation from signing, transaction and financial execution authority.
 
-- `service_offers.terms` and `terms_version`;
-- `commercial_quotes`;
-- `commercial_hires`;
-- `commercial_payment_evidence`;
-- commercial fields/indexes on existing `activations`;
-- optional `service_tasks.activation_id`.
+## Verification
 
-Existing migrations were not mutated.
+Repository commands:
 
-## Security / correctness coverage
+```powershell
+pnpm --filter @spotriq/api build
+pnpm check
+pnpm verify:reference-acceptance
+pnpm verify:commercial-acceptance
+pnpm verify:activation-parity
+```
 
-The commercial kernel includes checks for:
+`verify:activation-parity` tests all four categories using real production APIs and real PancakeSwap context where RangeKeeper/GridPilot require it.
 
-- buyer address normalization;
-- BSC chain validation;
-- Quote expiry;
-- immutable terms hashing;
-- stale Offer rejection;
-- wrong buyer / wrong service;
-- buyer-scoped idempotency;
-- idempotency conflicts;
-- duplicate provider payment-reference reuse;
-- missing payment adapters;
-- paid Activation without verified payment;
-- permission-required Activation;
-- unavailable/degraded services;
-- free-payment truth (`NOT_REQUIRED`, not `PAID`).
+## Release gate
 
-Unit tests in `packages/commercial/src/index.test.ts` cover the FREE path and representative retry/negative cases.
-
-## Verification assets
-
-Repository verifier:
-
-`node scripts/verify-foundation.mjs`
-
-Authoritative full workspace validation:
-
-`pnpm check`
-
-External reference contract:
-
-`pnpm verify:reference-acceptance`
-
-v0.23 commercial acceptance:
-
-`pnpm verify:commercial-acceptance`
-
-The packaging sandbox does not have a dependency-aware pnpm workspace available. `pnpm check` must therefore be run on the user's local repository before commit/deployment; any failures are source-fix gates, not instructions to weaken validation.
-
-## Release / deployment gate
-
-v0.23 is **not externally accepted yet**.
+v0.24 is **not externally accepted yet**.
 
 Required sequence:
 
-1. local `pnpm install` + `pnpm check`;
-2. commit/push;
-3. Railway pre-deploy `pnpm db:migrate` applies migration 0016;
-4. production health/capabilities check;
-5. `pnpm verify:reference-acceptance`;
-6. `pnpm verify:commercial-acceptance` with an explicit BSC Testnet buyer address;
-7. record production acceptance in canonical state docs.
+1. local API package build;
+2. local `pnpm check`;
+3. commit/push;
+4. Railway migration `0017` + deployment;
+5. v0.22 reference regression verifier;
+6. v0.23 commercial regression verifier;
+7. v0.24 activation-parity verifier;
+8. record production acceptance in `PROJECT_STATE.md`/roadmap/docs.
 
-## Next milestone
+## Next milestone after acceptance
 
-After v0.23 external acceptance: **v0.24 — Four-Category End-to-End Activation Parity**.
-
-Rebalancing remains substantially deeper in authority/execution/outcome infrastructure. Grid, Yield and Health must be brought closer to that depth without treating Hire/Activation as permission or giving a read-only service financial authority.
+**v0.25.0 — Live Explore, Compare, Try and Service Profile Completion.**

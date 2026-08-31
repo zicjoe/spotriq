@@ -1,7 +1,7 @@
 {
   "name": "spotriq",
   "private": true,
-  "version": "0.23.0",
+  "version": "0.24.0",
   "packageManager": "pnpm@10.14.0",
   "type": "module",
   "scripts": {
@@ -17,7 +17,8 @@
     "db:health": "pnpm --filter @spotriq/db health",
     "verify": "node scripts/verify-foundation.mjs",
     "verify:reference-acceptance": "node scripts/verify-reference-acceptance.mjs",
-    "verify:commercial-acceptance": "node scripts/verify-commercial-acceptance.mjs"
+    "verify:commercial-acceptance": "node scripts/verify-commercial-acceptance.mjs",
+    "verify:activation-parity": "node scripts/verify-activation-parity.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

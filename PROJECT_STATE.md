@@ -1,13 +1,13 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.23.0  
-**Implementation status:** Commercial Hiring + Marketplace Activation Kernel implemented; dependency-aware local validation and external v0.23 acceptance pending.  
+**Current implementation release:** v0.24.0  
+**Implementation status:** Four-Category End-to-End Activation Parity implemented; dependency-aware local validation and external v0.24 acceptance pending.  
 **Last state update:** 2026-08-31  
 **Repository role:** Concise present-state map. Current repository remains implementation truth.
 
 ## 1. Product position
 
-Spotriq is a **BSC financial-agent marketplace** for understanding a wallet need, discovering specialist financial AgentServices, evaluating evidence, hiring/activating a service relationship, controlling financial authority, monitoring activity and measuring outcomes.
+Spotriq is a **BSC financial-agent marketplace** for understanding a wallet need, discovering specialist financial AgentServices, evaluating evidence, hiring/activating a service relationship, controlling authority, observing what the service does and measuring outcomes when evidence exists.
 
 Core lifecycle:
 
@@ -19,166 +19,153 @@ Locked separation:
 
 `Offer ≠ Quote ≠ Hire ≠ Payment ≠ Activation`
 
-`Permission ≠ Activation ≠ Execution`
+`Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome`
 
-`AgentAction ≠ Blockchain Transaction ≠ Outcome`
+`Finding ≠ Recommendation`
 
 `Evidence ≠ AI explanation`
 
-AI may explain; deterministic systems decide readiness, authority, payment reconciliation, activation eligibility and financial truth.
+AI may explain; deterministic systems decide readiness, authority, payment reconciliation, runtime attribution and financial truth.
 
-## 2. Applications and packages
-
-### Applications
+## 2. Current applications/packages
 
 - `apps/web` — React/Vite marketplace UX.
 - `apps/api` — Fastify API.
 - `apps/worker` — worker seam.
-
-### Core packages
-
-- `@spotriq/domain` — canonical types.
-- `@spotriq/api-contracts` — typed REST contracts.
-- `@spotriq/config` — environment/configuration.
-- `@spotriq/db` — PostgreSQL + migrations.
-- `@spotriq/evidence` — evidence/provenance/freshness.
-- `@spotriq/chain` — BSC reads.
-- `@spotriq/protocol-pancakeswap` — PancakeSwap adapter.
-- `@spotriq/protocol-venus` — Venus adapter.
-- `@spotriq/market-context` — Grid/TWAP market context.
+- `@spotriq/domain` / `@spotriq/api-contracts` — canonical domain + REST contracts.
+- `@spotriq/db` — PostgreSQL and immutable migrations.
+- `@spotriq/evidence`, `@spotriq/chain`, PancakeSwap/Venus/Grid adapters — deterministic truth/data spine.
 - `@spotriq/smart-money` — Smart Money Check / Findings.
-- `@spotriq/agent-registry` — ERC-8004 + 8004scan discovery/verification.
-- `@spotriq/marketplace-supply` — listings/services/offers/readiness/Test Lab.
-- `@spotriq/reference-agents` — four deterministic first-party A2A services.
-- `@spotriq/commercial` — v0.23 Offer/Quote/Hire/Payment/Activation kernel.
-- `@spotriq/service-tasks` — A2A invocation/origin proof + optional Activation binding.
-- `@spotriq/job-intents` — Finding/service → Job Intent.
-- `@spotriq/authority` — bounded permissions/Altana reconciliation.
-- `@spotriq/execution-plans`, `@spotriq/execution-guard`, `@spotriq/execution-boundary`, `@spotriq/controlled-execution` — reviewed guarded testnet execution spine.
-- `@spotriq/activity-outcomes` — activity/outcome evidence.
+- `@spotriq/agent-registry`, `@spotriq/marketplace-supply` — ERC-8004 discovery/verification, service normalization/readiness/Test Lab.
+- `@spotriq/reference-agents` — RangeKeeper, GridPilot, YieldPilot, VenusGuard deterministic A2A runtimes.
+- `@spotriq/commercial` — Offer/Quote/Hire/Payment/Activation + activation controls/revocation.
+- `@spotriq/service-tasks` — Rebalancing JobIntent task-origin proof plus four-category Activation-bound read-only tasks/runtime state.
+- Rebalancing authority/execution packages remain intact: `job-intents`, `authority`, `execution-plans`, `execution-guard`, `execution-boundary`, `controlled-execution`, `activity-outcomes`.
 
-## 3. Domain state
+## 3. Accepted release baseline
 
-| Domain | State | Present implementation |
-|---|---|---|
-| AgentIdentity | LIVE | ERC-8004/8004scan discovery + canonical verification; first-party service identity can reconcile to real configured ERC-8004 identity |
-| AgentListing | LIVE | external normalized listings + first-party reference listings |
-| AgentService | LIVE | external supported-category candidates + four real first-party services |
-| ServiceOffer | LIVE/PARTIAL | four reference services publish structured FREE read-only terms; external pricing remains undeclared unless evidenced |
-| CommercialQuote | LIVE | immutable terms snapshot, hash, expiry, buyer/idempotency binding |
-| CommercialHire | LIVE | idempotent Quote acceptance; distinct payment/permission state |
-| PaymentEvidence | LIVE/PARTIAL | FREE=`NOT_REQUIRED`; ERC-8183 read-only reconciliation adapter; X402/B402 rails modeled but not live adapters |
-| MarketplaceActivation | LIVE for FREE read-only | real API/database relationship; no signing/execution authority implied |
-| BuyerCommercialState | LIVE | wallet-scoped Quotes/Hires/Payments/Activations |
-| PermissionProfile | LIVE/PARTIAL | distinct from commerce |
-| PermissionRequest/Grant | LIVE for Rebalancing | bounded authority path |
-| ServiceTask | LIVE | A2A invocation/origin proof; may bind a legitimate active commercial Activation |
-| AgentAction / Transaction | PARTIAL/LIVE for Rebalancing | controlled BSC Testnet execution evidence |
-| Activity / Outcomes | LIVE/PARTIAL | execution-scoped evidence; long-horizon financial outcomes remain incomplete |
-| SmartMoneyPlan | FOUNDATION | not end-to-end live |
-| Operator workspace | FOUNDATION | not complete production workspace |
+### v0.22 external reference acceptance — COMPLETE
 
-## 4. Four financial categories
+All four first-party reference services passed public runtime, A2A Agent Card, Marketplace Test Lab, ERC-8004 BSC Testnet registration/canonical verification and service↔identity reconciliation. Their financial readiness remains `TESTNET_ONLY`; existing financial `marketplaceActivationEligible = false` remains deliberate.
 
-### Rebalancing
+Known explicit identity fact: RangeKeeper BSC Testnet ERC-8004 Agent ID `2017`, owner `0x08a594e828133D18A43918cc804754f46dAF44dB`. Do not fabricate the other numeric IDs.
 
-Deepest category. Existing path reaches reviewed/bounded BSC Testnet execution and receipt/outcome evidence. v0.23 does not weaken or bypass that authority stack.
+### v0.23 commercial acceptance — COMPLETE
 
-### Grid Trading
+The deployed production API passed:
 
-Real GridPilot A2A runtime + deterministic PancakeSwap V3/TWAP market context + Smart Money foundation. FREE read-only commercial Activation now exists; financial execution parity remains pending.
+- local `pnpm check`;
+- Railway build/start and migration `0016`;
+- `pnpm verify:commercial-acceptance` for RangeKeeper, GridPilot, YieldPilot and VenusGuard;
+- `pnpm verify:reference-acceptance` regression after v0.23 deployment.
 
-### Yield Optimisation
+Accepted live commercial path:
 
-Real YieldPilot A2A runtime + Venus opportunity analysis + Smart Money foundation. FREE read-only commercial Activation now exists; deeper authority/action/outcome parity remains pending.
+`AgentService → FREE Offer → immutable Quote → idempotent Hire → Payment NOT_REQUIRED → ACTIVE read-only MarketplaceActivation`
 
-### Health Factor Monitoring
+No signing or financial execution authority is implied by that path.
 
-Real VenusGuard A2A runtime + Venus risk/health analysis + Smart Money foundation. FREE read-only commercial Activation now exists; long-lived monitoring/action parity remains pending.
+## 4. v0.24 implementation
 
-## 5. v0.22 external reference acceptance
+v0.24 generalizes the post-Activation runtime journey across all four categories without forcing Grid/Yield/Health through Rebalancing's JobIntent or financial execution model.
 
-Completed external acceptance baseline for all four first-party reference services:
+### Activation controls
 
-- public HTTPS runtime;
-- A2A Agent Card;
-- Marketplace Test Lab PASS;
-- runtime/capability observation;
-- Marketplace Observed evidence;
-- BSC Testnet ERC-8004 registration;
-- canonical on-chain verification;
-- registration backlink/A2A endpoint reconciliation;
-- stable Spotriq service ↔ real identity binding.
+Every marketplace Activation can expose a deterministic `ActivationControlProfile` containing:
 
-Reference financial readiness remains `TESTNET_ONLY`; existing financial `marketplaceActivationEligible` remains false. That flag is **not** reused for v0.23 read-only commercial relationships.
+- category;
+- current Activation state;
+- category runtime capability/input requirements;
+- read-only permissions;
+- explicit financial-write permissions (empty for current FREE reference relationships);
+- wallet-signing / financial-execution flags;
+- revocability and revoke effect.
 
-Known explicit identity fact retained in canonical handoff: RangeKeeper BSC Testnet ERC-8004 Agent ID `2017`, owner `0x08a594e828133D18A43918cc804754f46dAF44dB`. Other reference numeric IDs are not fabricated or hard-coded into this state document.
+Marketplace relationship revocation is buyer-bound and idempotent. It stops new Activation-bound tasks while retaining commercial/task history. It does **not** masquerade as revocation of a separate financial PermissionGrant.
 
-`pnpm verify:reference-acceptance` is included in v0.23 to re-check the deployed v0.22 acceptance contract.
+### Category task parity
 
-## 6. v0.23 commercial kernel
+`ServiceTask` now has explicit origin kinds:
 
-Implemented lifecycle:
+- `JOB_INTENT` — existing deep Rebalancing proposal path;
+- `ACTIVATION` — category-aware read-only service relationship task.
 
-`AgentService → Offer → immutable Quote → idempotent Hire → Payment/Funding Evidence → Marketplace Activation → optional Activation-bound ServiceTask`
+Activation task contracts:
 
-Four reference offers are:
+- Rebalancing → `ANALYZE_POSITION` using PancakeSwap `tokenId`;
+- Grid → `ANALYZE_GRID_MARKET` using a PancakeSwap V3 `poolAddress`, with optional descriptive capital context that grants no spend/trading authority;
+- Yield → `SCAN_YIELD_OPPORTUNITIES` using the Activation buyer wallet server-side;
+- Health → `INSPECT_HEALTH` using the Activation buyer wallet and a monitoring-snapshot mode.
 
-- `commercialModel = FREE`
-- `serviceType = READ_ONLY_SERVICE`
-- `paymentRail = FREE`
-- zero price
-- no wallet signing requirement
-- no financial authority requirement
+Reference-runtime origin attribution uses canonical ERC-8004 reconciliation + fresh Test Lab evidence + the same-origin first-party A2A runtime. External services retain fresh service-owned key-control proof. Spotriq does not fabricate a key for first-party services just to fit the external-agent proof scheme.
 
-Explore now exposes a real connected-wallet **Hire free read-only** flow through the API. Successful Activation explicitly records no wallet signing or financial execution authority.
+### Runtime / outcome truth
 
-Paid architecture remains adapter-based:
+`ActivationRuntimeState` distinguishes:
 
-`Spotriq Commercial Kernel → CommercialPaymentAdapter → ERC-8183 / X402 / B402`
+- no task yet;
+- observed structured runtime state;
+- failed observation;
+- revoked relationship.
 
-ERC-8183 is a read-only on-chain observer/reconciler in v0.23. It does not replace ERC-8004 identity and does not become Spotriq's universal job model. X402/B402 are represented but have no live adapter in this release.
+It does not turn technical success into financial success:
 
-See `docs/COMMERCIAL_HIRING_ACTIVATION.md`.
+- Grid market context ≠ profit/drawdown/fill outcome;
+- current Yield rates/opportunities ≠ realised yield;
+- Health snapshot = monitoring state, not protective-write authority;
+- Rebalancing read-only position analysis ≠ executed rebalance outcome.
 
-## 7. Persistence
+The existing deeper Rebalancing controlled BSC Testnet execution/activity/outcome spine remains separate and intact.
 
-- No `DATABASE_URL` → existing memory-store development fallback where supported.
+## 5. Persistence
+
+- No `DATABASE_URL` → memory fallback where supported.
 - `DATABASE_URL` → PostgreSQL.
-- Migrations `0001` through `0016` are present.
-- Latest migration: `0016_commercial_hiring_activation.sql`.
+- Migrations `0001` through `0017` are present.
+- Latest migration: `0017_four_category_activation_tasks.sql`.
 
-Migration 0016 adds commercial Quotes/Hires/payment evidence, structured Offer terms, commercial fields on the existing Activation resource, and optional ServiceTask → Activation binding.
+Migration `0017` makes `ServiceTask` category/origin/result state explicit and allows Activation-bound tasks without inventing a Rebalancing JobIntent/Finding.
 
-## 8. Network/deployment policy
+## 6. API / UX additions in v0.24
+
+New/extended resources include:
+
+- `GET /v1/activations/:activationId/control`
+- `POST /v1/activations/:activationId/revoke`
+- `POST /v1/activations/:activationId/service-tasks`
+- `GET /v1/activations/:activationId/service-task`
+- `POST /v1/activations/:activationId/service-task/retry`
+- `GET /v1/activations/:activationId/runtime-state`
+
+Explore uses those real APIs after **Hire free read-only** to show category controls, run the read-only runtime task, show observational/monitoring/outcome state and revoke the relationship.
+
+## 7. Network/deployment policy
 
 - Marketplace discovery may use BSC Mainnet (`chainId=56`).
-- Reference identity/execution acceptance remains BSC Testnet (`chainId=97`).
+- Reference identity/authority/runtime acceptance remains BSC Testnet (`chainId=97`).
 - Transactional/authority development remains testnet-first until explicit mainnet approval.
-- Railway hosts the API/PostgreSQL; Vercel is the frontend deployment direction.
+- Railway hosts API/PostgreSQL; Vercel remains frontend deployment direction.
 - Railway pre-deploy command remains `pnpm db:migrate`.
 
-## 9. Verification and release state
+## 8. Verification / release state
 
-Repository candidate includes:
+Repository commands:
 
-- `node scripts/verify-foundation.mjs`
 - `pnpm check`
 - `pnpm verify:reference-acceptance`
 - `pnpm verify:commercial-acceptance`
+- `pnpm verify:activation-parity`
 
-The current packaging environment cannot perform the dependency-aware workspace `pnpm check`; the user's local `pnpm check` is therefore the authoritative local validation gate.
+The packaging environment performs repository/static/syntax validation but not the dependency-aware workspace check. The user's local `pnpm check` remains the authoritative local gate.
 
-**Do not call v0.23 externally accepted yet.** Required sequence:
+**Do not call v0.24 externally accepted yet.** Required sequence:
 
-`local pnpm check → commit/push → Railway deploy → migration 0016 → production health/capabilities → v0.22 reference verifier → v0.23 commercial verifier → record live acceptance`
+`local pnpm check → exact API build → commit/push → Railway migration 0017/deploy → v0.22 regression verifier → v0.23 commercial regression verifier → v0.24 activation-parity verifier → record acceptance`
 
-## 10. Current milestone and next work
+## 9. Current milestone and next work
 
-**Current:** v0.23.0 implementation candidate — Commercial Hiring + Marketplace Activation Kernel.
+**Current:** v0.24.0 implementation candidate — Four-Category End-to-End Activation Parity.
 
-**Next acceptance gate:** local dependency-aware `pnpm check` on the replacement ZIP, followed by Railway deployment/migration and live commercial acceptance.
+**Next acceptance gate:** dependency-aware local validation, then Railway migration/deploy and live four-category Activation/runtime parity.
 
-**Next product milestone after v0.23 acceptance:** **v0.24 — Four-Category End-to-End Activation Parity**.
-
-The primary remaining product risk is vertical imbalance: Rebalancing still has materially deeper financial authority/execution/outcome infrastructure than Grid, Yield and Health. v0.24 must close that gap without collapsing commerce into permission or execution.
+**Next roadmap milestone after v0.24 acceptance:** v0.25 — Live Explore, Compare, Try and Service Profile Completion.

@@ -298,6 +298,62 @@ export interface MarketplaceActivation {
   limitations: string[];
 }
 
+export type ActivationControlTier = "READ_ONLY" | "BOUNDED_FINANCIAL" | "PROTECTIVE_WRITE";
+export interface ActivationControlProfile {
+  activationId: string;
+  serviceId: string;
+  buyerAddress: string;
+  category: ServiceCategory;
+  activationState: MarketplaceActivationState;
+  controlTier: ActivationControlTier;
+  runtimeCapability: {
+    code: "ANALYZE_POSITION" | "ANALYZE_GRID_MARKET" | "SCAN_YIELD_OPPORTUNITIES" | "INSPECT_HEALTH";
+    label: string;
+    mode: "READ_ONLY";
+    inputRequirements: string[];
+  };
+  permissions: {
+    readOnly: string[];
+    financialWrite: string[];
+    walletSigningAuthorityGranted: boolean;
+    financialExecutionAuthorityGranted: boolean;
+    permissionGrantId?: string;
+  };
+  revocable: boolean;
+  revokeEffect: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export type ActivationRuntimeObservationState = "NOT_RUN" | "OBSERVED" | "FAILED" | "REVOKED";
+export type ActivationOutcomeAssessmentState = "NOT_APPLICABLE" | "INSUFFICIENT_DATA" | "MEASURED";
+export interface ActivationRuntimeState {
+  activationId: string;
+  serviceId: string;
+  buyerAddress: string;
+  category: ServiceCategory;
+  activationState: MarketplaceActivationState;
+  observationState: ActivationRuntimeObservationState;
+  latestTask?: ServiceTask;
+  activity: {
+    state: "NOT_STARTED" | "OBSERVED" | "FAILED" | "REVOKED";
+    summary: string;
+    observedAt?: string;
+  };
+  monitoring?: {
+    state: "NOT_STARTED" | "SNAPSHOT_OBSERVED" | "FAILED" | "REVOKED";
+    detail: string;
+    observedAt?: string;
+  };
+  outcome: {
+    state: ActivationOutcomeAssessmentState;
+    detail: string;
+  };
+  generatedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
 export interface BuyerCommercialState {
   buyerAddress: string;
   quotes: CommercialQuote[];
@@ -1669,7 +1725,7 @@ export interface AgentRegistryStatus {
   limitations: string[];
 }
 
-// ─── Real AgentService task invocation / origin proof (v0.21) ────────────────
+// ─── Real AgentService task invocation / origin proof (v0.21 → v0.24) ───────
 export type ServiceTaskState =
   | "READY_TO_INVOKE" | "SUBMITTED" | "WORKING" | "INPUT_REQUIRED"
   | "COMPLETED" | "FAILED" | "CANCELLED" | "REJECTED" | "TIMED_OUT"
@@ -1677,6 +1733,10 @@ export type ServiceTaskState =
 export type ServiceTaskOriginProofState = "UNVERIFIED" | "VERIFIED" | "FAILED";
 export type ServiceTaskProposalState = "NONE" | "STRUCTURED" | "MISMATCH" | "INVALID";
 export type ServiceTaskCommercialState = "NOT_PROVEN" | "FREE_INVOCATION_DECLARED" | "HIRING_PROVEN" | "PAYMENT_PROVEN";
+export type ServiceTaskOriginKind = "JOB_INTENT" | "ACTIVATION";
+export type ServiceTaskResultState = "NONE" | "STRUCTURED" | "MISMATCH" | "UNSTRUCTURED";
+export type ActivationServiceTaskAction = "ANALYZE_POSITION" | "ANALYZE_GRID_MARKET" | "SCAN_YIELD_OPPORTUNITIES" | "INSPECT_HEALTH";
+export type ServiceTaskResultKind = "REBALANCING_ANALYSIS" | "GRID_MARKET_CONTEXT" | "YIELD_OPPORTUNITY_SNAPSHOT" | "HEALTH_MONITORING_SNAPSHOT";
 
 export interface RebalancingServiceProposal {
   proposalId: string;
@@ -1689,6 +1749,18 @@ export interface RebalancingServiceProposal {
   rationale?: string;
   receivedAt: string;
   provenance: "marketplace-observed";
+}
+
+export interface ServiceTaskResult {
+  state: ServiceTaskResultState;
+  kind?: ServiceTaskResultKind;
+  category: ServiceCategory;
+  action: string;
+  observedAt?: string;
+  payload?: unknown;
+  evidenceIds: string[];
+  detail: string;
+  limitations: string[];
 }
 
 export interface ServiceTaskAttempt {
@@ -1727,7 +1799,8 @@ export interface ServiceTaskOriginProof {
   detail: string;
 }
 
-export interface ServiceTaskRequestContext {
+export interface RebalancingJobServiceTaskRequestContext {
+  originKind: "JOB_INTENT";
   jobIntentId: string;
   findingId: string;
   serviceId: string;
@@ -1753,12 +1826,59 @@ export interface ServiceTaskRequestContext {
   expiresAt: string;
 }
 
-export interface ServiceTask {
-  serviceTaskId: string;
-  jobIntentId: string;
-  findingId: string;
+interface ActivationServiceTaskRequestContextBase {
+  originKind: "ACTIVATION";
+  activationId: string;
   serviceId: string;
   agentId: string;
+  walletAddress: string;
+  expiresAt: string;
+}
+
+export interface RebalancingActivationServiceTaskRequestContext extends ActivationServiceTaskRequestContextBase {
+  category: "rebalancing";
+  requestedAction: "ANALYZE_POSITION";
+  subject: { protocol: "PancakeSwap"; network: BscNetwork; tokenId: string };
+}
+
+export interface GridActivationServiceTaskRequestContext extends ActivationServiceTaskRequestContextBase {
+  category: "grid";
+  requestedAction: "ANALYZE_GRID_MARKET";
+  subject: {
+    protocol: "PancakeSwap";
+    network: BscNetwork;
+    poolAddress: string;
+    capitalContext?: { asset?: string; amount?: string; note: string };
+  };
+}
+
+export interface YieldActivationServiceTaskRequestContext extends ActivationServiceTaskRequestContextBase {
+  category: "yield";
+  requestedAction: "SCAN_YIELD_OPPORTUNITIES";
+  subject: { protocol: "Venus"; network: BscNetwork; walletAddress: string };
+}
+
+export interface HealthActivationServiceTaskRequestContext extends ActivationServiceTaskRequestContextBase {
+  category: "health";
+  requestedAction: "INSPECT_HEALTH";
+  subject: { protocol: "Venus"; network: BscNetwork; walletAddress: string; monitoringMode: "SNAPSHOT" };
+}
+
+export type ServiceTaskRequestContext =
+  | RebalancingJobServiceTaskRequestContext
+  | RebalancingActivationServiceTaskRequestContext
+  | GridActivationServiceTaskRequestContext
+  | YieldActivationServiceTaskRequestContext
+  | HealthActivationServiceTaskRequestContext;
+
+export interface ServiceTask {
+  serviceTaskId: string;
+  originKind: ServiceTaskOriginKind;
+  jobIntentId?: string;
+  findingId?: string;
+  serviceId: string;
+  agentId: string;
+  category: ServiceCategory;
   state: ServiceTaskState;
   protocol: "A2A";
   protocolBinding?: "JSONRPC" | "HTTP+JSON";
@@ -1775,6 +1895,7 @@ export interface ServiceTask {
   remoteStatus?: string;
   proposalState: ServiceTaskProposalState;
   proposal?: RebalancingServiceProposal;
+  result: ServiceTaskResult;
   originProof: ServiceTaskOriginProof;
   commercialState: ServiceTaskCommercialState;
   activationId?: string;

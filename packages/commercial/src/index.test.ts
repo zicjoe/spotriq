@@ -225,3 +225,35 @@ test("same external payment reference cannot be reconciled to two different Hire
   const h2 = await engine.createHire({ quoteId: q2.quoteId, buyerAddress: BUYER, idempotencyKey: "h-pay-2" });
   await assert.rejects(() => engine.reconcilePayment(h2.hireId, { buyerAddress: BUYER, reference: { jobId: "7" } }), /already reconciled/i);
 });
+
+test("activation control is category-specific, read-only and revocable without inventing authority", async () => {
+  const engine = createCommercialEngine({ marketplace: marketplace(() => serviceRecord()), now: () => new Date("2026-08-31T12:00:00.000Z") });
+  const quote = await engine.createQuote({ serviceId: SERVICE, buyerAddress: BUYER, buyerChainId: 97, idempotencyKey: "q-control" });
+  const hire = await engine.createHire({ quoteId: quote.quoteId, buyerAddress: BUYER, idempotencyKey: "h-control" });
+  const activation = await engine.activate(hire.hireId, { buyerAddress: BUYER, idempotencyKey: "a-control" });
+  const control = await engine.getActivationControl(activation.activationId);
+  assert.equal(control.category, "rebalancing");
+  assert.equal(control.controlTier, "READ_ONLY");
+  assert.equal(control.runtimeCapability.code, "ANALYZE_POSITION");
+  assert.equal(control.permissions.walletSigningAuthorityGranted, false);
+  assert.equal(control.permissions.financialExecutionAuthorityGranted, false);
+  assert.deepEqual(control.permissions.financialWrite, []);
+  assert.equal(control.revocable, true);
+});
+
+test("marketplace Activation revocation is buyer-bound, idempotent and separate from Hire/payment history", async () => {
+  const engine = createCommercialEngine({ marketplace: marketplace(() => serviceRecord()), now: () => new Date("2026-08-31T12:00:00.000Z") });
+  const quote = await engine.createQuote({ serviceId: SERVICE, buyerAddress: BUYER, buyerChainId: 97, idempotencyKey: "q-revoke" });
+  const hire = await engine.createHire({ quoteId: quote.quoteId, buyerAddress: BUYER, idempotencyKey: "h-revoke" });
+  const activation = await engine.activate(hire.hireId, { buyerAddress: BUYER, idempotencyKey: "a-revoke" });
+  await assert.rejects(() => engine.revokeActivation(activation.activationId,{buyerAddress:OTHER}), /Only the Activation buyer/i);
+  const revoked = await engine.revokeActivation(activation.activationId,{buyerAddress:BUYER});
+  assert.equal(revoked.state,"REVOKED");
+  const again = await engine.revokeActivation(activation.activationId,{buyerAddress:BUYER});
+  assert.equal(again.state,"REVOKED");
+  await assert.rejects(() => engine.assertActivationForService({activationId:activation.activationId,serviceId:SERVICE,buyerAddress:BUYER}), /not active/i);
+  const state=await engine.getBuyerState(BUYER);
+  assert.equal(state.hires[0]?.state,"ACTIVATED");
+  assert.equal(state.payments[0]?.state,"NOT_REQUIRED");
+  assert.equal(state.activations[0]?.state,"REVOKED");
+});

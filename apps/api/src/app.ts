@@ -213,7 +213,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.23.0",
+      version: "0.24.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -280,6 +280,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       x402B402PaymentAdaptersEnabled: false,
       freeReadOnlyActivationEnabled: true,
       marketplaceActivationEnabled: true,
+      fourCategoryActivationTaskParityEnabled: true,
+      activationControlRevocationEnabled: true,
+      healthMonitoringSnapshotEnabled: true,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
@@ -310,6 +313,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "v0.21 invokes a selected, tested AgentService through its supported A2A task/message interface, binds the exact server-derived Job Intent context to the request, requires a fresh service-owned key proof, persists the remote task/message and structured proposal, and blocks Job confirmation until proposal origin is verified. Invocation remains distinct from hiring, payment and activation.",
         "v0.23 adds explicit Offer → immutable Quote → idempotent Hire → Payment/Funding Evidence → Marketplace Activation resources. The four accepted first-party services publish FREE / READ_ONLY_SERVICE offers that can be commercially activated without fabricating payment or permission.",
         "Marketplace activation in v0.23 means an ACTIVE read-only Spotriq service relationship. It does not grant wallet signing, financial execution, autonomous transaction, or fund-movement authority; existing financial readiness/permission/execution gates remain independent.",
+        "v0.24 generalizes Activation-bound ServiceTask semantics across Rebalancing, Grid, Yield and Health without forcing non-Rebalancing categories through the Rebalancing JobIntent/execution model. Current category tasks are read-only observations only.",
+        "Each active reference relationship exposes category-specific controls and can be revoked independently. Grid observations do not become trading P&L, Yield rates do not become realised yield, and Health snapshots do not become protective-write authority.",
         "Paid rails are provider-neutral adapters. ERC-8183 is observed from BSC job/funding state; X402/B402 are represented in the domain but no live adapter is enabled yet, so Spotriq cannot falsely mark those payments verified.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",

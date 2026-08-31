@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { decodeFunctionResult, encodeFunctionData } from "viem";
 import type { BscChainReader } from "@spotriq/chain";
 import type {
+  ActivationControlProfile,
   AgentRegistryChainId,
   BuyerCommercialState,
   CommercialHire,
@@ -233,6 +234,8 @@ export interface CommercialEngine {
   getActivation(activationId:string):Promise<MarketplaceActivation>;
   getBuyerState(buyerAddress:string):Promise<BuyerCommercialState>;
   assertActivationForService(input:{activationId:string;serviceId:string;buyerAddress:string}):Promise<MarketplaceActivation>;
+  getActivationControl(activationId:string):Promise<ActivationControlProfile>;
+  revokeActivation(activationId:string,input:{buyerAddress:string}):Promise<MarketplaceActivation>;
 }
 
 export function createCommercialEngine(options:{marketplace:MarketplaceSupplyReader;store?:CommercialStore;paymentAdapters?:CommercialPaymentAdapter[];now?:()=>Date}):CommercialEngine {
@@ -325,5 +328,51 @@ export function createCommercialEngine(options:{marketplace:MarketplaceSupplyRea
 
   async function getBuyerState(address:string):Promise<BuyerCommercialState>{const buyer=normalizedAddress(address,"address"); const [quotes,hires,payments,activations]=await Promise.all([store.listQuotes(buyer),store.listHires(buyer),store.listPayments(buyer),store.listActivations(buyer)]); const at=now(); return {buyerAddress:buyer,quotes:quotes.map(q=>currentQuoteState(q,at)),hires,payments,activations,generatedAt:at.toISOString(),methodVersion:COMMERCIAL_KERNEL_METHOD,limitations:["Buyer commercial state describes Offer/Quote/Hire/Payment/Activation only. It is separate from My Agents authority, execution, activity, and outcome state."]};}
   async function assertActivationForService(input:{activationId:string;serviceId:string;buyerAddress:string}):Promise<MarketplaceActivation>{const a=await getActivation(input.activationId),buyer=normalizedAddress(input.buyerAddress,"buyerAddress"); if(a.state!=="ACTIVE")throw new CommercialError("The supplied Activation is not active.","SERVICE_NOT_READY"); if(a.serviceId!==input.serviceId)throw new CommercialError("The supplied Activation belongs to a different AgentService.","WRONG_SERVICE"); if(a.buyerAddress!==buyer)throw new CommercialError("The supplied Activation belongs to a different buyer wallet.","WRONG_BUYER"); return a;}
-  return {listOffers,createQuote,getQuote,createHire,getHire,getPayment,reconcilePayment,activate,getActivation,getBuyerState,assertActivationForService};
+
+  async function getActivationControl(activationId:string):Promise<ActivationControlProfile>{
+    const activation=await getActivation(activationId);
+    const record=await marketplace.getService(activation.serviceId);
+    const category=record.service.category;
+    const capability=category==="rebalancing"
+      ? {code:"ANALYZE_POSITION" as const,label:"Analyze PancakeSwap position",mode:"READ_ONLY" as const,inputRequirements:["tokenId"]}
+      : category==="grid"
+        ? {code:"ANALYZE_GRID_MARKET" as const,label:"Analyze PancakeSwap grid market context",mode:"READ_ONLY" as const,inputRequirements:["poolAddress","optional capital context"]}
+        : category==="yield"
+          ? {code:"SCAN_YIELD_OPPORTUNITIES" as const,label:"Scan supported Venus yield opportunities",mode:"READ_ONLY" as const,inputRequirements:["buyer wallet (server-derived)"]}
+          : {code:"INSPECT_HEALTH" as const,label:"Inspect Venus health state",mode:"READ_ONLY" as const,inputRequirements:["buyer wallet (server-derived)"]};
+    const readOnly=category==="rebalancing"
+      ? ["Read supported PancakeSwap position and range state"]
+      : category==="grid"
+        ? ["Read supported PancakeSwap V3 pool and TWAP market context"]
+        : category==="yield"
+          ? ["Read current supported Venus supply-yield opportunity data"]
+          : ["Read current Venus lending positions, liquidity and shortfall health state"];
+    return {
+      activationId:activation.activationId,serviceId:activation.serviceId,buyerAddress:activation.buyerAddress,category,activationState:activation.state,
+      controlTier:activation.financialExecutionAuthorityGranted?"BOUNDED_FINANCIAL":"READ_ONLY",runtimeCapability:capability,
+      permissions:{readOnly,financialWrite:[],walletSigningAuthorityGranted:activation.walletSigningAuthorityGranted,financialExecutionAuthorityGranted:activation.financialExecutionAuthorityGranted,permissionGrantId:activation.permissionGrantId},
+      revocable:activation.state==="ACTIVE",
+      revokeEffect:"Revoking this marketplace relationship stops new activation-bound service tasks. It does not erase commercial history and is separate from revoking any independently granted financial permission.",
+      methodVersion:COMMERCIAL_KERNEL_METHOD,
+      limitations:[
+        "The current four reference-service activation path is read-only; no wallet signing or financial execution authority is implied.",
+        category==="grid"?"Grid analysis does not authorize orders, capital deployment or strategy execution.":category==="yield"?"Yield observations describe current supported opportunities; they do not prove realised yield.":category==="health"?"Health monitoring is observational; protective writes require a separate authority tier.":"Read-only position analysis is separate from Spotriq's controlled Rebalancing execution spine."
+      ],
+    };
+  }
+
+  async function revokeActivation(activationId:string,input:{buyerAddress:string}):Promise<MarketplaceActivation>{
+    const activation=await getActivation(activationId);
+    const buyer=normalizedAddress(input.buyerAddress,"buyerAddress");
+    if(activation.buyerAddress!==buyer)throw new CommercialError("Only the Activation buyer can revoke this marketplace relationship.","WRONG_BUYER");
+    if(activation.state==="REVOKED")return activation;
+    if(activation.state!=="ACTIVE")throw new CommercialError(`Activation ${activation.activationId} is ${activation.state.toLowerCase()} and cannot be revoked as an active relationship.`,"SERVICE_NOT_READY");
+    const updatedAt=now().toISOString();
+    const evidence=createEvidenceEnvelope({subjectType:"marketplace_activation",subjectId:activation.activationId,metric:"commercial.activation_state",value:"REVOKED",provenance:"marketplace-observed",source:DATA_SOURCES.MARKETPLACE,sourceRef:activation.hireId,observedAt:updatedAt,confidence:"high",method:EVIDENCE_METHODS.COMMERCIAL_ACTIVATION,methodInputs:[activation.activationId,activation.hireId,buyer],limitation:"This records revocation of the Spotriq marketplace service relationship only. Independent permission grants, transactions and historical outcomes are separate resources."});
+    const revoked:MarketplaceActivation={...activation,state:"REVOKED",updatedAt,evidence:[...activation.evidence,evidence],limitations:[...activation.limitations,"This marketplace service relationship was revoked. Commercial history is retained; any independently issued financial permission must be revoked through its own authority mechanism."]};
+    await store.saveActivation(revoked);
+    return revoked;
+  }
+
+  return {listOffers,createQuote,getQuote,createHire,getHire,getPayment,reconcilePayment,activate,getActivation,getBuyerState,assertActivationForService,getActivationControl,revokeActivation};
 }

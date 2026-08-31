@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type {
   ActivateCommercialHireRequest,
+  ActivationControlResponse,
   ApiEnvelope,
   BuyerCommercialStateResponse,
   CommercialHireResponse,
@@ -11,6 +12,7 @@ import type {
   MarketplaceActivationResponse,
   MarketplaceOffersResponse,
   ReconcileCommercialPaymentRequest,
+  RevokeMarketplaceActivationRequest,
 } from "@spotriq/api-contracts";
 import type { CommercialEngine } from "@spotriq/commercial";
 import { ApiInputError } from "../errors.js";
@@ -69,6 +71,17 @@ export async function registerCommercialRoutes(app:FastifyInstance,commercial:Co
 
   app.get<{Params:{activationId:string}}>('/v1/activations/:activationId',async(request,reply)=>{
     const activation=await commercial.getActivation(id(request.params.activationId,'activationId'));
+    const data:MarketplaceActivationResponse={activation};
+    return reply.send(envelope(data,request.id));
+  });
+  app.get<{Params:{activationId:string}}>('/v1/activations/:activationId/control',async(request,reply)=>{
+    const control=await commercial.getActivationControl(id(request.params.activationId,'activationId'));
+    const data:ActivationControlResponse={control};
+    return reply.send(envelope(data,request.id));
+  });
+  app.post<{Params:{activationId:string};Body:RevokeMarketplaceActivationRequest}>('/v1/activations/:activationId/revoke',async(request,reply)=>{
+    const input=bodyObject(request.body);
+    const activation=await commercial.revokeActivation(id(request.params.activationId,'activationId'),input);
     const data:MarketplaceActivationResponse={activation};
     return reply.send(envelope(data,request.id));
   });
