@@ -15,7 +15,8 @@
     "check": "pnpm verify && pnpm typecheck && pnpm test && pnpm build",
     "db:migrate": "pnpm --filter @spotriq/db migrate",
     "db:health": "pnpm --filter @spotriq/db health",
-    "verify": "node scripts/verify-foundation.mjs"
+    "verify": "node scripts/verify-foundation.mjs",
+    "verify:reference-acceptance": "node scripts/verify-reference-agent-acceptance.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

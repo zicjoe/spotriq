@@ -254,7 +254,7 @@ Migration `0015_service_task_origin_proof.sql` persists this evidence separately
 
 `@spotriq/reference-agents` now backs RangeKeeper, GridPilot, YieldPilot and VenusGuard with deterministic read-only A2A runtimes using existing PancakeSwap/Venus/market-context readers. `/v1/reference-agents` publishes the catalog; each service has a `.well-known/agent-card.json` discovery surface plus same-origin JSON-RPC endpoint.
 
-The records are integrated into normal marketplace supply/readiness/matching with `origin = REFERENCE`, no fake ERC-8004 verification, no invented external reputation, `READ_ONLY` authority and `marketplaceActivationEligible = false`. Public deployment/Test Lab/real ERC-8004 registration remain external acceptance evidence, not repository constants.
+The records are integrated into normal marketplace supply/readiness/matching with `origin = REFERENCE`, no fake ERC-8004 verification, no invented external reputation, `READ_ONLY` authority and `marketplaceActivationEligible = false`. Public deployment, Test Lab and real ERC-8004 reconciliation have now completed external acceptance for all four services on BSC Testnet; deployment IDs remain environment/runtime facts rather than source constants.
 
 See `docs/LIVE_REFERENCE_AGENT_SUPPLY.md`.
 
@@ -262,11 +262,13 @@ See `docs/LIVE_REFERENCE_AGENT_SUPPLY.md`.
 
 Deployment configuration can now bind each stable `svc:reference:<slug>` service to a real ERC-8004 token ID without source-code hard-coding. `REFERENCE_AGENT_REGISTRY_CHAIN_ID` is separate from `AGENT_DISCOVERY_CHAIN_ID`, and per-agent IDs are supplied through `REFERENCE_AGENT_*_ID` variables. The API directly runs canonical verification at startup and accepts a binding only if the canonical registry state is VERIFIED, the registration backlink is correct, the registration name matches the intended reference agent, and the A2A endpoint exactly matches Spotriq's public Agent Card.
 
-RangeKeeper external acceptance has already proven BSC Testnet ERC-8004 Agent ID `2017`: Spotriq returned canonical owner `0x08a594e828133d18a43918cc804754f46daf44db`, parsed data-URI metadata, matching backlink and matching public A2A endpoint. After v0.22.2 is deployed with `REFERENCE_AGENT_RANGEKEEPER_ID=2017`, the stable RangeKeeper marketplace service can consume that proof as `CANONICAL_IDENTITY = PASS` while remaining `TESTNET_ONLY` and `activationEligible = false`.
+External acceptance is complete across RangeKeeper, GridPilot, YieldPilot and VenusGuard. Each stable `svc:reference:<slug>` service now has an accepted BSC Testnet ERC-8004 binding with Test Lab `PASS`, `CANONICAL_IDENTITY = PASS`, `RUNTIME_REACHABILITY = PASS`, `MARKETPLACE_TESTS = PASS`, overall `TESTNET_ONLY`, and `activationEligible = false`. RangeKeeper remains the retained concrete proof example at Agent ID `2017`; current IDs for all four can be printed from the live deployment with `pnpm verify:reference-acceptance`.
+
+See `SPOTRIQ_V0.22_EXTERNAL_ACCEPTANCE_REPORT.md`.
 
 ## Next
 
-First finish external acceptance parity: deploy v0.22.2, bind/verify RangeKeeper at the service level, then register and bind GridPilot, YieldPilot and VenusGuard. After all four have Marketplace Test Lab + canonical ERC-8004 evidence, proceed to **truthful commercial hiring / Activation semantics**: `Offer/Quote → Hire/Job → funding/payment evidence → Activation → Activation-bound ServiceTask`.
+Proceed to **v0.23 truthful commercial hiring / Activation semantics**: `Offer/Quote → Hire/Job → funding/payment evidence → Activation → Activation-bound ServiceTask`.
 
 See `SPOTRIQ_DRIFT_AUDIT.md` and `CORRECTED_ROADMAP.md`.
 

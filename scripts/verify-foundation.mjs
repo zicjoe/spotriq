@@ -120,6 +120,8 @@ const required = [
   "docs/LIVE_REFERENCE_AGENT_SUPPLY.md",
   "docs/IMPLEMENTATION_REPORT_LIVE_REFERENCE_AGENT_SUPPLY_v0.22.0.md",
   "docs/IMPLEMENTATION_REPORT_REFERENCE_AGENT_ERC8004_RECONCILIATION_v0.22.2.md",
+  "docs/SPOTRIQ_V0.22_EXTERNAL_ACCEPTANCE_REPORT.md",
+  "scripts/verify-reference-agent-acceptance.mjs",
   ".env.example",
   ".gitignore",
 ];
@@ -136,9 +138,15 @@ const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8")
 if (!projectState.includes("live four-category reference-agent supply") || !projectState.includes("foundational roadmap reconciliation")) {
   throw new Error("PROJECT_STATE.md must preserve the recovered foundational roadmap reconciliation and current corrective milestone.");
 }
+if (!projectState.includes("COMPLETE for RangeKeeper, GridPilot, YieldPilot and VenusGuard") || !projectState.includes("TESTNET_ONLY")) {
+  throw new Error("PROJECT_STATE.md must record completed four-agent external acceptance without claiming production activation.");
+}
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
 if (!correctedRoadmap.includes("v0.22.0 — Live Four-Category Reference Agent Supply") || !correctedRoadmap.includes("v0.23.0 — Commercial Hiring + Marketplace Activation Kernel")) {
   throw new Error("Corrected roadmap must preserve four-category live supply before generalized commercial activation.");
+}
+if (!correctedRoadmap.includes("Status: COMPLETE") || !correctedRoadmap.includes("acceptance bridge — COMPLETE")) {
+  throw new Error("Corrected roadmap must mark v0.22 external acceptance complete before v0.23 begins.");
 }
 
 const workspace = await readFile(path.join(root, "pnpm-workspace.yaml"), "utf8");

@@ -141,7 +141,7 @@ Known practical issue: live normalized service supply can be sparse/empty when r
 
 ### Reference-agent supply status
 
-**LIVE IN REPOSITORY / PUBLIC DEPLOYMENT EVIDENCE PENDING.**
+**LIVE / PUBLICLY ACCEPTED ON BSC TESTNET.**
 
 The four original reference names now have genuine first-party machine-callable implementations in `@spotriq/reference-agents`:
 
@@ -152,7 +152,7 @@ The four original reference names now have genuine first-party machine-callable 
 
 They publish A2A Agent Cards and JSON-RPC runtimes under `/v1/reference-agents/*`, are normalized as `origin = REFERENCE`, and flow through the same readiness/Test Lab/Finding compatibility surfaces as external supply. Duplicate legacy sample cards are suppressed when the live counterpart is present.
 
-They are deliberately **not** labelled ERC-8004 verified merely because Spotriq ships their runtime. v0.22.2 can bind a configured real identity only after direct canonical verification plus registration-name/A2A endpoint reconciliation. Commercial activation remains separate. `first-party runtime ≠ ERC-8004 identity ≠ activation`.
+They are deliberately **not** labelled ERC-8004 verified merely because Spotriq ships their runtime. v0.22.2 binds deployment-configured identities only after direct canonical verification plus registration-name/A2A endpoint reconciliation. External acceptance is now complete for all four: each public service passed Test Lab, reconciled to a BSC Testnet ERC-8004 identity, reports `CANONICAL_IDENTITY = PASS`, and remains correctly `TESTNET_ONLY` / non-activatable. Commercial activation remains separate. `first-party runtime ≠ ERC-8004 identity ≠ activation`. See `docs/SPOTRIQ_V0.22_EXTERNAL_ACCEPTANCE_REPORT.md`.
 
 ---
 
@@ -279,7 +279,7 @@ The implementation after v0.13 therefore strengthened one category far beyond th
 
 **v0.22 implementation:** live four-category reference-agent supply is present in the repository, public Railway deployment has been exercised, and Marketplace Test Lab has produced PASS coverage for all four public reference Agent Cards.
 
-**Current external acceptance checkpoint:** RangeKeeper has been registered on BSC Testnet as ERC-8004 Agent ID `2017`. Spotriq independently returned `canonicalVerification.state = VERIFIED`, canonical owner `0x08a594e828133d18a43918cc804754f46daf44db`, a matching registry backlink, parsed registration metadata, and the expected public RangeKeeper A2A Agent Card. v0.22.2 adds the deployment-configured binding needed for `svc:reference:rangekeeper` to consume that canonical proof without hard-coding the ID. GridPilot, YieldPilot and VenusGuard still require their own real ERC-8004 registrations/bindings.
+**External acceptance:** COMPLETE for RangeKeeper, GridPilot, YieldPilot and VenusGuard. All four public reference services passed Marketplace Test Lab and deployment-level ERC-8004 reconciliation on BSC Testnet. The final acceptance audit confirmed `REGISTERED_VERIFIED`, Test Lab `PASS`, `CANONICAL_IDENTITY = PASS`, `RUNTIME_REACHABILITY = PASS`, `MARKETPLACE_TESTS = PASS`, overall `TESTNET_ONLY`, and `activationEligible = false` for every service. RangeKeeper's retained concrete proof is Agent ID `2017`, canonical owner `0x08a594e828133d18a43918cc804754f46daf44db`, transaction `0x13946a59189a24d0743ff82d2dcab50be0105b2a40069ca38bdbacb6852a5be1`. Current deployment IDs for all four are observable with `pnpm verify:reference-acceptance`; they are not source-code constants.
 
 **Next product/engineering milestone:** v0.23 — truthful Commercial Hiring + Marketplace Activation Kernel.
 
@@ -298,9 +298,10 @@ Rebalancing has received far more implementation depth than Grid, Yield and Heal
 
 The priority order is now:
 
-1. deploy v0.22.2, bind RangeKeeper Agent ID 2017, verify its service-level `CANONICAL_IDENTITY = PASS`, then register/bind GridPilot, YieldPilot and VenusGuard;
-2. generalize truthful commercial hiring/Activation semantics over real services;
-3. bring each category through a meaningful end-to-end activation/runtime path;
-4. then deepen My Agents, Plans, operator tooling and production hardening.
+1. generalize truthful commercial hiring/Activation semantics over the four externally accepted services;
+2. bring each category through a meaningful end-to-end activation/runtime path;
+3. then deepen My Agents, Plans, operator tooling and production hardening.
+
+v0.22 external acceptance is closed; do not reopen registration work unless a live re-verification actually fails.
 
 ERC-8183/x402/B402 remain important and current BNB tooling makes them useful, but they must support this journey rather than displace the all-four-category requirement.

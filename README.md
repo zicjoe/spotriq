@@ -160,6 +160,18 @@ Default discovery uses BSC Mainnet (`AGENT_DISCOVERY_CHAIN_ID=56`) so the market
 
 Remote HTTPS/IPFS registration URIs are intentionally not fetched server-side in this milestone. `data:` registration files can be parsed and backlink-checked safely; remote URIs remain visible but are marked as not fetched until Spotriq adds a hardened metadata-fetch subsystem.
 
+## v0.22 External acceptance — COMPLETE
+
+The accepted public Railway deployment now has all four first-party reference agents — RangeKeeper, GridPilot, YieldPilot and VenusGuard — passing Marketplace Test Lab and canonically reconciled to BSC Testnet ERC-8004 identities. The final audit requires `REGISTERED_VERIFIED`, Test Lab `PASS`, `CANONICAL_IDENTITY = PASS`, `RUNTIME_REACHABILITY = PASS`, `MARKETPLACE_TESTS = PASS`, `TESTNET_ONLY`, and `activationEligible = false` for every agent.
+
+Re-check the live deployment at any time with:
+
+```bash
+pnpm verify:reference-acceptance
+```
+
+See `docs/SPOTRIQ_V0.22_EXTERNAL_ACCEPTANCE_REPORT.md`. v0.23 is now the active product milestone.
+
 ## v0.22.2 Reference-agent ERC-8004 identity reconciliation
 
 Spotriq can now bind a first-party reference AgentService to a real ERC-8004 identity **without hard-coding registry IDs into source**. Deployment configuration supplies the candidate ID, the API performs direct canonical verification, and the binding is accepted only when all of these agree:

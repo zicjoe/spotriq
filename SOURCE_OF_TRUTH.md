@@ -157,7 +157,7 @@ Reference-agent ERC-8004 identity reconciliation implemented in v0.22.2:
 - First-party references remain visible in the BSC marketplace even when their current identity is Testnet-only; each record exposes its own identity chain/readiness explicitly.
 - Runtime release metadata and Marketplace Test Lab client metadata now report v0.22.2 consistently.
 
-Environment acceptance already established for RangeKeeper before this source patch: public Test Lab coverage passed and ERC-8004 Agent ID `2017` on BSC Testnet was independently returned by Spotriq as `canonicalVerification.state = VERIFIED`, with owner/backlink/A2A registration metadata all matching. The v0.22.2 binding mechanism turns that verified registry fact into the corresponding `svc:reference:rangekeeper` readiness gate after deployment configuration.
+External acceptance is now complete for all four first-party reference services. RangeKeeper, GridPilot, YieldPilot and VenusGuard are publicly deployed, have Marketplace Test Lab `PASS`, and have canonically reconciled BSC Testnet ERC-8004 identities. The final audit confirmed `REGISTERED_VERIFIED`, `CANONICAL_IDENTITY = PASS`, `RUNTIME_REACHABILITY = PASS`, `MARKETPLACE_TESTS = PASS`, overall `TESTNET_ONLY`, and `activationEligible = false` for every service. RangeKeeper is retained as the concrete proof example: Agent ID `2017`, canonical owner `0x08a594e828133d18a43918cc804754f46daf44db`, registration transaction `0x13946a59189a24d0743ff82d2dcab50be0105b2a40069ca38bdbacb6852a5be1`. Deployment-specific IDs remain runtime/configuration truth and can be re-audited with `pnpm verify:reference-acceptance`. See `docs/SPOTRIQ_V0.22_EXTERNAL_ACCEPTANCE_REPORT.md`.
 
 Railway TypeScript build hotfix implemented in v0.22.1:
 
@@ -174,6 +174,6 @@ Live Four-Category Reference Agent Supply implemented in v0.22.0:
 - Service endpoints advertise the versioned A2A discovery document, whose same-origin JSON-RPC interface executes deterministic reads through existing PancakeSwap/Venus/market-context adapters.
 - All v0.22 reference authority is `READ_ONLY`; the external runtime does not receive Spotriq's financial signer or bypass the Rebalancing execution boundary.
 - `PUBLIC_API_BASE_URL` is required/HTTPS-only in production so public Agent Cards never silently advertise localhost.
-- Public deployment, Test Lab observation and real ERC-8004 registration/reconciliation remain environment-bound acceptance steps.
+- Public deployment, Test Lab observation and real ERC-8004 registration/reconciliation are environment-bound acceptance steps and are complete for all four current reference services on the accepted BSC Testnet deployment.
 
 Foundation-reconciled next engineering milestone: **truthful commercial hiring + marketplace Activation kernel** over real services. Generalized ERC-8183/x402/B402 support belongs behind provider-neutral commerce adapters where actual service semantics fit.

@@ -24,9 +24,9 @@ Each completed milestone must update `PROJECT_STATE.md`. Foundational doctrine c
 
 ## v0.22.0 — Live Four-Category Reference Agent Supply
 
-**Repository implementation status: COMPLETE; public deployment + Test Lab acceptance COMPLETE; ERC-8004 identity acceptance 1/4 COMPLETE.**
+**Status: COMPLETE — repository implementation + public deployment + Test Lab + ERC-8004 identity reconciliation for all four reference agents.**
 
-The repository contains four first-party deterministic A2A services integrated into normal Spotriq supply/readiness/matching. All four are publicly deployed and have passed Marketplace Test Lab. RangeKeeper is registered/canonically verified on BSC Testnet as ERC-8004 Agent ID `2017`; v0.22.2 adds generic service-level identity reconciliation. Remaining v0.22 acceptance is to deploy that binding and repeat ERC-8004 registration/binding for GridPilot, YieldPilot and VenusGuard.
+The repository contains four first-party deterministic A2A services integrated into normal Spotriq supply/readiness/matching. All four are publicly deployed, passed Marketplace Test Lab, and completed canonical ERC-8004 service reconciliation on BSC Testnet. The final audit confirmed `REGISTERED_VERIFIED`, `CANONICAL_IDENTITY = PASS`, `RUNTIME_REACHABILITY = PASS`, `MARKETPLACE_TESTS = PASS`, `TESTNET_ONLY`, and `activationEligible = false` across RangeKeeper, GridPilot, YieldPilot and VenusGuard. See `docs/SPOTRIQ_V0.22_EXTERNAL_ACCEPTANCE_REPORT.md`.
 
 ### Goal
 
@@ -67,17 +67,13 @@ For every category:
 - Yield: bounded opportunity/strategy task contract; no realised-yield claim without measurement.
 - Health: read-only monitoring/alert task first; protective write actions remain separately gated.
 
-### v0.22.2 acceptance bridge
+### v0.22.2 acceptance bridge — COMPLETE
 
-Before starting v0.23:
+The acceptance bridge has been completed for all four reference agents. Deployment-specific ERC-8004 IDs remain environment configuration rather than source-code constants; the API canonically verifies the configured identity, registration backlink, registration name and expected A2A endpoint before accepting a binding.
 
-1. deploy v0.22.2;
-2. set `REFERENCE_AGENT_REGISTRY_CHAIN_ID=97` and `REFERENCE_AGENT_RANGEKEEPER_ID=2017`;
-3. verify `svc:reference:rangekeeper` reports `CANONICAL_IDENTITY = PASS`, `TESTNET_ONLY`, `activationEligible = false`;
-4. register GridPilot, YieldPilot and VenusGuard using their real public A2A Agent Cards;
-5. configure their returned IDs and verify the same canonical service binding for all four.
+Re-run `pnpm verify:reference-acceptance` whenever the deployment, identity bindings or public runtime changes. Do not repeat ERC-8004 registration merely because an index or temporary provider is unavailable; diagnose canonical state first.
 
-This is acceptance completion for v0.22, not a new product vertical.
+This closes v0.22. The active roadmap moves to v0.23.
 
 
 ---
