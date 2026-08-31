@@ -81,6 +81,9 @@ export interface CapabilityResponse {
   x402B402PaymentAdaptersEnabled: boolean;
   freeReadOnlyActivationEnabled: boolean;
   marketplaceActivationEnabled: boolean;
+  fourCategoryActivationTaskParityEnabled: boolean;
+  activationControlRevocationEnabled: boolean;
+  healthMonitoringSnapshotEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
