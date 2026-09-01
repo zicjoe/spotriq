@@ -1,12 +1,12 @@
 # Spotriq Engineering Status
 
-**Release candidate:** v0.29.0  
+**Release candidate:** v0.30.0  
 **Date:** 2026-09-01  
-**State:** Smart Money Plans + Compatibility/Conflict Handling implemented; v0.28 externally accepted; local dependency-aware validation and external v0.29 acceptance pending.
+**State:** Operator Supply Lifecycle + Workspace implemented; v0.29 externally accepted; local dependency-aware validation and external v0.30 acceptance pending.
 
 ## Accepted baseline
 
-Production acceptance is complete through v0.28.
+Production acceptance is complete through v0.29.
 
 ## v0.29 package
 
@@ -66,3 +66,8 @@ The verifier uses a real Smart Money Check with at least one supported finding, 
 ## Next after acceptance
 
 v0.30 — Operator Supply Lifecycle + Workspace.
+
+
+## v0.30 operator package
+
+`@spotriq/operator-workspace` provides replay-resistant signed challenge/session auth, canonical owner claims, lifecycle/declaration persistence, Operator Supplied evidence and owned-service Test Lab triggering. Migration `0023_operator_supply_lifecycle.sql`. Capability flags expose signed auth, canonical owner claim, supply lifecycle and Test Lab trigger independently. New production gate: `pnpm verify:operator-workspace`.

@@ -1,0 +1,25 @@
+{
+  "name": "@spotriq/operator-workspace",
+  "version": "0.30.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --import tsx --test src/index.test.ts",
+    "build": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@spotriq/agent-registry": "workspace:*",
+    "@spotriq/domain": "workspace:*",
+    "@spotriq/marketplace-supply": "workspace:*",
+    "viem": "2.55.11"
+  },
+  "devDependencies": {
+    "tsx": "4.23.1",
+    "typescript": "5.7.3",
+    "@types/node": "^24.0.0"
+  }
+}

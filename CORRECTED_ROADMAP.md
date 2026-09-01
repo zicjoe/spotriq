@@ -1,8 +1,8 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-09-01  
-**Current implementation:** v0.29.0  
-**Current milestone:** Smart Money Plans + Compatibility/Conflict Handling
+**Current implementation:** v0.30.0  
+**Current milestone:** Operator Supply Lifecycle + Workspace
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
 
@@ -48,7 +48,7 @@ Buyer My Agents is live; switching/revocation are persisted and fail closed arou
 
 ## v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling
 
-**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+**Status: COMPLETE / externally accepted.**
 
 ### Goal
 
@@ -88,7 +88,13 @@ Acceptance:
 
 ## v0.30.0 — Operator Supply Lifecycle + Workspace
 
-Turn the currently illustrative operator workspace into a real provider workflow for service/listing lifecycle, commercial terms, runtime declarations, testing/evidence, suspension and readiness operations while preserving `AgentIdentity ≠ AgentListing ≠ AgentService ≠ Offer`.
+**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+
+Real provider workflow with signed operator authentication and canonical ERC-8004 ownership gating. Operators can persist service lifecycle/declarations, HTTPS runtime endpoints, commercial/permission declarations, Operator Supplied evidence and trigger Marketplace Test Lab. Operator state may make availability stricter but cannot force marketplace readiness, financial authority, execution or outcomes.
+
+Migration: `0023_operator_supply_lifecycle.sql`.
+
+Acceptance: `API build → pnpm check → Railway migration 0023/deploy → v0.22–v0.29 regressions → verify:operator-workspace → record acceptance`.
 
 ## Later production milestones
 

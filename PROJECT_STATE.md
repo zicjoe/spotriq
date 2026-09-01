@@ -1,7 +1,7 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.29.0  
-**Implementation status:** Smart Money Plans + Compatibility/Conflict Handling implemented; v0.28 externally accepted; dependency-aware local validation and external v0.29 acceptance pending.  
+**Current implementation release:** v0.30.0  
+**Implementation status:** Operator Supply Lifecycle + Workspace implemented; v0.29 externally accepted; dependency-aware local validation and external v0.30 acceptance pending.  
 **Last state update:** 2026-09-01  
 **Repository role:** concise present-state map; current repository remains implementation truth.
 
@@ -30,6 +30,7 @@ AI explains. Deterministic systems decide.
 - **v0.26 ✅** Four-category execution-adapter/argument-guard acceptance without unauthorized dispatch.
 - **v0.27 ✅** Four-category Activation Activity + Outcome parity; missing transaction/performance evidence remains `Could Not Assess`.
 - **v0.28 ✅** Live buyer My Agents portfolio + persisted switching/revocation + live profile/compare/Test Lab UX.
+- **v0.29 ✅** Smart Money Plans + deterministic compatibility/conflict handling; no shared signer, PermissionGrant, Activation or execution session.
 
 ## Current architecture
 
@@ -37,7 +38,7 @@ AI explains. Deterministic systems decide.
 - `apps/api` — Fastify API.
 - `apps/worker` — worker seam.
 - shared `@spotriq/domain` and `@spotriq/api-contracts`.
-- PostgreSQL migrations `0001`–`0022`.
+- PostgreSQL migrations `0001`–`0023`.
 - deterministic BSC, PancakeSwap, Venus, market-context and Smart Money packages.
 - ERC-8004 discovery, marketplace supply/readiness/Test Lab, and four first-party reference runtimes.
 - `@spotriq/commercial` — Offer/Quote/Hire/Payment/Activation/control/revocation.
@@ -46,7 +47,8 @@ AI explains. Deterministic systems decide.
 - `@spotriq/financial-execution-adapters` — category preflight/exact argument guards.
 - `@spotriq/activity-outcomes` — controlled Rebalancing outcomes + Activation-scoped four-category outcome truth.
 - `@spotriq/my-agents` — buyer portfolio aggregation, fail-closed relationship ending and persisted service switching.
-- **`@spotriq/smart-money-plans` — finding/service composition + deterministic capital/authority/protocol/readiness/network conflict assessment.**
+- `@spotriq/smart-money-plans` — finding/service composition + deterministic capital/authority/protocol/readiness/network conflict assessment.
+- **`@spotriq/operator-workspace` — signed operator authentication, canonical owner claims, provider lifecycle/declarations and Operator Supplied evidence.**
 
 ## v0.29 — Smart Money Plans + Compatibility/Conflict Handling
 
@@ -130,3 +132,15 @@ Do not call v0.29 externally accepted until local validation, migration `0022`, 
 ## Next roadmap milestone after acceptance
 
 **v0.30 — Operator Supply Lifecycle + Workspace.**
+
+## v0.30 — Operator Supply Lifecycle + Workspace
+
+Operator writes now require a one-time EIP-191 wallet challenge, an expiring server session and canonical ERC-8004 ownership matching the authenticated wallet. A public address is not authentication.
+
+Operators can claim identities they canonically own, persist DRAFT/SUBMITTED/ACTIVE/PAUSED/SUSPENDED/RETIRED service declarations, declare HTTPS runtime endpoints, commercial terms and permission requirements, submit Operator Supplied evidence, and trigger the bounded Marketplace Test Lab for services they own.
+
+Operator declarations remain distinct from Marketplace Observed evidence and canonical chain evidence. Operators cannot force readiness to `READY`, fabricate payment/PermissionGrant/execution/outcome evidence, or use lifecycle state as financial authority.
+
+Latest migration: `0023_operator_supply_lifecycle.sql`.
+
+New acceptance: `pnpm verify:operator-workspace`.

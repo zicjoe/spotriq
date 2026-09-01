@@ -1,7 +1,7 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.29.0**  
-**Release status:** Smart Money Plans + Compatibility/Conflict Handling implementation candidate; v0.28 externally accepted; local dependency-aware validation and external v0.29 acceptance pending.  
+**Current repository release:** **v0.30.0**  
+**Release status:** Operator Supply Lifecycle + Workspace implementation candidate; v0.29 externally accepted; local dependency-aware validation and external v0.30 acceptance pending.  
 **State date:** 2026-09-01
 
 ## Authority hierarchy
@@ -42,8 +42,9 @@ AI explains. Deterministic systems decide.
 - **v0.26 ✅** four-category execution adapter/argument guard acceptance without unauthorized dispatch.
 - **v0.27 ✅** four-category Activity + Outcome parity; unsupported financial outcomes remain `Could Not Assess`.
 - **v0.28 ✅** live My Agents + safe switching/revocation + live marketplace profile/compare/Test Lab UX.
+- **v0.29 ✅** persisted Smart Money Plans + compatibility/conflict handling with independent specialist authority/execution.
 
-## v0.29 implementation truth
+## v0.29 accepted truth
 
 New package: `@spotriq/smart-money-plans`.
 
@@ -53,9 +54,9 @@ Compatibility/conflict handling includes asset/capital overlap, protocol overlap
 
 Only genuine contradictions block. Reviewable overlaps remain warnings or informational facts rather than being hidden or treated as universal risk scores.
 
-Latest migration: `0022_smart_money_plans.sql`.
+Latest accepted-plan migration: `0022_smart_money_plans.sql`.
 
-New acceptance: `pnpm verify:smart-money-plans`.
+Accepted v0.29 gate: `pnpm verify:smart-money-plans`.
 
 ## Network truth
 
@@ -63,6 +64,12 @@ New acceptance: `pnpm verify:smart-money-plans`.
 - Reference identity/authority/execution acceptance uses BSC Testnet `97`.
 - Mainnet financial execution remains prohibited until explicitly approved.
 
-## Next milestone after v0.29 acceptance
+## v0.30 implementation truth
 
-**v0.30 — Operator Supply Lifecycle + Workspace.**
+New package: `@spotriq/operator-workspace`. Signed EIP-191 challenge/session authentication plus canonical ERC-8004 owner verification gates every operator write. Provider lifecycle/declarations and Operator Supplied evidence persist in migration `0023_operator_supply_lifecycle.sql`; Marketplace Test Lab evidence/readiness remain independent and cannot be overwritten by an operator.
+
+New gate: `pnpm verify:operator-workspace`.
+
+## Next milestone after v0.30 acceptance
+
+**v0.31 — Paid Commercial Rails Expansion (provider-neutral ERC-8183 / x402 / B402 depth).**

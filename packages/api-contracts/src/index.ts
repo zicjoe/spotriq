@@ -98,6 +98,11 @@ export interface CapabilityResponse {
   liveMarketplaceProfileCompareTryEnabled: boolean;
   smartMoneyPlansEnabled: boolean;
   planCompatibilityConflictHandlingEnabled: boolean;
+  operatorWorkspaceEnabled: boolean;
+  operatorSignedSessionAuthEnabled: boolean;
+  operatorCanonicalOwnerClaimEnabled: boolean;
+  operatorSupplyLifecycleEnabled: boolean;
+  operatorTestLabTriggerEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -504,3 +509,29 @@ export interface CreateSmartMoneyPlanRequest {
 }
 export interface SmartMoneyPlanResponse { plan: import("@spotriq/domain").SmartMoneyPlan; }
 export interface BuyerSmartMoneyPlansResponse { state: import("@spotriq/domain").BuyerSmartMoneyPlans; }
+
+// v0.30 Operator Supply Lifecycle + Workspace
+export interface CreateOperatorChallengeRequest { address: string; }
+export interface OperatorChallengeResponse { challenge: import("@spotriq/domain").OperatorAuthChallenge; }
+export interface VerifyOperatorChallengeRequest { challengeId: string; signature: string; }
+export interface OperatorSessionResponse { session: import("@spotriq/domain").OperatorSession; token: string; }
+export interface OperatorWorkspaceResponse { workspace: import("@spotriq/domain").OperatorWorkspaceSnapshot; }
+export interface ClaimOperatorAgentRequest { chainId: import("@spotriq/domain").AgentRegistryChainId; agentId: string; }
+export interface OperatorAgentClaimResponse { claim: import("@spotriq/domain").OperatorAgentClaim; }
+export interface UpsertOperatorServiceDeclarationRequest {
+  declarationId?: string;
+  chainId: import("@spotriq/domain").AgentRegistryChainId;
+  agentId: string;
+  serviceId: string;
+  category: import("@spotriq/domain").ServiceCategory;
+  name: string;
+  shortDescription: string;
+  runtimeEndpoints: import("@spotriq/domain").OperatorRuntimeDeclaration[];
+  commercial: import("@spotriq/domain").OperatorCommercialDeclaration;
+  permission: import("@spotriq/domain").OperatorPermissionDeclaration;
+}
+export interface OperatorServiceDeclarationResponse { declaration: import("@spotriq/domain").OperatorServiceDeclaration; }
+export interface TransitionOperatorServiceRequest { state: import("@spotriq/domain").OperatorSupplyLifecycleState; }
+export interface SubmitOperatorEvidenceRequest { serviceId: string; evidenceType: string; value: string; sourceLabel: string; observedAt: string; limitations?: string[]; }
+export interface OperatorEvidenceResponse { evidence: import("@spotriq/domain").OperatorSuppliedEvidenceRecord; }
+export interface OperatorTestLabResponse { tests: import("@spotriq/domain").MarketplaceServiceTestCoverage; readiness: import("@spotriq/domain").ReadinessSnapshot; }

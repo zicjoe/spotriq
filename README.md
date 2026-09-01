@@ -623,3 +623,8 @@ Verification command:
 ```powershell
 pnpm verify:smart-money-plans
 ```
+
+
+## v0.30.0 Operator Supply Lifecycle + Workspace
+
+Operators now authenticate with a one-time signed wallet challenge, claim only canonically owned ERC-8004 identities, manage persisted service declarations/lifecycle, submit explicitly Operator Supplied evidence and trigger Marketplace Test Lab without being able to overwrite Marketplace Observed evidence or force readiness/financial authority. See `docs/IMPLEMENTATION_REPORT_OPERATOR_SUPPLY_LIFECYCLE_v0.30.0.md`.

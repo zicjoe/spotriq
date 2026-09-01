@@ -2918,3 +2918,113 @@ export interface BuyerSmartMoneyPlans {
   methodVersion: string;
   limitations: string[];
 }
+
+// v0.30 Operator Supply Lifecycle + Workspace
+export type OperatorSupplyLifecycleState = "DRAFT" | "SUBMITTED" | "ACTIVE" | "PAUSED" | "SUSPENDED" | "RETIRED";
+
+export interface OperatorAuthChallenge {
+  challengeId: string;
+  address: string;
+  nonce: string;
+  message: string;
+  createdAt: string;
+  expiresAt: string;
+  usedAt?: string;
+}
+
+export interface OperatorSession {
+  sessionId: string;
+  address: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface OperatorAgentClaim {
+  claimId: string;
+  operatorAddress: string;
+  chainId: AgentRegistryChainId;
+  agentId: string;
+  discoveryId: string;
+  canonicalOwnerAddress: string;
+  canonicalVerificationState: AgentCanonicalVerification["state"];
+  claimedAt: string;
+  lastVerifiedAt: string;
+}
+
+export interface OperatorRuntimeDeclaration {
+  name: string;
+  endpoint: string;
+  interactionKind: "A2A" | "MCP" | "WEB" | "OTHER";
+  version?: string;
+}
+
+export interface OperatorCommercialDeclaration {
+  commercialModel: "FREE" | "PER_TASK" | "SUBSCRIPTION" | "PERFORMANCE" | "HYBRID" | "UNDECLARED";
+  amount?: string;
+  currency?: string;
+  paymentRail: "FREE" | "ERC8183" | "X402" | "B402" | "UNDECLARED";
+  availability: "AVAILABLE" | "UNAVAILABLE" | "UNDECLARED";
+  termsVersion: string;
+  note?: string;
+}
+
+export interface OperatorPermissionDeclaration {
+  intensity: PermissionIntensity;
+  executionMode: "READ_ONLY" | "USER_APPROVAL" | "BOUNDED_AUTONOMOUS" | "UNDECLARED";
+  protocols: string[];
+  assets: string[];
+  walletSigningRequired: boolean;
+  financialAuthorityRequired: boolean;
+  note?: string;
+}
+
+export interface OperatorServiceDeclaration {
+  declarationId: string;
+  operatorAddress: string;
+  chainId: AgentRegistryChainId;
+  agentId: string;
+  serviceId: string;
+  category: ServiceCategory;
+  lifecycleState: OperatorSupplyLifecycleState;
+  name: string;
+  shortDescription: string;
+  runtimeEndpoints: OperatorRuntimeDeclaration[];
+  commercial: OperatorCommercialDeclaration;
+  permission: OperatorPermissionDeclaration;
+  declarationVersion: number;
+  createdAt: string;
+  updatedAt: string;
+  submittedAt?: string;
+  pausedAt?: string;
+  retiredAt?: string;
+  limitations: string[];
+}
+
+export interface OperatorSuppliedEvidenceRecord {
+  evidenceId: string;
+  operatorAddress: string;
+  serviceId: string;
+  evidenceType: string;
+  value: string;
+  sourceLabel: string;
+  observedAt: string;
+  submittedAt: string;
+  provenance: "operator-claimed";
+  limitations: string[];
+}
+
+export interface OperatorWorkspaceServiceView {
+  declaration: OperatorServiceDeclaration;
+  marketplace?: MarketplaceServiceRecord;
+  latestTest?: MarketplaceServiceTestCoverage;
+  operatorEvidence: OperatorSuppliedEvidenceRecord[];
+}
+
+export interface OperatorWorkspaceSnapshot {
+  operatorAddress: string;
+  claims: OperatorAgentClaim[];
+  services: OperatorWorkspaceServiceView[];
+  generatedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}

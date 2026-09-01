@@ -45,6 +45,7 @@ import { myAgentsRepository } from "../repositories/myAgentsRepository";
 import { LiveAgentProfilePage, LiveComparePage, LiveTryAgentPage } from "../components/LiveMarketplacePages";
 import { LivePlansPage, LivePlanProfilePage } from "../components/LiveSmartMoneyPlans";
 import { smartMoneyPlanRepository } from "../repositories/smartMoneyPlanRepository";
+import { LiveOperatorWorkspace } from "../components/LiveOperatorWorkspace";
 
 const {
   services: SERVICES,
@@ -3457,110 +3458,7 @@ function PlansPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) =
 // ─── PAGE: OPERATOR WORKSPACE ────────────────────────────────────────────────
 
 function OperatorWorkspacePage({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => void }) {
-  const [section, setSection] = useState<"dashboard" | "agents" | "services" | "tests" | "evidence" | "usage" | "settings">("dashboard");
-  const items = [
-    ["dashboard", "Dashboard"], ["agents", "Agents"], ["services", "Services"],
-    ["tests", "Tests"], ["evidence", "Evidence"], ["usage", "Usage"], ["settings", "Settings"],
-  ] as const;
-
-  return (
-    <div className="max-w-7xl mx-auto px-6 py-8">
-      <div className="flex items-start justify-between gap-4 mb-7">
-        <div>
-          <button onClick={() => navigate("home")} className="text-xs text-[#6b7d99] hover:text-[#9aacc4] mb-3 flex items-center gap-1.5">
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to Spotriq
-          </button>
-          <div className="text-xs font-mono uppercase tracking-wide text-[#2dd4bf] mb-1">{BRAND.name}</div>
-          <h1 className="text-2xl font-semibold text-[#dde3ef]">Operator Workspace</h1>
-          <p className="text-sm text-[#6b7d99] mt-1">Manage agents and financial services listed on Spotriq.</p>
-        </div>
-        <Btn variant="primary"><Plus className="w-4 h-4" /> List an Agent</Btn>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[190px_1fr] gap-6">
-        <aside className="bg-card border border-white/7 rounded-lg p-2 h-fit">
-          {items.map(([key, label]) => (
-            <button key={key} onClick={() => setSection(key)}
-              className={cn("w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
-                section === key ? "bg-white/8 text-[#dde3ef]" : "text-[#6b7d99] hover:text-[#9aacc4] hover:bg-white/4")}>
-              {label}
-            </button>
-          ))}
-        </aside>
-
-        <div className="space-y-6">
-          {section === "dashboard" && (
-            <>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                  ["Active listings", "4"], ["Ready services", "3"], ["Needs attention", "1"], ["Activations · 30d", "67"],
-                ].map(([label, value]) => (
-                  <Card key={label} className="p-4">
-                    <div className="text-xs text-[#6b7d99] mb-1">{label}</div>
-                    <div className="text-xl font-mono text-[#dde3ef]">{value}</div>
-                  </Card>
-                ))}
-              </div>
-              <Card className="p-5 border-[#f59e0b]/20">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-4 h-4 text-[#f59e0b] mt-0.5" />
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-[#dde3ef]">Action required</div>
-                    <p className="text-xs text-[#6b7d99] mt-1">YieldPilot is Limited because one opportunity source is unavailable. Marketplace readiness remains visible to users.</p>
-                  </div>
-                  <Btn size="sm" variant="secondary" onClick={() => setSection("services")}>Review service</Btn>
-                </div>
-              </Card>
-              <div>
-                <SectionHeader label="Marketplace services" />
-                <div className="space-y-3">
-                  {SERVICES.slice(0, 4).map(service => (
-                    <Card key={service.serviceId} className="p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <div className="font-medium text-[#dde3ef]">{service.name}</div>
-                          <div className="text-xs text-[#6b7d99] mt-1">{CATEGORY_LABELS[service.category]} · {service.supportedProtocols.join(", ")}</div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <ReadinessPill state={service.readiness} />
-                          <span className="text-xs text-[#6b7d99]">{service.evidenceSummary.testsPassed} tests passed</span>
-                          <Btn size="sm" variant="secondary" onClick={() => setSection("services")}>Manage</Btn>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {section !== "dashboard" && (
-            <Card className="p-6">
-              <div className="text-xs font-mono uppercase tracking-wide text-[#2dd4bf] mb-2">{section}</div>
-              <h2 className="text-xl font-semibold text-[#dde3ef] mb-2">
-                {items.find(([key]) => key === section)?.[1]}
-              </h2>
-              <p className="text-sm text-[#6b7d99] max-w-2xl">
-                This frontend surface is now routed and backend-ready. Its data remains sample data until the corresponding Spotriq operator API milestone is connected.
-              </p>
-              {section === "evidence" && (
-                <div className="grid md:grid-cols-2 gap-4 mt-5">
-                  <Card className="p-4 bg-[#0f1520]">
-                    <div className="text-xs font-mono text-[#2dd4bf] mb-2">SPOTRIQ MARKETPLACE EVIDENCE · READ-ONLY</div>
-                    <p className="text-sm text-[#9aacc4]">Readiness snapshots, marketplace tests and production observations cannot be edited by operators.</p>
-                  </Card>
-                  <Card className="p-4 bg-[#0f1520]">
-                    <div className="text-xs font-mono text-[#6b7d99] mb-2">YOUR CLAIMS · EDITABLE</div>
-                    <p className="text-sm text-[#9aacc4]">Strategy documents, operator-supplied historical performance and methodology remain clearly provenance-labelled.</p>
-                  </Card>
-                </div>
-              )}
-            </Card>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+  return <LiveOperatorWorkspace onBack={() => navigate("home")} />;
 }
 
 // ─── FOOTER ───────────────────────────────────────────────────────────────────

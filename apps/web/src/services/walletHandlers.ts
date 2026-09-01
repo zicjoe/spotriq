@@ -45,6 +45,14 @@ export const walletHandlers = {
     return { ...session, controlState: "VERIFIED_CONTROL" };
   },
 
+  async signMessage(address: string, message: string): Promise<string> {
+    const provider = window.ethereum;
+    if (!provider) throw new Error("No EVM wallet was detected.");
+    const signature = await provider.request({ method: "personal_sign", params: [message, address] });
+    if (typeof signature !== "string" || !/^0x[0-9a-fA-F]{130}$/.test(signature)) throw new Error("Wallet did not return a valid EIP-191 signature.");
+    return signature;
+  },
+
   async requestPermission() { return { status: "MOCK_ONLY" as const }; },
   async revokePermission() { return { status: "MOCK_ONLY" as const }; },
 
