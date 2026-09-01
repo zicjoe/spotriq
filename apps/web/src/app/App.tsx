@@ -46,6 +46,7 @@ import { LiveAgentProfilePage, LiveComparePage, LiveTryAgentPage } from "../comp
 import { LivePlansPage, LivePlanProfilePage } from "../components/LiveSmartMoneyPlans";
 import { smartMoneyPlanRepository } from "../repositories/smartMoneyPlanRepository";
 import { LiveOperatorWorkspace } from "../components/LiveOperatorWorkspace";
+import { GroundedExplanationPanel } from "../components/GroundedExplanationPanel";
 
 const {
   services: SERVICES,
@@ -385,10 +386,11 @@ function AgentCard({ service, onView, onCompare, compareSelected, contextNote }:
 
 // ─── FINDING CARD ────────────────────────────────────────────────────────────
 
-function FindingCard({ finding, onAction, onExpand }: {
+function FindingCard({ finding, onAction, onExpand, explanationContext }: {
   finding: Finding;
   onAction: () => void;
   onExpand?: () => void;
+  explanationContext?: { checkSessionId: string; buyerAddress: string };
 }) {
   const [expanded, setExpanded] = useState(false);
   const cfg = FINDING_CONFIG[finding.state];
@@ -457,6 +459,7 @@ function FindingCard({ finding, onAction, onExpand }: {
           {expanded ? <><ChevronUp className="w-3 h-3" /> Less</> : <><ChevronDown className="w-3 h-3" /> More</>}
         </button>
       </div>
+      {expanded && explanationContext && <div className="px-5 pb-5"><GroundedExplanationPanel subjectType="FINDING" subjectId={finding.findingId} contextId={explanationContext.checkSessionId} buyerAddress={explanationContext.buyerAddress} title="Explain this finding" /></div>}
     </div>
   );
 }
@@ -1778,13 +1781,13 @@ function CheckResultsPage({ navigate }: { navigate: (r: Route, p?: Partial<NavSt
 
       {snapshot.findings.length > 0 && <section className="mb-8"><Card className="p-5"><div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"><div><div className="text-xs font-mono uppercase text-[#2dd4bf]">Smart Money Plan</div><div className="text-sm text-[#dde3ef] mt-1">Compose these findings into independent specialist roles and check capital, authority, protocol and service conflicts before any execution.</div><div className="text-xs text-[#6b7d99] mt-1">Plan ≠ Super-agent. Each service keeps its own Activation, PermissionGrant and execution boundary.</div></div><Btn variant="teal-outline" disabled={planBusy} onClick={() => void buildPlan()}>{planBusy ? <><RefreshCw className="w-4 h-4 animate-spin" /> Building Plan</> : <><GitCompare className="w-4 h-4" /> Build Smart Money Plan</>}</Btn></div>{planError && <div className="mt-3 rounded-md border border-[#f87171]/20 bg-[#f87171]/5 p-3 text-xs text-[#fca5a5]">{planError}</div>}</Card></section>}
 
-      {needsAttention.length > 0 && <section className="mb-8"><SectionHeader label="Needs Attention" /><div className="space-y-4">{needsAttention.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => findingAction(finding)} />)}</div></section>}
+      {needsAttention.length > 0 && <section className="mb-8"><SectionHeader label="Needs Attention" /><div className="space-y-4">{needsAttention.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => findingAction(finding)} explanationContext={{ checkSessionId: snapshot.session.checkSessionId, buyerAddress: snapshot.session.walletAddress }} />)}</div></section>}
 
-      {opportunities.length > 0 && <section className="mb-8"><SectionHeader label="Opportunities" /><div className="space-y-4">{opportunities.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => findingAction(finding)} />)}</div></section>}
+      {opportunities.length > 0 && <section className="mb-8"><SectionHeader label="Opportunities" /><div className="space-y-4">{opportunities.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => findingAction(finding)} explanationContext={{ checkSessionId: snapshot.session.checkSessionId, buyerAddress: snapshot.session.walletAddress }} />)}</div></section>}
 
-      {healthy.length > 0 && <section className="mb-8"><SectionHeader label="Healthy / Informational" /><div className="space-y-4">{healthy.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => findingAction(finding)} />)}</div></section>}
+      {healthy.length > 0 && <section className="mb-8"><SectionHeader label="Healthy / Informational" /><div className="space-y-4">{healthy.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => findingAction(finding)} explanationContext={{ checkSessionId: snapshot.session.checkSessionId, buyerAddress: snapshot.session.walletAddress }} />)}</div></section>}
 
-      {couldNotAssess.length > 0 && <section className="mb-8"><SectionHeader label="Could Not Assess" /><div className="space-y-4">{couldNotAssess.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => findingAction(finding)} />)}</div></section>}
+      {couldNotAssess.length > 0 && <section className="mb-8"><SectionHeader label="Could Not Assess" /><div className="space-y-4">{couldNotAssess.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => findingAction(finding)} explanationContext={{ checkSessionId: snapshot.session.checkSessionId, buyerAddress: snapshot.session.walletAddress }} />)}</div></section>}
 
       {snapshot.findings.length === 0 && (
         <section className="mb-8"><Card className="p-6"><h3 className="font-medium text-[#dde3ef] mb-2">No findings in the currently supported live checks</h3><p className="text-sm text-[#6b7d99]">Spotriq did not detect a supported PancakeSwap V3 LP finding, active Venus health position, or wallet-relevant Venus yield context for this wallet on the current network. This does not mean the wallet has no DeFi positions or financial risks.</p></Card></section>

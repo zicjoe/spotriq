@@ -3163,3 +3163,97 @@ export interface AgentStudioIntegrationStatus {
   methodVersion: string;
   limitations: string[];
 }
+
+// ─── v0.33 Grounded AI Explanation Layer ────────────────────────────────────
+export type GroundedExplanationSubjectType = "FINDING" | "SERVICE" | "ACTIVATION" | "SMART_MONEY_PLAN" | "PERMISSION_REQUEST";
+export type GroundedExplanationFactKind = "DECISION" | "OBSERVATION" | "CONTEXT" | "LIMITATION" | "NEXT_STEP";
+export type GroundedExplanationStyle = "PLAIN" | "CONCISE" | "DETAILED";
+export type GroundedExplanationProviderKind = "OPENAI_RESPONSES" | "DETERMINISTIC_TEMPLATE";
+export type GroundedExplanationState = "AI_GENERATED" | "DETERMINISTIC_FALLBACK";
+export type GroundedExplanationValidationState = "PASS" | "REJECTED_TO_FALLBACK";
+
+export interface GroundedExplanationFact {
+  factId: string;
+  kind: GroundedExplanationFactKind;
+  label: string;
+  value: string;
+  provenance: EvidenceProvenance | "user-proposed";
+  sourceName: string;
+  observedAt?: string;
+  methodVersion?: string;
+  evidenceIds: string[];
+  limitation?: string;
+}
+
+export interface GroundedExplanationSubject {
+  type: GroundedExplanationSubjectType;
+  id: string;
+  contextId?: string;
+  buyerAddress?: string;
+}
+
+export interface GroundedExplanationPacket {
+  packetId: string;
+  subject: GroundedExplanationSubject;
+  facts: GroundedExplanationFact[];
+  limitations: string[];
+  builtAt: string;
+  contentHash: string;
+  methodVersion: string;
+}
+
+export interface GroundedExplanationClaim {
+  text: string;
+  factIds: string[];
+}
+
+export interface GroundedExplanationContent {
+  headline: string;
+  summary: GroundedExplanationClaim[];
+  caveats: GroundedExplanationClaim[];
+  nextStep: GroundedExplanationClaim;
+}
+
+export interface GroundedExplanationValidation {
+  state: GroundedExplanationValidationState;
+  citedFactIds: string[];
+  unknownFactIds: string[];
+  unsupportedTokens: string[];
+  detail: string;
+}
+
+export interface GroundedExplanationRecord {
+  explanationId: string;
+  subject: GroundedExplanationSubject;
+  style: GroundedExplanationStyle;
+  provider: GroundedExplanationProviderKind;
+  model?: string;
+  state: GroundedExplanationState;
+  packet: GroundedExplanationPacket;
+  content: GroundedExplanationContent;
+  validation: GroundedExplanationValidation;
+  generatedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface GroundedExplanationStatus {
+  capability: "GROUNDED_AI_EXPLANATIONS";
+  state: "AVAILABLE";
+  externalProviderConfigured: boolean;
+  provider: "OpenAI Responses API" | "none";
+  model?: string;
+  structuredOutputEnabled: true;
+  webSearchEnabled: false;
+  toolUseEnabled: false;
+  decisionAuthorityEnabled: false;
+  financialTruthMutationEnabled: false;
+  readinessMutationEnabled: false;
+  permissionMutationEnabled: false;
+  executionMutationEnabled: false;
+  outcomeMutationEnabled: false;
+  deterministicFallbackEnabled: true;
+  checkedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}

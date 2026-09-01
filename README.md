@@ -31,6 +31,7 @@ packages/
   reference-agents/ first-party four-category deterministic A2A services
   commercial/       Offer → Quote → Hire → payment evidence → Marketplace Activation
   permission-checkout/ category-specific reviewed authority → ScopedPermissionRequest → exact grant reconciliation bridge
+  grounded-explanations/ deterministic grounding packets → optional structured explanation → citation validation/fallback
   job-intents/      reviewable Rebalancing job intent lifecycle
   authority/        bounded permission requests, Altana verification and safety prerequisites
   execution-guard/  deterministic PancakeSwap V3 calldata validation
@@ -661,3 +662,16 @@ pnpm verify:agent-studio
 ```
 
 See `docs/AGENT_STUDIO_INTEGRATION.md` and `docs/IMPLEMENTATION_REPORT_AGENT_STUDIO_v0.32.0.md`.
+
+
+## v0.33.0 Grounded AI Explanation Layer
+
+Spotriq can now explain deterministic Findings, AgentServices, Activations, Smart Money Plans and Permission Requests without delegating decisions to AI. The server constructs the grounding packet first; an optional structured-output provider may only explain those facts. Every claim cites packet fact IDs and invalid/unsupported claims fall back to deterministic cited text.
+
+No web search, tool callback, arbitrary user prompt or write-back authority is exposed to the explanation provider. Without `OPENAI_API_KEY`, the same feature remains available through deterministic fallback.
+
+```powershell
+pnpm verify:grounded-explanations
+```
+
+See `docs/GROUNDED_AI_EXPLANATIONS.md` and `docs/IMPLEMENTATION_REPORT_GROUNDED_AI_EXPLANATIONS_v0.33.0.md`.

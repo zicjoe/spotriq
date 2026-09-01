@@ -1,7 +1,7 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.32.0  
-**Implementation status:** BNB Agent Studio normalized integration implemented; v0.31 externally accepted; dependency-aware local validation and external v0.32 acceptance pending.  
+**Current implementation release:** v0.33.0  
+**Implementation status:** Grounded AI Explanation Layer implemented; v0.32 externally accepted; dependency-aware local validation and external v0.33 acceptance pending.  
 **Last state update:** 2026-09-01  
 **Repository role:** concise present-state map; current repository remains implementation truth.
 
@@ -33,6 +33,7 @@ AI explains. Deterministic systems decide.
 - **v0.29 ✅** Smart Money Plans + deterministic compatibility/conflict handling; no shared signer, PermissionGrant, Activation or execution session.
 - **v0.30 ✅** Signed Operator Workspace + canonical ERC-8004 ownership-gated supply lifecycle.
 - **v0.31 ✅** Provider-neutral ERC-8183/x402/B402 paid reconciliation with payment dispatch disabled.
+- **v0.32 ✅** BNB Agent Studio normalized integration with canonical-owner reconciliation and no CLI/payment/execution bypass.
 
 ## Current architecture
 
@@ -40,7 +41,7 @@ AI explains. Deterministic systems decide.
 - `apps/api` — Fastify API.
 - `apps/worker` — worker seam.
 - shared `@spotriq/domain` and `@spotriq/api-contracts`.
-- PostgreSQL migrations `0001`–`0025`.
+- PostgreSQL migrations `0001`–`0026`.
 - deterministic BSC, PancakeSwap, Venus, market-context and Smart Money packages.
 - ERC-8004 discovery, marketplace supply/readiness/Test Lab, and four first-party reference runtimes.
 - `@spotriq/commercial` — Offer/Quote/Hire/Payment/Activation/control/revocation.
@@ -53,6 +54,7 @@ AI explains. Deterministic systems decide.
 - **`@spotriq/operator-workspace` — signed operator authentication, canonical owner claims, provider lifecycle/declarations and Operator Supplied evidence.**
 - **`@spotriq/payment-rails` — provider-neutral ERC-8183/x402/B402 reconciliation.**
 - **`@spotriq/agent-studio` — normalized BNB Agent Studio deployment declarations + canonical/runtime reconciliation without CLI custody.**
+- **`@spotriq/grounded-explanations` — deterministic grounding packets + optional structured AI explanation + citation validation/fallback, with no decision/write authority.**
 
 ## v0.29 — Smart Money Plans + Compatibility/Conflict Handling
 
@@ -169,6 +171,17 @@ Studio metadata remains Operator Supplied. It cannot override marketplace readin
 
 Migration: `0025_agent_studio_integration.sql`. New live gate: `pnpm verify:agent-studio`.
 
+
+
+
+## v0.33 — Grounded AI Explanation Layer
+
+Spotriq now builds server-side grounding packets from deterministic resources for Findings, AgentServices, Activations, Smart Money Plans and ScopedPermissionRequests. Facts carry stable IDs, provenance, observation/method context and limitations.
+
+An optional external model may translate only that packet into structured claims. Every claim must cite known fact IDs. Unsupported citations or numeric/address claims are rejected to a deterministic cited fallback. No arbitrary user prompt, web search, tool call or write callback is exposed.
+
+Migration: `0026_grounded_ai_explanations.sql`. New live gate: `pnpm verify:grounded-explanations`.
+
 ## Next roadmap milestone after acceptance
 
-**v0.33 — Grounded AI Explanation Layer.** AI may explain only structured deterministic evidence and must never decide financial truth, readiness, compatibility, authority, payment, execution eligibility or outcomes.
+**v0.34 — Agent Advantage Measurement + Report.** Measure whether an activated specialist actually helped using only defensible activity/outcome evidence; unsupported financial performance remains `Could Not Assess`.

@@ -1,7 +1,7 @@
 {
   "name": "spotriq",
   "private": true,
-  "version": "0.32.0",
+  "version": "0.33.0",
   "packageManager": "pnpm@10.14.0",
   "type": "module",
   "scripts": {
@@ -26,7 +26,8 @@
     "verify:smart-money-plans": "node scripts/verify-smart-money-plans.mjs",
     "verify:operator-workspace": "node scripts/verify-operator-workspace.mjs",
     "verify:paid-rails": "node scripts/verify-paid-rails.mjs",
-    "verify:agent-studio": "node scripts/verify-agent-studio.mjs"
+    "verify:agent-studio": "node scripts/verify-agent-studio.mjs",
+    "verify:grounded-explanations": "node scripts/verify-grounded-explanations.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

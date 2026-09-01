@@ -1,8 +1,8 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-09-01  
-**Current implementation:** v0.32.0  
-**Current milestone:** Deeper BNB Agent Studio Integration
+**Current implementation:** v0.33.0  
+**Current milestone:** Grounded AI Explanation Layer
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
 
@@ -111,7 +111,7 @@ Acceptance: `API build → pnpm check → Railway migration 0024/deploy → v0.2
 
 ## v0.32.0 — Deeper BNB Agent Studio Integration
 
-**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+**Status: COMPLETE / externally accepted.**
 
 Signed operators can normalize Studio deployment declarations for canonically owned ERC-8004 services. Spotriq reconciles identity/owner, A2A registration, network, service binding, Marketplace Test Lab, declared Studio deploy verification, read-only MCP posture, commerce alignment and storage posture.
 
@@ -121,9 +121,27 @@ Migration: `0025_agent_studio_integration.sql`.
 
 Acceptance: `API build → pnpm check → Railway migration 0025/deploy → v0.22–v0.31 regressions → verify:agent-studio → record acceptance`.
 
+
+## v0.33.0 — Grounded AI Explanation Layer
+
+**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+
+Deterministic Spotriq resources are converted into bounded grounding packets for Findings, AgentServices, Activations, Smart Money Plans and ScopedPermissionRequests. Optional AI may explain only those facts using structured output; every claim must cite known fact IDs and unsupported claims fall back to deterministic cited text.
+
+The explanation provider has no arbitrary user prompt, web/tool access or write-back path. It cannot decide or mutate financial truth, readiness, compatibility, payment, PermissionGrant state, execution eligibility or outcomes.
+
+Migration: `0026_grounded_ai_explanations.sql`.
+
+Acceptance: `API build → pnpm check → Railway migration 0026/deploy → v0.22–v0.32 regressions → verify:grounded-explanations → record acceptance`.
+
+## v0.34.0 — Agent Advantage Measurement + Report
+
+**Status: NEXT after v0.33 acceptance.**
+
+Measure whether an activated specialist actually helped using defensible activity/outcome evidence and explicit time windows. Unsupported financial-performance claims remain `Could Not Assess`; technical success never becomes financial benefit automatically.
+
 ## Later production milestones
 
-- AI explanation only after deterministic truth;
 - Agent Advantage measurement/reporting;
 - observability, failure injection, security and production hardening;
 - BSC Mainnet financial readiness only after explicit approval;

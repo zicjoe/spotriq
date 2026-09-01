@@ -35,6 +35,7 @@ import { createMyAgentsEngine, MemoryMyAgentsStore, MyAgentsError, PostgresMyAge
 import { createSmartMoneyPlanEngine, MemorySmartMoneyPlanStore, PostgresSmartMoneyPlanStore, SmartMoneyPlanError, type SmartMoneyPlanEngine } from "@spotriq/smart-money-plans";
 import { createOperatorWorkspaceEngine, MemoryOperatorWorkspaceStore, OperatorWorkspaceError, PostgresOperatorWorkspaceStore, type OperatorWorkspaceEngine } from "@spotriq/operator-workspace";
 import { AgentStudioError, createAgentStudioEngine, MemoryAgentStudioStore, PostgresAgentStudioStore, type AgentStudioEngine } from "@spotriq/agent-studio";
+import { createGroundedExplanationEngine, GroundedExplanationError, MemoryGroundedExplanationStore, OpenAiResponsesExplanationProvider, PostgresGroundedExplanationStore, type GroundedExplanationEngine } from "@spotriq/grounded-explanations";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
@@ -61,6 +62,7 @@ import { registerSmartMoneyPlanRoutes } from "./routes/smart-money-plans.js";
 import { registerOperatorWorkspaceRoutes } from "./routes/operator-workspace.js";
 import { registerPaymentRailRoutes } from "./routes/payment-rails.js";
 import { registerAgentStudioRoutes } from "./routes/agent-studio.js";
+import { registerGroundedExplanationRoutes } from "./routes/grounded-explanations.js";
 import { createReferenceAgentCatalog, type ReferenceAgentIdentityBinding, type ReferenceAgentSlug } from "@spotriq/reference-agents";
 
 export interface BuildServerOptions {
@@ -88,6 +90,7 @@ export interface BuildServerOptions {
   smartMoneyPlans?: SmartMoneyPlanEngine;
   operatorWorkspace?: OperatorWorkspaceEngine;
   agentStudio?: AgentStudioEngine;
+  groundedExplanations?: GroundedExplanationEngine;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -247,6 +250,20 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const myAgents = options.myAgents ?? createMyAgentsEngine({ store: myAgentsStore, commercial, marketplace: marketplaceSupply, permissionCheckout, activityOutcomes: activationActivityOutcomes });
   const smartMoneyPlanStore = sqlDatabase ? new PostgresSmartMoneyPlanStore(sqlDatabase) : new MemorySmartMoneyPlanStore();
   const smartMoneyPlans = options.smartMoneyPlans ?? createSmartMoneyPlanEngine({ store: smartMoneyPlanStore, smartMoney, marketplace: marketplaceSupply, myAgents });
+  const groundedExplanationStore = sqlDatabase ? new PostgresGroundedExplanationStore(sqlDatabase) : new MemoryGroundedExplanationStore();
+  const groundedExplanationProvider = config.openAiApiKey
+    ? new OpenAiResponsesExplanationProvider(config.openAiApiKey, config.groundedExplanationModel, config.groundedExplanationTimeoutMs)
+    : undefined;
+  const groundedExplanations = options.groundedExplanations ?? createGroundedExplanationEngine({
+    store: groundedExplanationStore,
+    smartMoney,
+    marketplace: marketplaceSupply,
+    commercial,
+    permissionCheckout,
+    activationActivityOutcomes,
+    smartMoneyPlans,
+    provider: groundedExplanationProvider,
+  });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
@@ -267,7 +284,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.32.0",
+      version: "0.33.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -361,6 +378,11 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       agentStudioIntegrationEnabled: true,
       agentStudioDeploymentReconciliationEnabled: true,
       agentStudioCliDispatchEnabled: false,
+      groundedAiExplanationEnabled: true,
+      groundedAiExternalProviderConfigured: Boolean(config.openAiApiKey),
+      groundedAiStructuredOutputEnabled: true,
+      groundedAiWebSearchEnabled: false,
+      groundedAiDecisionAuthorityEnabled: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
@@ -404,6 +426,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "v0.30 adds a signed-wallet Operator Workspace. Operator writes require a one-time EIP-191 challenge, an expiring server session, and canonical ERC-8004 ownership matching the authenticated wallet. Operator declarations remain Operator Supplied evidence and cannot force Marketplace Test Lab evidence or readiness to READY.",
         "v0.31 paid rails remain provider-neutral: ERC-8183 observes BSC job/escrow state and x402/B402 reconcile canonical BSC ERC-20 settlement; Spotriq does not sign or dispatch payments.",
         "v0.32 normalizes BNB Agent Studio deployment declarations for canonically owned operator services, then reconciles A2A registration and Marketplace Test Lab evidence. Spotriq does not run the bag CLI, ingest Studio wallet secrets, override readiness, or dispatch payment/financial execution.",
+        "v0.33 adds a grounded explanation layer. The optional OpenAI Responses provider receives only server-built deterministic fact packets, uses structured output without web/tools, and every claim must cite known fact IDs. Invalid provider output falls back to a deterministic cited summary; AI cannot mutate financial truth or decision resources.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
       ],
@@ -436,6 +459,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerSmartMoneyPlanRoutes(app, smartMoneyPlans);
   await registerOperatorWorkspaceRoutes(app, operatorWorkspace);
   await registerAgentStudioRoutes(app, agentStudio, operatorWorkspace);
+  await registerGroundedExplanationRoutes(app, groundedExplanations);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {
@@ -488,6 +512,14 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     if (error instanceof JobIntentError) {
       const statusCode = error.code === "JOB_INTENT_NOT_FOUND" ? 404 : error.code === "MATCH_REQUIRED" || error.code === "UNSUPPORTED_FINDING" || error.code === "INVALID_STATE" ? 422 : 400;
       const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
+      return reply.code(statusCode).send(body);
+    }
+
+    if (error instanceof GroundedExplanationError) {
+      const statusCode = error.code === "SUBJECT_NOT_FOUND" ? 404
+        : error.code === "WRONG_BUYER" || error.code === "CONTEXT_REQUIRED" ? 422
+          : 400;
+      const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: false, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
       return reply.code(statusCode).send(body);
     }
 

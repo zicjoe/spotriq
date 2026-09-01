@@ -23,6 +23,8 @@ const config: ServerConfig = {
   serviceTaskMaxResponseBytes: 384000,
   serviceTaskMaxRedirects: 2,
   referenceAgentRegistryChainId: 97,
+  groundedExplanationModel: "gpt-5.6-luna",
+  groundedExplanationTimeoutMs: 12000,
   referenceAgentIds: {},
 };
 

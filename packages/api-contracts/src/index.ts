@@ -108,6 +108,11 @@ export interface CapabilityResponse {
   agentStudioIntegrationEnabled: boolean;
   agentStudioDeploymentReconciliationEnabled: boolean;
   agentStudioCliDispatchEnabled: boolean;
+  groundedAiExplanationEnabled: boolean;
+  groundedAiExternalProviderConfigured: boolean;
+  groundedAiStructuredOutputEnabled: boolean;
+  groundedAiWebSearchEnabled: boolean;
+  groundedAiDecisionAuthorityEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -570,3 +575,17 @@ export interface ImportAgentStudioDeploymentRequest {
 export interface AgentStudioDeploymentResponse { deployment: import("@spotriq/domain").AgentStudioDeploymentDeclaration; }
 export interface AgentStudioReconciliationResponse { reconciliation: import("@spotriq/domain").AgentStudioDeploymentReconciliation; }
 export interface AgentStudioOperatorStateResponse { state: import("@spotriq/domain").AgentStudioOperatorState; }
+
+// v0.33 Grounded AI Explanation Layer
+export interface GroundedExplanationSubjectRequest {
+  subjectType: import("@spotriq/domain").GroundedExplanationSubjectType;
+  subjectId: string;
+  contextId?: string;
+  buyerAddress?: string;
+}
+export interface CreateGroundedExplanationRequest extends GroundedExplanationSubjectRequest {
+  style?: import("@spotriq/domain").GroundedExplanationStyle;
+}
+export interface GroundedExplanationStatusResponse { status: import("@spotriq/domain").GroundedExplanationStatus; }
+export interface GroundedExplanationPacketResponse { packet: import("@spotriq/domain").GroundedExplanationPacket; }
+export interface GroundedExplanationResponse { explanation: import("@spotriq/domain").GroundedExplanationRecord; }

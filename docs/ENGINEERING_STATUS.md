@@ -1,12 +1,12 @@
 # Spotriq Engineering Status
 
-**Release candidate:** v0.32.0  
+**Release candidate:** v0.33.0  
 **Date:** 2026-09-01  
-**State:** BNB Agent Studio normalized integration implemented; v0.31 externally accepted; local dependency-aware validation and external v0.32 acceptance pending.
+**State:** Grounded AI Explanation Layer implemented; v0.32 externally accepted; local dependency-aware validation and external v0.33 acceptance pending.
 
 ## Accepted baseline
 
-Production acceptance is complete through v0.31.
+Production acceptance is complete through v0.32.
 
 ## v0.29 package
 
@@ -99,3 +99,14 @@ Reconciliation covers canonical identity/owner, BSC network, Spotriq AgentServic
 Capability truth: `agentStudioIntegrationEnabled = true`, `agentStudioDeploymentReconciliationEnabled = true`, `agentStudioCliDispatchEnabled = false`.
 
 New production gate: `pnpm verify:agent-studio`.
+
+
+## v0.33 Grounded AI Explanation Layer
+
+New package: `@spotriq/grounded-explanations`. It constructs deterministic fact packets for SERVICE, FINDING, ACTIVATION, SMART_MONEY_PLAN and PERMISSION_REQUEST subjects, persists generated/fallback explanations via migration `0026_grounded_ai_explanations.sql`, and exposes status/grounding/explanation APIs.
+
+The optional external provider uses structured output only. Provider claims are accepted only when citations resolve to packet fact IDs and numeric/address tokens are grounded by cited facts. Provider failure or validation rejection falls back to deterministic cited copy.
+
+Capability truth: `groundedAiExplanationEnabled = true`, structured output enabled, web search disabled, decision authority disabled.
+
+New production gate: `pnpm verify:grounded-explanations`.

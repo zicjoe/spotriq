@@ -1,7 +1,7 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.32.0**  
-**Release status:** BNB Agent Studio normalized integration implementation candidate; v0.31 externally accepted; local dependency-aware validation and external v0.32 acceptance pending.  
+**Current repository release:** **v0.33.0**  
+**Release status:** Grounded AI Explanation Layer implementation candidate; v0.32 externally accepted; local dependency-aware validation and external v0.33 acceptance pending.  
 **State date:** 2026-09-01
 
 ## Authority hierarchy
@@ -45,6 +45,7 @@ AI explains. Deterministic systems decide.
 - **v0.29 ✅** persisted Smart Money Plans + compatibility/conflict handling with independent specialist authority/execution.
 - **v0.30 ✅** signed Operator Workspace + canonical ERC-8004 owner-gated supply lifecycle.
 - **v0.31 ✅** paid ERC-8183/x402/B402 reconciliation with payment settlement dispatch disabled.
+- **v0.32 ✅** normalized BNB Agent Studio integration with no CLI/readiness/payment/execution bypass.
 
 ## v0.29 accepted truth
 
@@ -91,3 +92,16 @@ Migration: `0024_paid_commercial_payment_rails.sql`. Acceptance: `pnpm verify:pa
 The integration is intentionally non-custodial and non-bypassable: no `bag` CLI execution, Studio wallet secret ingestion, marketplace readiness override, payment dispatch, PermissionGrant creation or financial execution dispatch.
 
 Migration: `0025_agent_studio_integration.sql`. Acceptance: `pnpm verify:agent-studio`.
+
+
+## v0.33 implementation truth
+
+`@spotriq/grounded-explanations` builds deterministic fact packets downstream of existing Spotriq resources and optionally asks a structured-output model to explain them. Provider output is post-validated against known fact IDs and unsupported numeric/address tokens; invalid/unavailable provider output becomes a deterministic cited fallback.
+
+The provider has no arbitrary prompt, web/tool access or write-back path. AI cannot change evidence, readiness, compatibility, payment, PermissionGrant, execution eligibility or outcomes.
+
+Migration: `0026_grounded_ai_explanations.sql`. Acceptance: `pnpm verify:grounded-explanations`.
+
+## Next milestone after v0.33 acceptance
+
+**v0.34 — Agent Advantage Measurement + Report.**

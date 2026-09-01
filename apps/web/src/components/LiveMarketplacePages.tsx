@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, CheckCircle2, FlaskConical, Play, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 import type { MarketplaceServiceRecord, MarketplaceServiceTestCoverage, NavState, Route } from "../domain/types";
 import { marketplaceSupplyRepository } from "../repositories/marketplaceSupplyRepository";
+import { GroundedExplanationPanel } from "./GroundedExplanationPanel";
 
 type Navigate=(route:Route,params?:Partial<NavState>)=>void;
 const box="rounded-xl border border-white/8 bg-[#151c28]";
@@ -25,6 +26,7 @@ export function LiveAgentProfilePage({serviceId,navigate}:{serviceId:string;navi
     </div>
     <div className={`${box} p-5`}><div className="flex items-center gap-2 mb-3"><ShieldCheck className="w-4 h-4 text-[#2dd4bf]"/><h2 className="font-medium text-[#dde3ef]">Deterministic readiness</h2></div><div className="space-y-2">{(record.readiness.checks??[]).map(check=><div key={check.code} className="flex items-start justify-between gap-4 border-t border-white/6 pt-2"><div><div className="text-xs text-[#dde3ef]">{check.label}</div><div className="text-[11px] text-[#6b7d99] mt-0.5">{check.detail}</div></div><span className={`text-xs font-mono ${stateColor(check.state)}`}>{check.state}</span></div>)}</div></div>
     <div className={`${box} p-5`}><div className="flex items-center justify-between"><div><h2 className="font-medium text-[#dde3ef]">Marketplace Test Lab</h2><p className="text-xs text-[#6b7d99] mt-1">Live bounded tests; this is separate from external ERC-8004 reputation.</p></div><span className={`text-xs font-mono ${tests?.coverage==="PASS"?"text-[#4ade80]":"text-[#f59e0b]"}`}>{tests?.coverage??"NOT RUN"}</span></div>{tests&&<div className="mt-3 space-y-2">{tests.tests.map(test=><div key={test.testId} className="flex justify-between gap-3 text-xs border-t border-white/6 pt-2"><span className="text-[#9aacc4]">{test.label}</span><span className={stateColor(test.state)}>{test.state}</span></div>)}</div>}</div>
+    <GroundedExplanationPanel subjectType="SERVICE" subjectId={serviceId} title="Explain this service" />
     <div className="flex flex-wrap gap-2"><button onClick={()=>navigate("try",{agentId:serviceId})} className="px-4 py-2 rounded-md bg-[#2dd4bf] text-[#07131a] text-sm font-medium flex items-center gap-2"><Play className="w-4 h-4"/>Run Test Lab</button><button onClick={()=>navigate("checkout",{agentId:serviceId})} className="px-4 py-2 rounded-md border border-white/12 text-sm text-[#dde3ef]">Review / Hire</button></div>
     <div className="text-[10px] text-[#52637b]">{record.limitations.join(" ")}</div>
   </div>;

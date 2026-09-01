@@ -46,6 +46,9 @@ export interface ServerConfig {
   agentRegistryMainnetRpc?: string;
   agentRegistryTestnetRpc?: string;
   referenceAgentRegistryChainId: 56 | 97;
+  openAiApiKey?: string;
+  groundedExplanationModel: string;
+  groundedExplanationTimeoutMs: number;
   referenceAgentIds: {
     rangekeeper?: string;
     gridpilot?: string;
@@ -155,6 +158,9 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     agentRegistryMainnetRpc: optional(env.AGENT_REGISTRY_MAINNET_RPC),
     agentRegistryTestnetRpc: optional(env.AGENT_REGISTRY_TESTNET_RPC),
     referenceAgentRegistryChainId: parseReferenceAgentRegistryChainId(env.REFERENCE_AGENT_REGISTRY_CHAIN_ID, bscNetwork),
+    openAiApiKey: optional(env.OPENAI_API_KEY),
+    groundedExplanationModel: optional(env.SPOTRIQ_EXPLANATION_MODEL) ?? "gpt-5.6-luna",
+    groundedExplanationTimeoutMs: parsePositiveInt(env.SPOTRIQ_EXPLANATION_TIMEOUT_MS, 12000, "SPOTRIQ_EXPLANATION_TIMEOUT_MS"),
     referenceAgentIds: {
       rangekeeper: parseOptionalAgentId(env.REFERENCE_AGENT_RANGEKEEPER_ID, "REFERENCE_AGENT_RANGEKEEPER_ID"),
       gridpilot: parseOptionalAgentId(env.REFERENCE_AGENT_GRIDPILOT_ID, "REFERENCE_AGENT_GRIDPILOT_ID"),

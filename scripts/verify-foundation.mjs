@@ -195,6 +195,16 @@ const required = [
   "scripts/verify-agent-studio.mjs",
   "docs/AGENT_STUDIO_INTEGRATION.md",
   "docs/IMPLEMENTATION_REPORT_AGENT_STUDIO_v0.32.0.md",
+  "packages/grounded-explanations/package.json",
+  "packages/grounded-explanations/src/index.ts",
+  "packages/grounded-explanations/src/index.test.ts",
+  "packages/db/migrations/0026_grounded_ai_explanations.sql",
+  "apps/api/src/routes/grounded-explanations.ts",
+  "apps/web/src/repositories/groundedExplanationRepository.ts",
+  "apps/web/src/components/GroundedExplanationPanel.tsx",
+  "scripts/verify-grounded-explanations.mjs",
+  "docs/GROUNDED_AI_EXPLANATIONS.md",
+  "docs/IMPLEMENTATION_REPORT_GROUNDED_AI_EXPLANATIONS_v0.33.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -208,11 +218,11 @@ for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper
   if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
 }
 const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
-if (!projectState.includes("v0.31 ✅") || !projectState.includes("v0.32") || !projectState.includes("Agent Studio")) {
-  throw new Error("PROJECT_STATE.md must record externally accepted v0.31 and the current v0.32 Agent Studio candidate.");
+if (!projectState.includes("v0.32 ✅") || !projectState.includes("v0.33") || !projectState.includes("Grounded AI")) {
+  throw new Error("PROJECT_STATE.md must record externally accepted v0.32 and the current v0.33 Grounded AI candidate.");
 }
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
-for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation", "v0.32.0 — Deeper BNB Agent Studio Integration"]) {
+for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation", "v0.32.0 — Deeper BNB Agent Studio Integration", "v0.33.0 — Grounded AI Explanation Layer"]) {
   if (!correctedRoadmap.includes(marker)) throw new Error(`Corrected roadmap is missing ${marker}.`);
 }
 
@@ -895,7 +905,7 @@ for (const marker of ["same-service switch", "BLOCKED", "/my-agents", "/switches
   if (!myAgentsVerifier.includes(marker)) throw new Error(`v0.28 live verifier is missing ${marker}.`);
 }
 if (rootManifest.scripts?.["verify:my-agents"] !== "node scripts/verify-my-agents.mjs") throw new Error("Root package.json must expose pnpm verify:my-agents.");
-if (!apiApp.includes('version: "0.32.0"')) throw new Error("API metadata must report v0.31.0 after v0.30 acceptance.");
+if (!apiApp.includes('version: "0.33.0"')) throw new Error("API metadata must report v0.33.0.");
 
 
 // v0.29 — Smart Money Plans + Compatibility/Conflict Handling.
@@ -933,7 +943,7 @@ for (const marker of ["NO_SHARED_EXECUTION", "INDEPENDENT_PER_SERVICE", "/plans"
 }
 if (legacyMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes('apiRequest<SmartMoneyPlanTemplate[]>("/v1/plans")')) throw new Error("Legacy marketplace repositories must not reuse the persisted /v1/plans namespace for mock plan templates.");
 if (rootManifest.scripts?.["verify:smart-money-plans"] !== "node scripts/verify-smart-money-plans.mjs") throw new Error("Root package.json must expose pnpm verify:smart-money-plans.");
-if (!apiApp.includes('version: "0.32.0"')) throw new Error("API metadata must report v0.31.0.");
+if (!apiApp.includes('version: "0.33.0"')) throw new Error("API metadata must report v0.33.0.");
 
 
 
@@ -1004,6 +1014,26 @@ for (const marker of ["agentStudioIntegrationEnabled: true", "agentStudioDeploym
 for (const marker of ["NORMALIZED_ADAPTER", "canonical-owner", "studioCliDispatchEnabled", "paymentOrExecutionDispatchEnabled", "Agent Studio normalized integration contract passed"]) { if (!agentStudioVerifier.toLowerCase().includes(marker.toLowerCase())) throw new Error(`v0.32 live verifier is missing ${marker}.`); }
 if (rootManifest.scripts?.["verify:agent-studio"] !== "node scripts/verify-agent-studio.mjs") throw new Error("Root package.json must expose pnpm verify:agent-studio.");
 
+
+// v0.33 — Grounded AI Explanation Layer.
+const groundedExplanations = await readFile(path.join(root, "packages/grounded-explanations/src/index.ts"), "utf8");
+const groundedExplanationRoutes = await readFile(path.join(root, "apps/api/src/routes/grounded-explanations.ts"), "utf8");
+const groundedExplanationRepo = await readFile(path.join(root, "apps/web/src/repositories/groundedExplanationRepository.ts"), "utf8");
+const groundedExplanationUi = await readFile(path.join(root, "apps/web/src/components/GroundedExplanationPanel.tsx"), "utf8");
+const migration0026 = await readFile(path.join(root, "packages/db/migrations/0026_grounded_ai_explanations.sql"), "utf8");
+const groundedExplanationVerifier = await readFile(path.join(root, "scripts/verify-grounded-explanations.mjs"), "utf8");
+for (const marker of ["GroundedExplanationPacket", "GroundedExplanationFact", "GroundedExplanationRecord", "GroundedExplanationStatus", "DETERMINISTIC_FALLBACK"]) { if (!domain.includes(marker)) throw new Error(`v0.33 domain model is missing ${marker}.`); }
+for (const marker of ["OpenAiResponsesExplanationProvider", "store: false", "json_schema", "deterministicFallback", "validateContent", "unsupportedTokens", "webSearchEnabled: false", "decisionAuthorityEnabled: false"]) { if (!groundedExplanations.includes(marker)) throw new Error(`v0.33 grounded explanation engine is missing ${marker}.`); }
+for (const route of ["/v1/explanations/status", "/v1/explanations/grounding", "/v1/explanations", "/v1/explanations/:explanationId"]) { if (!groundedExplanationRoutes.includes(route)) throw new Error(`Missing v0.33 grounded explanation route ${route}.`); }
+for (const marker of ["grounded_ai_explanations", "grounding_packet_hash", "payload", "subject_type"]) { if (!migration0026.includes(marker)) throw new Error(`v0.33 migration is missing ${marker}.`); }
+for (const marker of ["explain", "grounding", "status"]) { if (!groundedExplanationRepo.includes(marker)) throw new Error(`v0.33 web explanation repository is missing ${marker}.`); }
+for (const marker of ["Grounded explanation", "Show grounding packet", "No web/tools or write-back authority", "DETERMINISTIC FALLBACK"]) { if (!groundedExplanationUi.includes(marker)) throw new Error(`v0.33 grounded explanation UI is missing ${marker}.`); }
+for (const marker of ["groundedAiExplanationEnabled: true", "groundedAiStructuredOutputEnabled: true", "groundedAiWebSearchEnabled: false", "groundedAiDecisionAuthorityEnabled: false"]) { if (!apiApp.includes(marker)) throw new Error(`API capabilities must expose truthful v0.33 feature ${marker}.`); }
+for (const marker of ["deterministic grounding packet", "citation validation", "no decision/write authority", "groundedAiWebSearchEnabled"]) { if (!groundedExplanationVerifier.toLowerCase().includes(marker.toLowerCase())) throw new Error(`v0.33 live verifier is missing ${marker}.`); }
+if (groundedExplanationRoutes.includes("prompt")) throw new Error("v0.33 public explanation API must not expose an arbitrary prompt field.");
+if (groundedExplanations.includes('"web_search"') || groundedExplanations.includes("'web_search'")) throw new Error("v0.33 explanation provider must not enable web search tools.");
+if (rootManifest.scripts?.["verify:grounded-explanations"] !== "node scripts/verify-grounded-explanations.mjs") throw new Error("Root package.json must expose pnpm verify:grounded-explanations.");
+
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const output = [];
@@ -1016,11 +1046,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 33) throw new Error(`v0.32 expects 33 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 34) throw new Error(`v0.33 expects 34 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.32.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.32.0.`);
+  if (manifest.version !== "0.33.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.33.0.`);
 }
 
-console.log("Spotriq foundation + accepted v0.22–v0.31 + v0.32 BNB Agent Studio normalized integration verification passed.");
+console.log("Spotriq foundation + accepted v0.22–v0.32 + v0.33 Grounded AI Explanation Layer verification passed.");
 
