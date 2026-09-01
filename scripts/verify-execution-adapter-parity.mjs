@@ -14,15 +14,49 @@ for(const category of ["rebalancing","grid","yield","health"]){const adapter=cat
 let tokenId=String(process.env.SPOTRIQ_ACCEPTANCE_RANGEKEEPER_TOKEN_ID||"").trim();
 let poolAddress=String(process.env.SPOTRIQ_ACCEPTANCE_GRID_POOL_ADDRESS||"").trim().toLowerCase();
 let gridAsset=String(process.env.SPOTRIQ_ACCEPTANCE_AUTHORITY_ASSET_ADDRESS||"").trim().toLowerCase();
-if(!tokenId||!poolAddress||!gridAsset){try{const positions=(await json(`/v1/wallets/${encodeURIComponent(buyer)}/pancakeswap/positions?max=20`))?.snapshot?.positions??[];const v3=positions.find(item=>item?.version==="V3"&&item?.tokenId&&item?.pool?.poolAddress&&item?.pool?.token0?.address);if(!tokenId&&v3?.tokenId)tokenId=String(v3.tokenId);if(!poolAddress&&v3?.pool?.poolAddress)poolAddress=String(v3.pool.poolAddress).toLowerCase();if(!gridAsset&&v3?.pool?.token0?.address)gridAsset=String(v3.pool.token0.address).toLowerCase();}catch{}}
+if(!tokenId||!poolAddress||!gridAsset){
+ try{
+  if(tokenId){
+   const position=(await json(`/v1/protocols/pancakeswap/positions/v3/${encodeURIComponent(tokenId)}`))?.position;
+   if(!poolAddress&&position?.pool?.poolAddress)poolAddress=String(position.pool.poolAddress).toLowerCase();
+   if(!gridAsset&&position?.pool?.token0?.address)gridAsset=String(position.pool.token0.address).toLowerCase();
+  }
+  if(!tokenId||!poolAddress||!gridAsset){
+   const positions=(await json(`/v1/wallets/${encodeURIComponent(buyer)}/pancakeswap/positions?max=20`))?.snapshot?.positions??[];
+   const v3=positions.find(item=>item?.version==="V3"&&item?.tokenId&&item?.pool?.poolAddress&&item?.pool?.token0?.address);
+   if(!tokenId&&v3?.tokenId)tokenId=String(v3.tokenId);
+   if(!poolAddress&&v3?.pool?.poolAddress)poolAddress=String(v3.pool.poolAddress).toLowerCase();
+   if(!gridAsset&&v3?.pool?.token0?.address)gridAsset=String(v3.pool.token0.address).toLowerCase();
+  }
+ }catch(error){
+  console.warn(`WARN: automatic v0.26 PancakeSwap acceptance-context discovery was unavailable: ${error instanceof Error?error.message:String(error)}`);
+ }
+}
 if(!/^\d+$/.test(tokenId))throw new Error("Set SPOTRIQ_ACCEPTANCE_RANGEKEEPER_TOKEN_ID to a readable BSC Testnet PancakeSwap V3 position tokenId.");
 if(!/^0x[0-9a-f]{40}$/.test(poolAddress))throw new Error("Set SPOTRIQ_ACCEPTANCE_GRID_POOL_ADDRESS to a readable BSC Testnet PancakeSwap V3 pool.");
 if(!/^0x[0-9a-f]{40}$/.test(gridAsset))throw new Error("Set SPOTRIQ_ACCEPTANCE_AUTHORITY_ASSET_ADDRESS to a token in the reviewed Grid pool.");
 
 let venusMarket=String(process.env.SPOTRIQ_ACCEPTANCE_VENUS_MARKET_ADDRESS||"").trim().toLowerCase();
 let venusAsset=String(process.env.SPOTRIQ_ACCEPTANCE_VENUS_ASSET_ADDRESS||"").trim().toLowerCase();
-if(!venusMarket||!venusAsset){try{const opportunities=(await json(`/v1/wallets/${encodeURIComponent(buyer)}/venus/yield-opportunities`))?.snapshot?.opportunities??[];const candidate=opportunities.find(o=>o?.vToken&&o?.underlying?.address&&/^0x[0-9a-fA-F]{40}$/.test(o.underlying.address));if(!venusMarket&&candidate?.vToken)venusMarket=String(candidate.vToken).toLowerCase();if(!venusAsset&&candidate?.underlying?.address)venusAsset=String(candidate.underlying.address).toLowerCase();}catch{}}
-if(!/^0x[0-9a-f]{40}$/.test(venusMarket)||!/^0x[0-9a-f]{40}$/.test(venusAsset))throw new Error("Set SPOTRIQ_ACCEPTANCE_VENUS_MARKET_ADDRESS and SPOTRIQ_ACCEPTANCE_VENUS_ASSET_ADDRESS to a real BSC Testnet Venus ERC-20 vToken market/underlying pair if automatic discovery is unavailable.");
+if(!venusMarket||!venusAsset){
+ try{
+  const markets=(await json("/v1/protocols/venus/markets"))?.snapshot?.markets??[];
+  const candidate=markets.find(m=>m?.vToken&&/^0x[0-9a-fA-F]{40}$/.test(m.vToken)&&m?.underlying?.address&&/^0x[0-9a-fA-F]{40}$/.test(m.underlying.address)&&m.underlying.address.toLowerCase()!=="0x0000000000000000000000000000000000000000");
+  if(!venusMarket&&candidate?.vToken)venusMarket=String(candidate.vToken).toLowerCase();
+  if(!venusAsset&&candidate?.underlying?.address)venusAsset=String(candidate.underlying.address).toLowerCase();
+ }catch(error){
+  console.warn(`WARN: wallet-independent Venus market discovery was unavailable: ${error instanceof Error?error.message:String(error)}`);
+ }
+}
+if(!venusMarket||!venusAsset){
+ try{
+  const opportunities=(await json(`/v1/wallets/${encodeURIComponent(buyer)}/venus/yield-opportunities`))?.snapshot?.opportunities??[];
+  const candidate=opportunities.find(o=>o?.vToken&&o?.underlying?.address&&/^0x[0-9a-fA-F]{40}$/.test(o.underlying.address));
+  if(!venusMarket&&candidate?.vToken)venusMarket=String(candidate.vToken).toLowerCase();
+  if(!venusAsset&&candidate?.underlying?.address)venusAsset=String(candidate.underlying.address).toLowerCase();
+ }catch{}
+}
+if(!/^0x[0-9a-f]{40}$/.test(venusMarket)||!/^0x[0-9a-f]{40}$/.test(venusAsset))throw new Error("Could not derive a live BSC Testnet Venus ERC-20 market. You may set SPOTRIQ_ACCEPTANCE_VENUS_MARKET_ADDRESS and SPOTRIQ_ACCEPTANCE_VENUS_ASSET_ADDRESS explicitly, but the verifier now prefers Spotriq's wallet-independent Venus market catalog.");
 
 const services=[
  {slug:"rangekeeper",category:"rebalancing",scope:{category:"rebalancing",positionTokenId:tokenId,token0Limit:"1",token1Limit:"1",maxActionsPerDay:4},proposal:{category:"rebalancing",action:"REBALANCING_EXISTING_BOUNDARY"}},

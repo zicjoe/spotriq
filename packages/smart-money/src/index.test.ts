@@ -211,6 +211,7 @@ test("Smart Money Check keeps partial financial coverage explicit while enabling
     getStatus: async () => { throw new Error("not used"); },
     getWalletPositions: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt, contracts: { network: "testnet" as const, protocolShareReserve: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", corePoolComptroller: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", poolRegistry: "0xcccccccccccccccccccccccccccccccccccccccc" }, positions: [makeVenusPosition("WATCH")], coverage: { corePool: "AVAILABLE" as const, isolatedPools: "AVAILABLE" as const, failedComptrollers: [] } }),
     getYieldOpportunities: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt, opportunities: [], coverage: { venusMarkets: "AVAILABLE" as const, pancakeSwapYieldContext: "NOT_AVAILABLE" as const, failedMarketRefs: [], truncated: false }, limitations: [] }),
+    getMarketCatalog: async () => ({ protocol: "Venus" as const, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt, markets: [], coverage: { venusMarkets: "AVAILABLE" as const, failedMarketRefs: [], truncated: false }, limitations: [] }),
   } satisfies VenusReader;
 
   const marketContext: GridMarketContextReader = {

@@ -275,6 +275,7 @@ test("GET Venus status exposes health-monitoring capabilities", async () => {
       coverageNotes: ["test"],
     }),
     getWalletPositions: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt: new Date().toISOString(), contracts: { network: "testnet" as const, protocolShareReserve: "0x25c7c7D6Bf710949fD7f03364E9BA19a1b3c10E3" }, positions: [], coverage: { corePool: "AVAILABLE" as const, isolatedPools: "AVAILABLE" as const, failedComptrollers: [] } }),
+    getMarketCatalog: async () => ({ protocol: "Venus" as const, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt: new Date().toISOString(), markets: [], coverage: { venusMarkets: "AVAILABLE" as const, failedMarketRefs: [], truncated: false }, limitations: [] }),
     getYieldOpportunities: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt: new Date().toISOString(), opportunities: [], coverage: { venusMarkets: "AVAILABLE" as const, pancakeSwapYieldContext: "NOT_AVAILABLE" as const, failedMarketRefs: [], truncated: false }, limitations: [] }),
   };
   const app = await buildServer({ config, chain: makeChain(), venus, logger: false });
@@ -285,10 +286,25 @@ test("GET Venus status exposes health-monitoring capabilities", async () => {
   await app.close();
 });
 
+test("GET Venus market catalog exposes wallet-independent supported markets", async () => {
+  const venus = {
+    getStatus: async () => { throw new Error("not used"); },
+    getWalletPositions: async () => { throw new Error("not used"); },
+    getYieldOpportunities: async () => { throw new Error("not used"); },
+    getMarketCatalog: async () => ({ protocol: "Venus" as const, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt: new Date().toISOString(), markets: [{ protocol: "Venus" as const, network: "testnet" as const, chainId: 97, poolKind: "CORE" as const, poolName: "Core Pool", comptroller: "0x1111111111111111111111111111111111111111", vToken: "0x2222222222222222222222222222222222222222", underlying: { address: "0x3333333333333333333333333333333333333333", symbol: "USDT", decimals: 18, isNative: false }, blockNumber: "100", observedAt: new Date().toISOString() }], coverage: { venusMarkets: "AVAILABLE" as const, failedMarketRefs: [], truncated: false }, limitations: [] }),
+  };
+  const app = await buildServer({ config, chain: makeChain(), venus, logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/protocols/venus/markets" });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().data.snapshot.markets[0].underlying.symbol, "USDT");
+  await app.close();
+});
+
 test("GET Venus yield opportunities exposes normalized current-rate context", async () => {
   const venus = {
     getStatus: async () => { throw new Error("not used"); },
     getWalletPositions: async () => { throw new Error("not used"); },
+    getMarketCatalog: async () => { throw new Error("not used"); },
     getYieldOpportunities: async (walletAddress: string) => ({ walletAddress, network: "testnet" as const, chainId: 97, blockNumber: "100", observedAt: new Date().toISOString(), opportunities: [], coverage: { venusMarkets: "AVAILABLE" as const, pancakeSwapYieldContext: "NOT_AVAILABLE" as const, failedMarketRefs: [], truncated: false }, limitations: [] }),
   };
   const app = await buildServer({ config, chain: makeChain(), venus, logger: false });

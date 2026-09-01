@@ -1494,6 +1494,34 @@ export interface YieldWalletSnapshot {
   limitations: string[];
 }
 
+export interface VenusMarketCatalogEntry {
+  protocol: "Venus";
+  network: BscNetwork;
+  chainId: number;
+  poolKind: VenusPoolKind;
+  poolName: string;
+  comptroller: string;
+  vToken: string;
+  underlying: ProtocolTokenMetadata;
+  blockNumber: string;
+  observedAt: string;
+}
+
+export interface VenusMarketCatalogSnapshot {
+  protocol: "Venus";
+  network: BscNetwork;
+  chainId: number;
+  blockNumber: string;
+  observedAt: string;
+  markets: VenusMarketCatalogEntry[];
+  coverage: {
+    venusMarkets: "AVAILABLE" | "PARTIAL" | "FAILED";
+    failedMarketRefs: string[];
+    truncated: boolean;
+  };
+  limitations: string[];
+}
+
 
 export type GridMarketRegime = "RANGE_LIKE" | "TRENDING_UP" | "TRENDING_DOWN" | "MIXED" | "INSUFFICIENT_HISTORY";
 

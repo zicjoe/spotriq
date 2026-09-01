@@ -182,6 +182,10 @@ export interface VenusYieldOpportunitiesResponse {
   snapshot: import("@spotriq/domain").YieldWalletSnapshot;
 }
 
+export interface VenusMarketCatalogResponse {
+  snapshot: import("@spotriq/domain").VenusMarketCatalogSnapshot;
+}
+
 export interface StartSmartMoneyCheckRequest {
   walletAddress: string;
   walletControl?: import("@spotriq/domain").WalletControlState;

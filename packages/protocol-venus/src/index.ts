@@ -12,6 +12,8 @@ import type {
   VenusWalletPositionsSnapshot,
   YieldOpportunitySnapshot,
   YieldWalletSnapshot,
+  VenusMarketCatalogEntry,
+  VenusMarketCatalogSnapshot,
 } from "@spotriq/domain";
 import { createEvidenceEnvelope, DATA_SOURCES, EVIDENCE_METHODS } from "@spotriq/evidence";
 import { classifyVenusRisk, VENUS_PRESENTATION_THRESHOLDS } from "./risk.js";
@@ -102,6 +104,7 @@ export interface VenusReader {
   getStatus(): Promise<VenusStatus>;
   getWalletPositions(walletAddress: string): Promise<VenusWalletPositionsSnapshot>;
   getYieldOpportunities(walletAddress: string): Promise<YieldWalletSnapshot>;
+  getMarketCatalog(): Promise<VenusMarketCatalogSnapshot>;
 }
 
 export interface VenusAdapterOptions { chain: BscChainReader; maxPools?: number; maxMarketsPerPool?: number; }
@@ -391,6 +394,57 @@ export function createVenusAdapter(options: VenusAdapterOptions): VenusReader {
 
 
 
+  async function getMarketCatalog(): Promise<VenusMarketCatalogSnapshot> {
+    const observedAt = new Date().toISOString();
+    const { contracts, blockNumber } = await bootstrap();
+    const discovered = await discoverPools(contracts, blockNumber);
+    const failedMarketRefs: string[] = [];
+    let truncated = false;
+    const marketRefs: Array<{ pool: PoolRef; vToken: string }> = [];
+
+    for (const pool of discovered.pools) {
+      try {
+        const all = await read<readonly Address[]>(pool.comptroller, commonComptrollerAbi, "getAllMarkets", [], blockNumber);
+        const markets = all.result.map((address) => normalizeAddress(address));
+        if (markets.length > maxMarkets) truncated = true;
+        for (const vToken of markets.slice(0, maxMarkets)) marketRefs.push({ pool, vToken });
+      } catch {
+        failedMarketRefs.push(`${pool.comptroller}:market-list`);
+      }
+    }
+
+    const scanned = await mapWithConcurrency<{ pool: PoolRef; vToken: string }, VenusMarketCatalogEntry | undefined>(marketRefs, 5, async ({ pool, vToken }) => {
+      try {
+        const isVbnb = Boolean(contracts.vBNB && normalizeAddress(vToken) === normalizeAddress(contracts.vBNB));
+        const underlyingAddressCall = isVbnb ? undefined : await read<Address>(vToken, vTokenAbi, "underlying", [], blockNumber);
+        const underlyingAddress = isVbnb ? ZERO_ADDRESS : underlyingAddressCall ? normalizeAddress(underlyingAddressCall.result) : ZERO_ADDRESS;
+        const underlying: ProtocolTokenMetadata = isVbnb
+          ? { address: ZERO_ADDRESS, symbol: options.chain.definition.nativeSymbol, name: options.chain.definition.nativeSymbol, decimals: 18, isNative: true }
+          : isAddress(underlyingAddress) ? await tokenMetadata(underlyingAddress, blockNumber) : { address: underlyingAddress, isNative: false };
+        return {
+          protocol: "Venus" as const, network: options.chain.network, chainId: options.chain.definition.chainId, poolKind: pool.kind, poolName: pool.name,
+          comptroller: pool.comptroller, vToken, underlying, blockNumber, observedAt,
+        };
+      } catch {
+        failedMarketRefs.push(`${pool.comptroller}:${vToken}`);
+        return undefined;
+      }
+    });
+    const markets = scanned.filter((item): item is VenusMarketCatalogEntry => Boolean(item));
+    return {
+      protocol: "Venus", network: options.chain.network, chainId: options.chain.definition.chainId, blockNumber, observedAt, markets,
+      coverage: {
+        venusMarkets: markets.length === 0 ? "FAILED" : failedMarketRefs.length === 0 && discovered.isolatedOk ? "AVAILABLE" : "PARTIAL",
+        failedMarketRefs, truncated,
+      },
+      limitations: [
+        "This catalog is wallet-independent protocol discovery. It does not imply that the user holds, supplies, borrows, or should interact with any listed market.",
+        "Native-asset vBNB may appear in the catalog, but v0.26 financial execution adapters only prepare ERC-20 Venus market calls.",
+        "Transaction-time supply caps, pauses, liquidity, health state, permission grants, and signer authority must still be refreshed before execution.",
+      ],
+    };
+  }
+
   async function getYieldOpportunities(walletAddress: string): Promise<YieldWalletSnapshot> {
     if (!/^0x[0-9a-fA-F]{40}$/.test(walletAddress)) throw new VenusAdapterError("walletAddress must be a valid EVM address.", "CONTRACT_READ_FAILED");
     const wallet = normalizeAddress(walletAddress);
@@ -485,7 +539,7 @@ export function createVenusAdapter(options: VenusAdapterOptions): VenusReader {
   }
 
 
-  return { getStatus, getWalletPositions, getYieldOpportunities };
+  return { getStatus, getWalletPositions, getYieldOpportunities, getMarketCatalog };
 }
 
 export { classifyVenusRisk, VENUS_PRESENTATION_THRESHOLDS } from "./risk.js";
