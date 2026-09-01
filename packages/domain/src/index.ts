@@ -533,6 +533,169 @@ export interface PermissionRequest {
   status: "DRAFT" | "READY" | "AWAITING_WALLET" | "SUBMITTED" | "CONFIRMED" | "REJECTED" | "FAILED";
 }
 
+export type PermissionCheckoutState = "READY_FOR_REVIEW" | "BLOCKED" | "REQUEST_CREATED" | "GRANT_RECONCILED" | "CANCELLED" | "EXPIRED";
+export type ScopedPermissionRequestState = "BLOCKED" | "PROVIDER_READY" | "GRANT_RECONCILED" | "CANCELLED" | "EXPIRED";
+export type FinancialAuthorityTier = "BOUNDED_FINANCIAL" | "PROTECTIVE_WRITE";
+export type PermissionApprovalMode = "AUTOMATIC_WITHIN_LIMITS" | "ASK_BEFORE_EXECUTION";
+export type PermissionCheckoutBlockerCode =
+  | "SERVICE_READ_ONLY"
+  | "SERVICE_NOT_FINANCIALLY_READY"
+  | "MAINNET_EXECUTION_NOT_APPROVED"
+  | "REBALANCING_JOB_INTENT_REQUIRED"
+  | "AUTHORITY_PROVIDER_BRIDGE_REQUIRED"
+  | "GRID_EXECUTION_ADAPTER_REQUIRED"
+  | "YIELD_EXECUTION_ADAPTER_REQUIRED"
+  | "HEALTH_PROTECTIVE_WRITE_ADAPTER_REQUIRED";
+
+export interface PermissionCheckoutBlocker {
+  code: PermissionCheckoutBlockerCode;
+  label: string;
+  detail: string;
+  blocking: true;
+  provenance: "marketplace-derived";
+}
+
+export type PermissionCheckoutCategoryInput =
+  | {
+      category: "rebalancing";
+      positionTokenId: string;
+      token0Limit: string;
+      token1Limit: string;
+      maxActionsPerDay?: number;
+    }
+  | {
+      category: "grid";
+      poolAddress: string;
+      capitalAssetAddress: string;
+      capitalLimit: string;
+      perActionLimit: string;
+      maxActionsPerDay: number;
+    }
+  | {
+      category: "yield";
+      assetAddress: string;
+      allowedMarketAddresses?: string[];
+      capitalLimit: string;
+      perActionLimit: string;
+      maxActionsPerDay: number;
+    }
+  | {
+      category: "health";
+      assetAddress: string;
+      marketAddresses?: string[];
+      protectiveActions: Array<"REPAY" | "ADD_COLLATERAL">;
+      interventionCap: string;
+      triggerHealthFactor: string;
+      maxInterventionsPerDay: number;
+    };
+
+export interface PermissionCheckoutLimit {
+  code: "DAILY" | "SINGLE_ACTION" | "CAPITAL" | "INTERVENTION" | "ACTION_COUNT" | "HEALTH_TRIGGER" | "TOKEN0_SPEND" | "TOKEN1_SPEND";
+  label: string;
+  value: string;
+  unit: "DISPLAY_AMOUNT" | "COUNT" | "HEALTH_FACTOR";
+  asset?: string;
+  provenance: "user-proposed";
+}
+
+export interface PermissionCheckoutScope {
+  category: ServiceCategory;
+  authorityTier: FinancialAuthorityTier;
+  approvalMode: PermissionApprovalMode;
+  protocol: "PancakeSwap" | "Venus";
+  jobSummary: string;
+  target: {
+    positionTokenId?: string;
+    poolAddress?: string;
+    assetAddresses: string[];
+    marketAddresses: string[];
+  };
+  allowedActions: string[];
+  deniedActions: string[];
+  limits: PermissionCheckoutLimit[];
+  validForMinutes: number;
+  expiresAt: string;
+  categoryContext: Record<string, string | string[] | number | boolean>;
+}
+
+export interface PermissionCheckoutCostSummary {
+  agentFee: { state: "KNOWN" | "UNAVAILABLE"; value: string; detail: string };
+  protocolCosts: { state: "UNAVAILABLE"; value: "Could Not Assess"; detail: string };
+  gas: { state: "UNAVAILABLE"; value: "Could Not Assess"; detail: string };
+  performanceFee: { state: "KNOWN" | "NOT_APPLICABLE" | "UNAVAILABLE"; value: string; detail: string };
+}
+
+export interface PermissionCheckoutRiskSummary {
+  strategyRisk: string;
+  protocolRisk: string;
+  authorityRisk: string;
+  failureBehavior: string;
+  revocationBehavior: string;
+  limitations: string[];
+}
+
+export interface PermissionCheckout {
+  checkoutId: string;
+  activationId: string;
+  serviceId: string;
+  buyerAddress: string;
+  category: ServiceCategory;
+  state: PermissionCheckoutState;
+  idempotencyKey: string;
+  scope: PermissionCheckoutScope;
+  scopeHash: string;
+  commercialTermsHash: string;
+  permissionProfileSnapshot: PermissionProfile;
+  cost: PermissionCheckoutCostSummary;
+  risk: PermissionCheckoutRiskSummary;
+  blockers: PermissionCheckoutBlocker[];
+  provider: PermissionAuthorityProvider | "UNASSIGNED";
+  providerSubmissionState: "BLOCKED" | "JOB_INTENT_REQUIRED" | "CATEGORY_ADAPTER_REQUIRED" | "READY_FOR_PROVIDER" | "RECONCILED";
+  linkedJobIntentId?: string;
+  permissionRequestId?: string;
+  permissionGrantId?: string;
+  reviewSummary: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface ScopedPermissionRequest {
+  permissionRequestId: string;
+  checkoutId: string;
+  activationId: string;
+  serviceId: string;
+  buyerAddress: string;
+  category: ServiceCategory;
+  state: ScopedPermissionRequestState;
+  authorityTier: FinancialAuthorityTier;
+  provider: PermissionAuthorityProvider | "UNASSIGNED";
+  providerSubmissionState: PermissionCheckout["providerSubmissionState"];
+  scopeSnapshot: PermissionCheckoutScope;
+  scopeHash: string;
+  blockers: PermissionCheckoutBlocker[];
+  linkedJobIntentId?: string;
+  linkedBoundedPermissionRequestId?: string;
+  permissionGrantId?: string;
+  reviewedAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface BuyerPermissionState {
+  buyerAddress: string;
+  checkouts: PermissionCheckout[];
+  requests: ScopedPermissionRequest[];
+  activeGrantIds: string[];
+  generatedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
 export type PermissionAuthorityProvider = "ALTANA";
 export type PermissionSpendPeriod = "hour" | "day";
 export type PermissionGrantReconciliationState =

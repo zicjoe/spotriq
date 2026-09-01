@@ -84,6 +84,10 @@ export interface CapabilityResponse {
   fourCategoryActivationTaskParityEnabled: boolean;
   activationControlRevocationEnabled: boolean;
   healthMonitoringSnapshotEnabled: boolean;
+  permissionCheckoutEnabled: boolean;
+  fourCategoryAuthorityScopeParityEnabled: boolean;
+  scopedPermissionRequestEnabled: boolean;
+  permissionGrantReconciliationBridgeEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -295,6 +299,21 @@ export interface MarketplaceActivationResponse { activation: import("@spotriq/do
 export interface ActivationControlResponse { control: import("@spotriq/domain").ActivationControlProfile; }
 export interface RevokeMarketplaceActivationRequest { buyerAddress: string; }
 export interface BuyerCommercialStateResponse { state: import("@spotriq/domain").BuyerCommercialState; }
+
+export interface CreatePermissionCheckoutRequest {
+  buyerAddress: string;
+  idempotencyKey: string;
+  approvalMode: import("@spotriq/domain").PermissionApprovalMode;
+  validForMinutes: number;
+  scope: import("@spotriq/domain").PermissionCheckoutCategoryInput;
+  linkedJobIntentId?: string;
+}
+export interface PermissionCheckoutResponse { checkout: import("@spotriq/domain").PermissionCheckout; }
+export interface ConfirmPermissionCheckoutRequest { buyerAddress: string; }
+export interface ScopedPermissionRequestResponse { request: import("@spotriq/domain").ScopedPermissionRequest; }
+export interface ReconcileScopedPermissionGrantRequest { buyerAddress: string; permissionGrantId: string; }
+export interface CancelPermissionCheckoutRequest { buyerAddress: string; }
+export interface BuyerPermissionStateResponse { state: import("@spotriq/domain").BuyerPermissionState; }
 
 export interface InvokeServiceTaskRequest { activationId?: string; }
 export interface InvokeActivationServiceTaskRequest {

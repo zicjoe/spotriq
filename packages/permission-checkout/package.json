@@ -1,5 +1,5 @@
 {
-  "name": "@spotriq/controlled-execution",
+  "name": "@spotriq/permission-checkout",
   "private": true,
   "version": "0.25.0",
   "type": "module",
@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "@spotriq/domain": "workspace:*",
-    "viem": "2.55.11"
+    "@spotriq/commercial": "workspace:*",
+    "@spotriq/marketplace-supply": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

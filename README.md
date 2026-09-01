@@ -29,6 +29,7 @@ packages/
   marketplace-supply/ financial service normalization, Test Lab, matching, trusted runtime evidence
   reference-agents/ first-party four-category deterministic A2A services
   commercial/       Offer → Quote → Hire → payment evidence → Marketplace Activation
+  permission-checkout/ category-specific reviewed authority → ScopedPermissionRequest → exact grant reconciliation bridge
   job-intents/      reviewable Rebalancing job intent lifecycle
   authority/        bounded permission requests, Altana verification and safety prerequisites
   execution-guard/  deterministic PancakeSwap V3 calldata validation
@@ -444,6 +445,29 @@ POST /v1/execution-plans/:planId/seal-boundary
 GET  /v1/execution-boundaries/:boundaryId
 POST /v1/execution-boundaries/:boundaryId/preflight
 ```
+
+## v0.25.0 Permission Checkout + Scoped Financial Authority Parity
+
+Spotriq now separates a user-reviewed financial authority contract from both the commercial Activation and any provider PermissionGrant. A real ACTIVE relationship can open category-specific Permission Checkout for Rebalancing, Grid, Yield or Health, producing explicit allowed/denied actions, targets, limits, validity, approval mode, known/unknown cost separation, risks and deterministic blockers.
+
+The current four reference services remain `READ_ONLY` / `TESTNET_ONLY`, so their truthful v0.25 result is a persisted **BLOCKED** checkout/request with **no PermissionGrant**. Rebalancing alone can bridge to the existing JobIntent/Altana bounded-authority spine when the exact service/job/position/readiness prerequisites are real. Grid/Yield/Health remain provider-blocked until their category execution adapters and guards are implemented.
+
+New migration: `0018_permission_checkout_scoped_authority.sql`.
+
+Key APIs:
+
+```text
+POST /v1/activations/:activationId/permission-checkouts
+GET  /v1/activations/:activationId/permission-checkout
+GET  /v1/permission-checkouts/:checkoutId
+POST /v1/permission-checkouts/:checkoutId/confirm
+POST /v1/permission-checkouts/:checkoutId/cancel
+GET  /v1/scoped-permission-requests/:permissionRequestId
+POST /v1/scoped-permission-requests/:permissionRequestId/reconcile
+GET  /v1/accounts/:address/permission-state
+```
+
+Live acceptance command after deployment: `pnpm verify:permission-checkout`. See `docs/PERMISSION_CHECKOUT_SCOPED_AUTHORITY.md`.
 
 ## v0.18.0 Boundary-Controlled Altana Financial Session + Financial Readiness
 

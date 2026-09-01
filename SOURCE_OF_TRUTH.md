@@ -1,8 +1,8 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.24.0**  
-**Release status:** implementation candidate complete; local dependency-aware validation and external v0.24 acceptance pending  
-**Updated:** 2026-08-31
+**Current repository release:** **v0.25.0**  
+**Release status:** Permission Checkout + Scoped Financial Authority Parity implementation candidate complete; local dependency-aware validation and external v0.25 acceptance pending  
+**Updated:** 2026-09-01
 
 This file records the current repository/runtime contract. The latest supplied repository/ZIP is implementation truth. `SPOTRIQ_FOUNDATION.md` remains the canonical product doctrine and `PROJECT_STATE.md` is the concise present-state map.
 
@@ -64,7 +64,9 @@ Production v0.23 acceptance passed all four reference services through:
 
 The v0.22 external reference acceptance verifier also passed after the v0.23 deployment.
 
-## v0.24 Four-Category End-to-End Activation Parity
+## Accepted v0.24 Four-Category End-to-End Activation Parity
+
+v0.24 is externally accepted. The production deployment passed `verify:reference-acceptance`, `verify:commercial-acceptance` and `verify:activation-parity` for all four reference services on 2026-09-01.
 
 v0.24 generalizes the **post-Activation read-only runtime relationship** across all four categories while preserving the deeper Rebalancing financial execution spine as a separate authority path.
 
@@ -123,52 +125,69 @@ Health exposes a genuine `SNAPSHOT_OBSERVED` monitoring state when a structured 
 
 The Explore UI uses the same real API contracts after **Hire free read-only** to display controls, request category-specific observations, show runtime/monitoring/outcome state and revoke the marketplace relationship.
 
+## v0.25 Permission Checkout + Scoped Financial Authority Parity
+
+v0.25 inserts a first-class deterministic authority-review layer:
+
+`MarketplaceActivation → PermissionCheckout → ScopedPermissionRequest → PermissionGrant → Execution`
+
+The resources are deliberately distinct. A reviewed scope is not a PermissionGrant, and a PermissionGrant is not Execution.
+
+Category contracts are explicit:
+
+- Rebalancing: exact LP position, token0/token1 spend caps, action count, validity and approval mode.
+- Grid: exact pool/capital asset with capital/per-action/action-count bounds.
+- Yield: exact asset, optional Venus-market allowlist and allocation/action bounds.
+- Health: protective `REPAY`/`ADD_COLLATERAL` only with health trigger, intervention cap and frequency bounds.
+
+Current RangeKeeper/GridPilot/YieldPilot/VenusGuard services remain `READ_ONLY` / `TESTNET_ONLY`, so current v0.25 behavior is intentionally:
+
+`BLOCKED PermissionCheckout → immutable BLOCKED ScopedPermissionRequest → no PermissionGrant`
+
+The blockers preserve service declaration/readiness and category execution prerequisites. Rebalancing is the only category with an existing authority/provider bridge; even there, a provider grant is linked only after buyer/service/JobIntent/request/spend-cap and onchain `EXACT_MATCH` reconciliation.
+
 ## Persistence truth
 
 Migration history is immutable. Current latest migration:
 
-`0017_four_category_activation_tasks.sql`
+`0018_permission_checkout_scoped_authority.sql`
 
-It keeps the existing Rebalancing linkage while allowing legitimate Activation-bound tasks without inventing a `job_intent_id` or `finding_id`, and persists explicit task origin/category/result state.
+It adds durable `permission_checkout_sessions` and `scoped_permission_requests` with buyer/idempotency, Activation/service and optional grant-link constraints. Railway pre-deploy remains `pnpm db:migrate`.
 
-Railway pre-deploy remains:
+## v0.25 HTTP resources
 
-`pnpm db:migrate`
+- `POST /v1/activations/:activationId/permission-checkouts`
+- `GET /v1/activations/:activationId/permission-checkout`
+- `GET /v1/permission-checkouts/:checkoutId`
+- `POST /v1/permission-checkouts/:checkoutId/confirm`
+- `POST /v1/permission-checkouts/:checkoutId/cancel`
+- `GET /v1/scoped-permission-requests/:permissionRequestId`
+- `POST /v1/scoped-permission-requests/:permissionRequestId/reconcile`
+- `GET /v1/accounts/:address/permission-state`
 
-## Existing financial execution truth
-
-The deep Rebalancing path remains intact:
-
-`Finding → compatible AgentService → Job Intent → real A2A ServiceTask/origin proof → bounded permission → reviewed execution plan → sealed execution boundary → scoped financial session → exact approval where needed → controlled BSC Testnet dispatch → independent receipt/post-state → activity/outcome evidence`
-
-v0.24 read-only category parity does not bypass or dilute that chain.
+The web checkout now uses these real APIs and starts from an ACTIVE marketplace relationship. The former mock permission/activation path is not used for this flow.
 
 ## Verification truth
 
 Root commands:
 
 ```powershell
+pnpm --filter @spotriq/api build
 pnpm check
 pnpm verify:reference-acceptance
 pnpm verify:commercial-acceptance
 pnpm verify:activation-parity
+pnpm verify:permission-checkout
 ```
 
-`verify:activation-parity` performs, for all four reference services:
-
-`fresh Test Lab → FREE Offer → Quote → Hire → Activation → category control → Activation-bound runtime observation → truthful outcome/monitoring classification → relationship revocation`
-
-RangeKeeper/GridPilot require real readable PancakeSwap Testnet context; the verifier attempts discovery from the acceptance wallet and otherwise requires explicit real token/pool inputs. It does not substitute dummy values.
-
-Repository/static verification alone is not external acceptance. v0.24 acceptance sequence is:
-
-`pnpm --filter @spotriq/api build → pnpm check → commit/push → Railway migration 0017/deploy → v0.22 reference regression → v0.23 commercial regression → v0.24 activation-parity verifier → record acceptance`
+The first three production verifiers are accepted v0.22–v0.24 regression contracts. `verify:permission-checkout` is the v0.25 acceptance contract and must prove all four current reference services preserve BLOCKED scoped authority with no fabricated PermissionGrant.
 
 ## Current roadmap position
 
 - v0.22.x — external reference-agent acceptance: **complete**.
 - v0.23.0 — commercial hiring/read-only Activation: **externally accepted**.
-- v0.24.0 — four-category read-only Activation/runtime parity: **implementation candidate complete; acceptance pending**.
-- v0.25.0 — Live Explore, Compare, Try and Service Profile Completion: **next after v0.24 acceptance**.
+- v0.24.0 — four-category read-only Activation/runtime parity: **externally accepted**.
+- v0.25.0 — Permission Checkout + Scoped Financial Authority Parity: **implementation candidate; acceptance pending**.
+- v0.26.0 — Four-Category Financial Execution Adapter Parity: **next after acceptance**.
 
-Do not broaden transactional work to BSC Mainnet without explicit approval.
+Do not broaden transactional or authority work to BSC Mainnet without explicit approval.

@@ -1,283 +1,111 @@
 # Spotriq Corrected Roadmap
 
-**Reconciled:** 2026-08-31  
-**Current implementation:** v0.24.0  
-**Historical baseline added:** foundational Master Product + Engineering Continuation checkpoint
+**Reconciled:** 2026-09-01  
+**Current implementation:** v0.25.0  
+**Current milestone:** Permission Checkout + Scoped Financial Authority Parity
 
-This roadmap is derived from `SPOTRIQ_FOUNDATION.md`, `PROJECT_STATE.md`, `SPOTRIQ_DRIFT_AUDIT.md`, the recovered foundational handoff checkpoint and the current repository.
-
-The roadmap does **not** discard v0.9–v0.21. It preserves the strong evidence/readiness/authority/execution architecture while correcting the sequence drift that made Rebalancing much deeper than the other required categories.
+This roadmap preserves the accepted evidence/readiness/commerce/runtime architecture while correcting the earlier sequence drift that made Rebalancing much deeper than Grid, Yield and Health. The explicit v0.25 approval in the current engineering continuation supersedes the stale earlier label that had assigned v0.25 to Explore/profile polish.
 
 ## Roadmap rule
 
-Every milestone must answer:
+Every milestone must preserve domain separation, deterministic truth/evidence, four-category parity, testnet-first financial authority and the real user lifecycle. Missing prerequisites must block rather than be fabricated.
 
-1. Does it preserve the canonical domain/trust boundaries?
-2. Does it advance a real end-to-end user journey?
-3. Does it avoid fabricating unsupported capability/evidence/performance?
-4. Does it improve or preserve four-category parity?
-5. Does it move sample/reference supply toward real live BSC services?
+## v0.22.0–v0.22.2 — Live Four-Category Reference Agent Supply + External Acceptance
 
-Each completed milestone must update `PROJECT_STATE.md`. Foundational doctrine changes only when explicitly reopened.
+**Status: COMPLETE / externally accepted.**
 
----
-
-## v0.22.0 — Live Four-Category Reference Agent Supply
-
-**Status: COMPLETE — repository, public runtime/Test Lab and ERC-8004 Testnet reconciliation acceptance are complete for all four reference services.**
-
-The repository contains four first-party deterministic A2A services integrated into normal Spotriq supply/readiness/matching. All four are publicly deployed, Marketplace Test Lab accepted and canonically reconciled to real BSC Testnet ERC-8004 identities. RangeKeeper is explicitly known as Agent ID `2017`; this roadmap does not invent the other numeric IDs.
-
-### Goal
-
-Correct the largest foundation→current roadmap drift: turn the four long-standing reference services from frontend fixtures into genuine live/callable BSC financial-agent supply where feasible.
-
-Target reference services:
-
-- **RangeKeeper** — Rebalancing;
-- **GridPilot** — Grid Trading;
-- **YieldPilot** — Yield Optimisation;
-- **VenusGuard** — Health Factor Monitoring.
-
-### Architecture
-
-BNB Agent Studio may be used as the reference-agent deployment/runtime path, but Spotriq remains a TypeScript marketplace with provider-neutral domain contracts.
-
-Each agent must flow through:
-
-`first-party runtime → Spotriq AgentIdentity/Listing/Service → runtime descriptor → Marketplace Test Lab → ERC-8004 deployment identity reconciliation → readiness evidence → category discovery/profile`
-
-### Minimum acceptance criteria
-
-For every category:
-
-- a real service/runtime exists or the release explicitly documents the blocker;
-- live BSC identity/registration evidence is available where the platform requires it;
-- structured category/protocol capability metadata exists;
-- runtime is machine-callable through a safe, documented contract;
-- Spotriq can normalize it into a real `AgentService` without special-casing a mock;
-- Test Lab can safely observe reachability/descriptor/capability behavior;
-- sample/reference cards cannot masquerade as the live service;
-- no agent receives financial write authority merely to satisfy this milestone.
-
-### Category task shape
-
-- Rebalancing: leverage the existing proposal/task-origin path, not a new duplicate path.
-- Grid: bounded strategy/market-context task contract; no fabricated PnL.
-- Yield: bounded opportunity/strategy task contract; no realised-yield claim without measurement.
-- Health: read-only monitoring/alert task first; protective write actions remain separately gated.
-
-### v0.22.2 acceptance closure
-
-External acceptance is complete for all four services. The retained contract is: canonical identity + runtime + Marketplace Test Lab can pass while financial readiness remains `TESTNET_ONLY` and financial `activationEligible = false`. v0.23 commercial read-only Activation is a separate resource and does not change that financial gate.
-
-
----
+All four first-party deterministic A2A reference services are public, Test Lab accepted and canonically reconciled to BSC Testnet ERC-8004 identities. Financial readiness remains `TESTNET_ONLY`.
 
 ## v0.23.0 — Commercial Hiring + Marketplace Activation Kernel
 
-**Status: COMPLETE — local validation, Railway deployment/migration, four-service commercial acceptance and v0.22 regression acceptance passed.**
+**Status: COMPLETE / externally accepted.**
 
-Implemented in the repository: structured FREE reference Offers, immutable Quotes, idempotent Hires, independent payment/funding evidence, read-only Marketplace Activation, buyer commercial state, optional Activation-bound ServiceTask, PostgreSQL migration 0016, API routes, Explore hiring flow, provider-neutral payment adapters and an ERC-8183 read-only observer. X402/B402 remain adapter rails without live v0.23 adapters.
+Accepted path:
 
-### Goal
+`AgentService → FREE Offer → immutable Quote → idempotent Hire → Payment NOT_REQUIRED → ACTIVE read-only MarketplaceActivation`
 
-With real services available, close the semantic gap between free invocation and genuine marketplace hiring/activation.
-
-### Domain seam
-
-`AgentService → Offer/Quote → Commercial Hire/Job → Commercial/Funding Evidence → Activation → Activation-bound ServiceTask`
-
-Commercial state must remain independent from PermissionGrant and financial execution.
-
-### ERC-8183
-
-Use behind a provider-neutral hiring adapter when the real service exposes discrete job/escrow semantics. Independently reconcile relevant onchain state before representing a job as funded/active/completed.
-
-### x402/B402
-
-Use where the real service exposes per-call/payment semantics. Do not infer payment support from metadata alone and do not make x402 the product narrative.
-
-### Acceptance criteria
-
-- [x] live reference service exposes structured evidence-backed FREE read-only terms/offer;
-- [x] Quote has expiry/limitations and immutable terms hash;
-- [x] hiring/commercial state is persisted and idempotent;
-- [x] FREE payment is `NOT_REQUIRED`, distinguishable from paid/hired funding evidence;
-- [x] `Activation` is created only when explicit commercial/readiness gates pass;
-- [x] Activation and PermissionGrant remain independent;
-- [x] ServiceTask can reference a legitimate Activation;
-- [x] no external service receives unrestricted financial signer access;
-- [x] authoritative local `pnpm check` passes;
-- [x] Railway migration/deployment + live v0.23 commercial acceptance pass;
-- [x] post-deployment v0.22 external reference regression acceptance passes.
-
----
+Commercial Activation remains distinct from Permission and Execution.
 
 ## v0.24.0 — Four-Category End-to-End Activation Parity
 
-**Repository implementation status: COMPLETE CANDIDATE; local dependency-aware validation and external v0.24 acceptance PENDING.**
+**Status: COMPLETE / externally accepted.**
 
-Implemented in the repository: category-aware Activation controls/revocation, generalized Activation-bound ServiceTask contracts for all four categories, first-party reference-runtime attribution without fabricated authority keys, explicit observational/runtime state, Health monitoring snapshots, migration 0017, API/UI integration and a live parity verifier. The current parity tier is read-only; it does not pretend Grid/Yield/Health have Rebalancing's financial execution depth.
+On 2026-09-01 production passed:
 
-### Goal
+- `verify:reference-acceptance`;
+- `verify:commercial-acceptance`;
+- `verify:activation-parity`.
 
-Bring all four required categories through a meaningful live marketplace journey:
+All four categories now have a real read-only post-Activation runtime path with scoped controls, category-specific ServiceTasks, truthful runtime/monitoring/outcome state and marketplace relationship revocation.
 
-`Finding/Explore → live AgentService → evidence/readiness → compare/profile → hire/activate → runtime/task → activity/outcome or monitoring state`
+## v0.25.0 — Permission Checkout + Scoped Financial Authority Parity
 
-### Rebalancing
-
-Preserve the existing deep controlled BSC Testnet execution spine and bind it to truthful service/Activation/commercial state.
-
-### Grid Trading
-
-Add category-specific activation/task semantics for supported pair/capital/market-context. Execution authority must be explicitly bounded; no historical profit/drawdown is invented.
-
-### Yield Optimisation
-
-Add category-specific activation/task semantics using evidenced protocol/rate data. Current protocol APY is not realised yield; outcome measurement requires time.
-
-### Health Factor Monitoring
-
-Support a genuine monitoring/alert activation first. Protective interventions are a separate authority tier and must not inherit Rebalancing's write permissions.
-
-### Acceptance criteria
-
-- [x] every category has real live first-party supply or a clearly truthful no-supply state;
-- [x] every category retains category-specific profile/evidence semantics;
-- [x] compatible reference supply has a real category-aware Activation → runtime task contract;
-- [x] category-specific read-only controls are visible and marketplace relationships are revocable;
-- [x] missing financial authority/payment/performance evidence stays unavailable rather than synthesized;
-- [x] Health has a genuine monitoring-snapshot state before any protective-write tier;
-- [x] Grid context is not promoted into profit/drawdown/fill outcomes;
-- [x] Yield current rates/opportunities are not promoted into realised yield;
-- [ ] authoritative local `pnpm check` + API package build pass;
-- [ ] Railway migration 0017/deployment passes;
-- [ ] live `verify:activation-parity` passes all four services;
-- [ ] v0.22/v0.23 production regression verifiers still pass after deployment.
-
----
-
-## v0.25.0 — Live Explore, Compare, Try and Service Profile Completion
+**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
 
 ### Goal
 
-Make the consumer marketplace rely on live normalized services rather than reference fixtures.
+Answer the user question:
 
-### Scope
+> What exactly am I allowing this agent to do with my money?
 
-- live category supply and no-supply states;
-- real service IDs everywhere;
-- evidence/source/freshness labels;
-- explainable match reasons/trade-offs;
-- live Test Lab/readiness;
-- commercial state/terms;
-- external feedback kept separate from Spotriq-observed evidence/outcomes;
-- Try flows that are safe/read-only unless explicit authority exists.
+without confusing commercial Activation, reviewed scope, provider grant or execution.
 
----
+### Domain
 
-## v0.26.0 — My Agents / Authority / Activity / Outcomes
+`PermissionProfile ≠ PermissionCheckout ≠ ScopedPermissionRequest ≠ PermissionGrant`
 
-### Goal
+`PermissionGrant ≠ Execution`
 
-Generalize the original post-activation product across categories.
+### Four-category reviewed scope
 
-### Scope
+- **Rebalancing:** exact position + token0/token1 spend caps + action/expiry/approval bounds. May bridge to the existing JobIntent/Altana permission spine only when all real prerequisites pass.
+- **Grid:** exact pool/capital asset + capital/per-action/action-count bounds. Provider submission remains blocked until a genuine bounded Grid execution adapter and argument guard exist.
+- **Yield:** exact asset + optional allowed Venus markets + allocation/action bounds. Provider submission remains blocked until bounded supply/withdraw/reallocation execution exists.
+- **Health:** protective-write tier only (`REPAY` / `ADD_COLLATERAL`) + health trigger/intervention/frequency bounds. Borrowing and collateral withdrawal are explicitly denied; provider submission remains blocked until the protective-write adapter exists.
 
-- active service/Activation inventory;
-- permission state independent from activation state;
-- authority usage, expiry, revocation and reverification;
-- category-aware activity/alerts/incidents;
-- transactions where applicable;
-- category-appropriate outcome windows;
-- insufficient-history/confounded states;
-- pause/revoke/continue/switch/re-hire flows.
+### Current reference-service acceptance truth
 
-The user should be able to answer: **what currently has authority over my money, what is it doing, and did it help?**
+All four current reference services are still `READ_ONLY` / `TESTNET_ONLY`. A successful v0.25 acceptance therefore proves:
 
----
+`ACTIVE read-only Activation → BLOCKED PermissionCheckout → immutable BLOCKED ScopedPermissionRequest → no PermissionGrant`
 
-## v0.27.0 — Smart Money Plans
+with exact service/readiness/category blockers. This is intentional safety behavior.
 
-Implement curated combinations of independent specialists only after individual service lifecycles are robust.
+### Persistence/API/UX
 
-`PlanTemplate → PlanRecommendation → PlanInstance → PlanMember[]`
+Migration `0018_permission_checkout_scoped_authority.sql`; `@spotriq/permission-checkout`; buyer permission state; category checkout/review/confirm/cancel/reconcile routes; real API-backed Permission Checkout UX replacing the old mock checkout.
 
-Each member retains its own AgentService, commercial relationship, PermissionGrant, Activation, activity and outcomes. Plan-level authority review must not become a merged unrestricted key.
+### Acceptance
 
----
+`API build → pnpm check → Railway migration 0018/deploy → v0.22 regression → v0.23 regression → v0.24 regression → verify:permission-checkout → record acceptance`
 
-## v0.28.0 — Operator Supply Lifecycle
+## v0.26.0 — Four-Category Financial Execution Adapter Parity
 
-Implement production supply management:
+**Next after v0.25 acceptance.**
 
-- identity claim/verification;
-- listing/service creation and updates;
-- protocols/assets/pairs/capital/runtime declarations;
-- pricing/offers;
-- PermissionProfile;
-- operator evidence;
-- Test Lab re-runs;
-- readiness blockers;
-- moderation/suspension;
-- operator cannot edit Marketplace Observed truth.
+Build genuine category-specific guarded execution adapters for Grid/Yield/Health and connect only eligible services to PermissionGrant usage. Rebalancing remains the reference depth but its calldata/semantics are not copied blindly.
 
----
+Expected work includes deterministic argument-level guards, exact protocol targets/actions, stale-state preflight, scoped signer/boundary integration, replay/idempotency safety and no mainnet execution without explicit approval.
 
-## v0.29.0 — Submission + Canonical Front Door Hardening
+## v0.27.0 — Four-Category Activity + Outcome Parity
 
-### Goal
+Extend activity/reconciliation/outcome truth beyond Rebalancing. Technical success must remain distinct from financial outcome; Grid fills/PnL, Yield realised returns and Health protective effects require defensible evidence and time windows.
 
-Prepare Spotriq for judging and durable public use.
+## v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion
 
-### Areas
+Unify buyer commercial state, permission state, authority revocation, runtime/activity/outcomes, service switching and active-agent management. Complete live Explore/Compare/Try/service-profile gaps without introducing mock readiness or performance.
 
-- public deployment and availability;
-- production environment validation;
-- rate limiting/abuse controls;
-- structured logging/correlation IDs/telemetry;
-- provider failover and degraded states;
-- DB migration/backups;
-- reconciliation workers;
-- security review/failure injection;
-- explicit testnet/mainnet labels;
-- user-facing authority and revoke proof;
-- real live transaction evidence where required;
-- polished judge/demo portfolio covering all four categories;
-- submission evidence/playbook/video.
+## v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling
 
----
+Compose findings and specialist services into deterministic user-reviewable plans. `Plan ≠ Super-agent`; resolve authority/capital/protocol conflicts explicitly before any activation/execution.
 
-## Continuous track — Agent Advantage Report
+## Later production milestones
 
-Do not postpone this until the final day.
-
-Maintain real benchmark records for at least the required paired agent/manual tasks, measuring:
-
-- elapsed time;
-- cost;
-- actual output;
-- output quality;
-- trading/security-relevant task coverage where required.
-
-Never manufacture benchmark results. The outcome engine can eventually supply evidence, but a benchmark is not the same resource as a normal user Outcome.
-
----
-
-## What not to do next
-
-Do not:
-
-- add another Rebalancing-only security/execution subsystem before four-category live supply;
-- make ERC-8183/x402/B402 the immediate product goal before real agents exist to use them;
-- weaken readiness to make supply appear larger;
-- turn search relevance into capability proof;
-- turn Spotriq into AgentPlace/multichain infrastructure;
-- add AI ranking that bypasses deterministic eligibility;
-- call free A2A invocation a paid hire;
-- call escrow/funding provider payout;
-- call transaction success a positive financial outcome;
-- ship unbounded/mainnet financial authority for demo speed;
-- let sample fixtures substitute for live BSC agents.
+- operator supply lifecycle/workspace;
+- paid commercial rails expansion, richer ERC-8183 and x402/B402 adapters;
+- deeper Agent Studio integration;
+- AI explanation layer after deterministic truth exists;
+- Agent Advantage measurement/reporting;
+- observability, security/failure injection and production hardening;
+- BSC Mainnet financial readiness only after explicit approval;
+- canonical-front-door/judge portfolio/demo/submission evidence.

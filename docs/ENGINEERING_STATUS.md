@@ -1,131 +1,93 @@
 # Spotriq Engineering Status
 
-**Release candidate:** v0.24.0  
-**Date:** 2026-08-31  
-**State:** Four-Category End-to-End Activation Parity implemented; dependency-aware local validation and external v0.24 acceptance pending.
+**Release candidate:** v0.25.0  
+**Date:** 2026-09-01  
+**State:** Permission Checkout + Scoped Financial Authority Parity implemented; dependency-aware local validation and external v0.25 acceptance pending.
 
-## Current system spine
+## Accepted production baseline
 
-Spotriq remains a BSC-focused TypeScript/pnpm monorepo:
-
-`apps/web → apps/api → domain/service packages → evidence + chain/protocol adapters → PostgreSQL`
+v0.22 external reference acceptance, v0.23 commercial hiring acceptance and v0.24 four-category read-only Activation/runtime parity are externally accepted. On 2026-09-01 all three live verifiers passed for RangeKeeper, GridPilot, YieldPilot and VenusGuard.
 
 The governing boundary remains:
 
+`PermissionProfile ≠ PermissionCheckout ≠ ScopedPermissionRequest ≠ PermissionGrant ≠ Execution`
+
+and:
+
 `Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome`
 
-v0.24 extends the existing `MarketplaceActivation` and `ServiceTask` architecture. It does not create a second marketplace state machine or force Grid/Yield/Health through the Rebalancing execution model.
+## v0.25 architecture
 
-## Accepted baselines
+### `@spotriq/permission-checkout`
 
-### v0.22
+New domain package with memory/PostgreSQL stores and deterministic methods to:
 
-RangeKeeper, GridPilot, YieldPilot and VenusGuard have public first-party A2A runtimes, Marketplace Test Lab evidence and reconciled BSC Testnet ERC-8004 identities. Their financial readiness remains `TESTNET_ONLY`.
+- create idempotent buyer/Activation-bound Permission Checkouts;
+- freeze category-specific reviewed scope behind `scopeHash`;
+- derive immutable commercial-cost context, risk/failure context and blockers;
+- create immutable `ScopedPermissionRequest` resources;
+- expose buyer permission state;
+- cancel unreconciled checkout/request state;
+- reconcile a real provider PermissionGrant only through the existing bounded Rebalancing authority path when every exact-match prerequisite passes.
 
-### v0.23
+No client `paid`, `verified`, `activationEligible` or `permissionGranted` flag can satisfy these server-side gates.
 
-The production FREE commercial path is externally accepted for all four:
+### Four category contracts
 
-`Offer → immutable Quote → idempotent Hire → NOT_REQUIRED payment → ACTIVE read-only MarketplaceActivation`
+Rebalancing, Grid, Yield and Health each receive explicit targets/actions/denials/limits rather than a generic opaque permission blob. Current reference services remain READ_ONLY/TESTNET_ONLY and therefore blocked from write authority. Grid/Yield/Health additionally require category-specific guarded execution adapters before provider submission can become possible.
 
-The post-v0.23 v0.22 reference regression verifier also passed.
+### Rebalancing bridge
 
-## v0.24 architecture
+v0.25 does not replace `@spotriq/authority`. If a future/eligible Rebalancing service has a matching JobIntent in `AWAITING_AUTHORITY`, the checkout can prepare the existing `BoundedPermissionRequest`. A provider grant must later be ACTIVE, onchain-valid, `EXACT_MATCH`, belong to the same buyer/service/JobIntent and match the reviewed token caps before reconciliation.
 
-### 1. Activation control profile
+### Persistence
 
-`@spotriq/commercial` now derives `ActivationControlProfile` from the real Activation + AgentService category. Current reference Activations expose only read operations and explicitly report no financial-write, wallet-signing or financial-execution authority.
+Migration `0018_permission_checkout_scoped_authority.sql` adds:
 
-Buyer-bound marketplace revocation is idempotent and preserves historical commercial/task evidence. Separate permission grants remain separate resources.
+- `permission_checkout_sessions`;
+- `scoped_permission_requests`;
+- buyer/idempotency, Activation, service and grant-link constraints/indexes.
 
-### 2. Category-aware ServiceTask
-
-`ServiceTask.originKind` is explicit:
-
-- `JOB_INTENT` keeps the existing Rebalancing proposal path;
-- `ACTIVATION` supports bounded read-only runtime observations from an ACTIVE commercial relationship.
-
-Activation capabilities:
-
-- RangeKeeper — `ANALYZE_POSITION`
-- GridPilot — `ANALYZE_GRID_MARKET`
-- YieldPilot — `SCAN_YIELD_OPPORTUNITIES`
-- VenusGuard — `INSPECT_HEALTH`
-
-Grid capital context is descriptive only. Yield uses current supported opportunity/rate evidence, not realised yield. Health begins with an observational monitoring snapshot and does not imply protective-write permission.
-
-### 3. Runtime attribution
-
-Reference-service Activation tasks accept origin attribution only after current first-party service identity/runtime conditions are reconciled, including fresh Marketplace Test Lab evidence. External AgentServices retain service-owned key-control proof. No authority key is fabricated for first-party services.
-
-### 4. Runtime / monitoring / outcome state
-
-`ActivationRuntimeState` prevents technical observations from becoming fake performance claims. It exposes observational activity and health monitoring state while keeping financial outcomes `INSUFFICIENT_DATA` or `NOT_APPLICABLE` until genuine measurement/activity evidence exists.
-
-### 5. Persistence
-
-New immutable migration:
-
-`0017_four_category_activation_tasks.sql`
-
-It:
-
-- allows Activation-bound ServiceTasks without invented Rebalancing JobIntent/Finding references;
-- persists `origin_kind`, `category` and `result_state`;
-- adds Activation/category and Activation/context indexes.
-
-No previous migration is mutated.
+No historical migration is changed.
 
 ## API surface
 
-v0.24 adds/extends:
+- `POST /v1/activations/:activationId/permission-checkouts`
+- `GET /v1/activations/:activationId/permission-checkout`
+- `GET /v1/permission-checkouts/:checkoutId`
+- `POST /v1/permission-checkouts/:checkoutId/confirm`
+- `POST /v1/permission-checkouts/:checkoutId/cancel`
+- `GET /v1/scoped-permission-requests/:permissionRequestId`
+- `POST /v1/scoped-permission-requests/:permissionRequestId/reconcile`
+- `GET /v1/accounts/:address/permission-state`
 
-- `GET /v1/activations/:activationId/control`
-- `POST /v1/activations/:activationId/revoke`
-- `POST /v1/activations/:activationId/service-tasks`
-- `GET /v1/activations/:activationId/service-task`
-- `POST /v1/activations/:activationId/service-task/retry`
-- `GET /v1/activations/:activationId/runtime-state`
-
-Existing v0.23 commercial endpoints and the deeper Rebalancing JobIntent/authority/execution endpoints remain intact.
+Framework/client errors retain their real 4xx/5xx classes; `PermissionCheckoutError` has explicit mapping.
 
 ## UX
 
-Explore now continues beyond Hire/Activation for the four reference services. The connected buyer can:
-
-`Hire free read-only → inspect controls → run supported read-only service observation → inspect runtime/monitoring/outcome state → revoke marketplace relationship`
-
-The UI explicitly separates read-only service activation from signing, transaction and financial execution authority.
+The old mock Reference Checkout is replaced by `PermissionCheckoutPage`, backed by real marketplace/commercial/permission APIs. It requires a real ACTIVE service relationship, shows category-specific allowed/denied authority, limits, validity and approval mode, then server-derived cost/risk/blocker review. Current reference services end truthfully at **Scope reviewed — authority not granted**.
 
 ## Verification
 
-Repository commands:
+Local release gate:
 
 ```powershell
+pnpm install
 pnpm --filter @spotriq/api build
 pnpm check
+```
+
+Production regression/acceptance after Railway migration `0018`:
+
+```powershell
 pnpm verify:reference-acceptance
 pnpm verify:commercial-acceptance
 pnpm verify:activation-parity
+pnpm verify:permission-checkout
 ```
 
-`verify:activation-parity` tests all four categories using real production APIs and real PancakeSwap context where RangeKeeper/GridPilot require it.
-
-## Release gate
-
-v0.24 is **not externally accepted yet**.
-
-Required sequence:
-
-1. local API package build;
-2. local `pnpm check`;
-3. commit/push;
-4. Railway migration `0017` + deployment;
-5. v0.22 reference regression verifier;
-6. v0.23 commercial regression verifier;
-7. v0.24 activation-parity verifier;
-8. record production acceptance in `PROJECT_STATE.md`/roadmap/docs.
+The v0.25 verifier creates fresh FREE read-only relationships, records category-specific reviewed scopes for all four reference services and proves each remains blocked with no fabricated PermissionGrant.
 
 ## Next milestone after acceptance
 
-**v0.25.0 — Live Explore, Compare, Try and Service Profile Completion.**
+**v0.26 — Four-Category Financial Execution Adapter Parity.**

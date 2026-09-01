@@ -1,17 +1,17 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.24.0  
-**Implementation status:** Four-Category End-to-End Activation Parity implemented; dependency-aware local validation and external v0.24 acceptance pending.  
-**Last state update:** 2026-08-31  
+**Current implementation release:** v0.25.0  
+**Implementation status:** Permission Checkout + Scoped Financial Authority Parity implemented; dependency-aware local validation and external v0.25 acceptance pending.  
+**Last state update:** 2026-09-01  
 **Repository role:** Concise present-state map. Current repository remains implementation truth.
 
 ## 1. Product position
 
-Spotriq is a **BSC financial-agent marketplace** for understanding a wallet need, discovering specialist financial AgentServices, evaluating evidence, hiring/activating a service relationship, controlling authority, observing what the service does and measuring outcomes when evidence exists.
+Spotriq is a **BSC financial-agent marketplace** for understanding a wallet need, discovering specialist financial AgentServices, evaluating evidence, hiring/activating a service relationship, reviewing exactly what financial authority would be required, observing activity and measuring outcomes when evidence exists.
 
 Core lifecycle:
 
-`Understand → Discover → Match → Evaluate → Compare → Try → Authorize → Hire / Activate → Monitor → Measure → Reassess`
+`Understand → Discover → Match → Evaluate → Compare → Try → Hire / Activate → Permission Checkout where needed → Authorize → Execute where independently eligible → Monitor → Measure → Reassess`
 
 Locked separation:
 
@@ -19,13 +19,11 @@ Locked separation:
 
 `Offer ≠ Quote ≠ Hire ≠ Payment ≠ Activation`
 
+`PermissionProfile ≠ PermissionCheckout ≠ ScopedPermissionRequest ≠ PermissionGrant`
+
 `Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome`
 
-`Finding ≠ Recommendation`
-
-`Evidence ≠ AI explanation`
-
-AI may explain; deterministic systems decide readiness, authority, payment reconciliation, runtime attribution and financial truth.
+AI may explain; deterministic systems decide identity, compatibility, readiness, commercial state, authority eligibility, payment reconciliation, runtime attribution and financial truth.
 
 ## 2. Current applications/packages
 
@@ -34,138 +32,114 @@ AI may explain; deterministic systems decide readiness, authority, payment recon
 - `apps/worker` — worker seam.
 - `@spotriq/domain` / `@spotriq/api-contracts` — canonical domain + REST contracts.
 - `@spotriq/db` — PostgreSQL and immutable migrations.
-- `@spotriq/evidence`, `@spotriq/chain`, PancakeSwap/Venus/Grid adapters — deterministic truth/data spine.
-- `@spotriq/smart-money` — Smart Money Check / Findings.
-- `@spotriq/agent-registry`, `@spotriq/marketplace-supply` — ERC-8004 discovery/verification, service normalization/readiness/Test Lab.
-- `@spotriq/reference-agents` — RangeKeeper, GridPilot, YieldPilot, VenusGuard deterministic A2A runtimes.
-- `@spotriq/commercial` — Offer/Quote/Hire/Payment/Activation + activation controls/revocation.
-- `@spotriq/service-tasks` — Rebalancing JobIntent task-origin proof plus four-category Activation-bound read-only tasks/runtime state.
-- Rebalancing authority/execution packages remain intact: `job-intents`, `authority`, `execution-plans`, `execution-guard`, `execution-boundary`, `controlled-execution`, `activity-outcomes`.
+- chain/evidence/PancakeSwap/Venus/Grid/Smart Money packages — deterministic financial-data spine.
+- `@spotriq/agent-registry`, `@spotriq/marketplace-supply`, `@spotriq/reference-agents` — ERC-8004 discovery/verification, Test Lab/readiness and four real reference runtimes.
+- `@spotriq/commercial` — Offer/Quote/Hire/Payment/Activation + Activation controls/revocation.
+- `@spotriq/service-tasks` — Rebalancing JobIntent origin proof plus four-category Activation-bound read-only runtime tasks.
+- `@spotriq/permission-checkout` — category-specific Permission Checkout, immutable ScopedPermissionRequest, buyer permission state and exact Rebalancing grant-reconciliation bridge.
+- Existing Rebalancing financial stack remains intact: `job-intents`, `authority`, `execution-guard`, `execution-plans`, `execution-boundary`, `controlled-execution`, `activity-outcomes`.
 
-## 3. Accepted release baseline
+## 3. Externally accepted baseline
 
-### v0.22 external reference acceptance — COMPLETE
+### v0.22 — COMPLETE
 
-All four first-party reference services passed public runtime, A2A Agent Card, Marketplace Test Lab, ERC-8004 BSC Testnet registration/canonical verification and service↔identity reconciliation. Their financial readiness remains `TESTNET_ONLY`; existing financial `marketplaceActivationEligible = false` remains deliberate.
+All four reference services passed public runtime/A2A Agent Card, Marketplace Test Lab, BSC Testnet ERC-8004 registration/canonical verification and service↔identity reconciliation. Financial readiness remains `TESTNET_ONLY`.
 
-Known explicit identity fact: RangeKeeper BSC Testnet ERC-8004 Agent ID `2017`, owner `0x08a594e828133D18A43918cc804754f46dAF44dB`. Do not fabricate the other numeric IDs.
+### v0.23 — COMPLETE
 
-### v0.23 commercial acceptance — COMPLETE
+Production acceptance passed all four through:
 
-The deployed production API passed:
+`FREE Offer → immutable Quote → idempotent Hire → Payment NOT_REQUIRED → ACTIVE read-only MarketplaceActivation`
 
-- local `pnpm check`;
-- Railway build/start and migration `0016`;
-- `pnpm verify:commercial-acceptance` for RangeKeeper, GridPilot, YieldPilot and VenusGuard;
-- `pnpm verify:reference-acceptance` regression after v0.23 deployment.
+No signing or financial execution authority is implied.
 
-Accepted live commercial path:
+### v0.24 — COMPLETE
 
-`AgentService → FREE Offer → immutable Quote → idempotent Hire → Payment NOT_REQUIRED → ACTIVE read-only MarketplaceActivation`
+On 2026-09-01 the deployed production API passed:
 
-No signing or financial execution authority is implied by that path.
+- `pnpm verify:reference-acceptance` — all four PASS;
+- `pnpm verify:commercial-acceptance` — all four PASS;
+- `pnpm verify:activation-parity` — all four PASS.
 
-## 4. v0.24 implementation
+Accepted read-only runtime path:
 
-v0.24 generalizes the post-Activation runtime journey across all four categories without forcing Grid/Yield/Health through Rebalancing's JobIntent or financial execution model.
+`Activation → control profile → category ServiceTask → real reference runtime → observed runtime/monitoring state → truthful outcome classification → marketplace relationship revocation`
 
-### Activation controls
+for RangeKeeper, GridPilot, YieldPilot and VenusGuard.
 
-Every marketplace Activation can expose a deterministic `ActivationControlProfile` containing:
+## 4. v0.25 implementation
 
-- category;
-- current Activation state;
-- category runtime capability/input requirements;
-- read-only permissions;
-- explicit financial-write permissions (empty for current FREE reference relationships);
-- wallet-signing / financial-execution flags;
-- revocability and revoke effect.
+v0.25 adds a separate deterministic **Permission Checkout** layer. It does not silently upgrade a read-only Activation and it does not manufacture a PermissionGrant.
 
-Marketplace relationship revocation is buyer-bound and idempotent. It stops new Activation-bound tasks while retaining commercial/task history. It does **not** masquerade as revocation of a separate financial PermissionGrant.
+### Category scope contracts
 
-### Category task parity
+- **Rebalancing** — exact PancakeSwap position, token0/token1 spend caps, action-count/expiry/approval mode; can bridge to the existing Rebalancing JobIntent + Altana bounded permission spine only when all prerequisites are satisfied.
+- **Grid** — exact PancakeSwap pool, capital asset, capital/per-action/action-count bounds; current GridPilot remains blocked until a genuine category execution adapter + argument guard exist.
+- **Yield** — exact asset, optional allowed Venus markets, capital/per-action/action-count bounds; current YieldPilot remains blocked until bounded supply/withdraw/reallocation execution exists.
+- **Health** — protective-write tier only, reviewed asset/markets, `REPAY` and/or `ADD_COLLATERAL`, health trigger/intervention/action-count bounds; current VenusGuard remains blocked until a genuine protective-write adapter exists.
 
-`ServiceTask` now has explicit origin kinds:
+Every scope explicitly states allowed and denied actions, validity, approval mode, cost separation, risk/failure behavior and deterministic blockers.
 
-- `JOB_INTENT` — existing deep Rebalancing proposal path;
-- `ACTIVATION` — category-aware read-only service relationship task.
+### Current reference-service truth
 
-Activation task contracts:
+The four reference services still declare `READ_ONLY` and are financially `TESTNET_ONLY`. Therefore current Permission Checkout intentionally produces:
 
-- Rebalancing → `ANALYZE_POSITION` using PancakeSwap `tokenId`;
-- Grid → `ANALYZE_GRID_MARKET` using a PancakeSwap V3 `poolAddress`, with optional descriptive capital context that grants no spend/trading authority;
-- Yield → `SCAN_YIELD_OPPORTUNITIES` using the Activation buyer wallet server-side;
-- Health → `INSPECT_HEALTH` using the Activation buyer wallet and a monitoring-snapshot mode.
+`BLOCKED PermissionCheckout → immutable BLOCKED ScopedPermissionRequest → no PermissionGrant`
 
-Reference-runtime origin attribution uses canonical ERC-8004 reconciliation + fresh Test Lab evidence + the same-origin first-party A2A runtime. External services retain fresh service-owned key-control proof. Spotriq does not fabricate a key for first-party services just to fit the external-agent proof scheme.
+with blockers such as `SERVICE_READ_ONLY`, `SERVICE_NOT_FINANCIALLY_READY` and the category-specific execution prerequisite. Reviewing a scope records user intent; it does not make the service financially executable.
 
-### Runtime / outcome truth
+### Grant reconciliation bridge
 
-`ActivationRuntimeState` distinguishes:
-
-- no task yet;
-- observed structured runtime state;
-- failed observation;
-- revoked relationship.
-
-It does not turn technical success into financial success:
-
-- Grid market context ≠ profit/drawdown/fill outcome;
-- current Yield rates/opportunities ≠ realised yield;
-- Health snapshot = monitoring state, not protective-write authority;
-- Rebalancing read-only position analysis ≠ executed rebalance outcome.
-
-The existing deeper Rebalancing controlled BSC Testnet execution/activity/outcome spine remains separate and intact.
+Only the existing deep Rebalancing path can currently become provider-ready, and only when the exact buyer/service/position JobIntent is `AWAITING_AUTHORITY`, the service is financially ready, and the reviewed scope has no blockers. A later Altana grant must independently reconcile as ACTIVE/onchain-valid/`EXACT_MATCH` with the exact bounded request and spend caps before Spotriq links it. Even then, `PermissionGrant ≠ Execution`.
 
 ## 5. Persistence
 
 - No `DATABASE_URL` → memory fallback where supported.
 - `DATABASE_URL` → PostgreSQL.
-- Migrations `0001` through `0017` are present.
-- Latest migration: `0017_four_category_activation_tasks.sql`.
+- Migrations `0001` through `0018` are present.
+- Latest migration: `0018_permission_checkout_scoped_authority.sql`.
 
-Migration `0017` makes `ServiceTask` category/origin/result state explicit and allows Activation-bound tasks without inventing a Rebalancing JobIntent/Finding.
+It adds durable `permission_checkout_sessions` and `scoped_permission_requests` without mutating previous migrations.
 
-## 6. API / UX additions in v0.24
+## 6. v0.25 API / UX
 
-New/extended resources include:
+New resources:
 
-- `GET /v1/activations/:activationId/control`
-- `POST /v1/activations/:activationId/revoke`
-- `POST /v1/activations/:activationId/service-tasks`
-- `GET /v1/activations/:activationId/service-task`
-- `POST /v1/activations/:activationId/service-task/retry`
-- `GET /v1/activations/:activationId/runtime-state`
+- `POST /v1/activations/:activationId/permission-checkouts`
+- `GET /v1/activations/:activationId/permission-checkout`
+- `GET /v1/permission-checkouts/:checkoutId`
+- `POST /v1/permission-checkouts/:checkoutId/confirm`
+- `POST /v1/permission-checkouts/:checkoutId/cancel`
+- `GET /v1/scoped-permission-requests/:permissionRequestId`
+- `POST /v1/scoped-permission-requests/:permissionRequestId/reconcile`
+- `GET /v1/accounts/:address/permission-state`
 
-Explore uses those real APIs after **Hire free read-only** to show category controls, run the read-only runtime task, show observational/monitoring/outcome state and revoke the relationship.
+The old mock checkout has been replaced by an API-backed Permission Checkout page. It starts from a real ACTIVE marketplace relationship and clearly states when the result is only a reviewed scope with authority blocked.
 
 ## 7. Network/deployment policy
 
-- Marketplace discovery may use BSC Mainnet (`chainId=56`).
-- Reference identity/authority/runtime acceptance remains BSC Testnet (`chainId=97`).
-- Transactional/authority development remains testnet-first until explicit mainnet approval.
-- Railway hosts API/PostgreSQL; Vercel remains frontend deployment direction.
-- Railway pre-deploy command remains `pnpm db:migrate`.
+- Marketplace discovery may use BSC Mainnet (`56`).
+- Reference identity, authority and transactional development remain BSC Testnet (`97`).
+- v0.25 rejects mainnet financial-authority acceptance; mainnet transactional authority remains out of scope until explicitly approved.
+- Railway hosts API/PostgreSQL; Railway pre-deploy remains `pnpm db:migrate`; Vercel remains frontend direction.
 
 ## 8. Verification / release state
 
 Repository commands:
 
+- `pnpm --filter @spotriq/api build`
 - `pnpm check`
 - `pnpm verify:reference-acceptance`
 - `pnpm verify:commercial-acceptance`
 - `pnpm verify:activation-parity`
+- `pnpm verify:permission-checkout`
 
-The packaging environment performs repository/static/syntax validation but not the dependency-aware workspace check. The user's local `pnpm check` remains the authoritative local gate.
+The packaging environment can run architecture/static/syntax checks but not the user's full dependency-aware workspace gate. Do **not** call v0.25 externally accepted until:
 
-**Do not call v0.24 externally accepted yet.** Required sequence:
+`local API build → pnpm check → commit/push → Railway migration 0018/deploy → v0.22 regression → v0.23 regression → v0.24 regression → v0.25 Permission Checkout acceptance → record acceptance`
 
-`local pnpm check → exact API build → commit/push → Railway migration 0017/deploy → v0.22 regression verifier → v0.23 commercial regression verifier → v0.24 activation-parity verifier → record acceptance`
+## 9. Roadmap position
 
-## 9. Current milestone and next work
+**Current:** v0.25.0 implementation candidate — Permission Checkout + Scoped Financial Authority Parity.
 
-**Current:** v0.24.0 implementation candidate — Four-Category End-to-End Activation Parity.
-
-**Next acceptance gate:** dependency-aware local validation, then Railway migration/deploy and live four-category Activation/runtime parity.
-
-**Next roadmap milestone after v0.24 acceptance:** v0.25 — Live Explore, Compare, Try and Service Profile Completion.
+**Next after acceptance:** v0.26 — Four-Category Financial Execution Adapter Parity, bringing Grid/Yield/Health toward Rebalancing's guarded execution depth without copying incompatible semantics.
