@@ -15,13 +15,14 @@ import type {
   RevokeMarketplaceActivationRequest,
 } from "@spotriq/api-contracts";
 import type { CommercialEngine } from "@spotriq/commercial";
+import type { PermissionCheckoutEngine } from "@spotriq/permission-checkout";
 import { ApiInputError } from "../errors.js";
 
 function id(value:string|undefined,label:string):string{const v=value?.trim();if(!v||v.length>1024)throw new ApiInputError(`${label} is required.`,"INVALID_ID");return v;}
 function bodyObject<T>(value:T|undefined):T{if(!value||typeof value!=="object"||Array.isArray(value))throw new ApiInputError("A JSON request body is required.","INVALID_BODY");return value;}
 function envelope<T>(data:T,requestId:string):ApiEnvelope<T>{return{data,meta:{requestId,generatedAt:new Date().toISOString()}};}
 
-export async function registerCommercialRoutes(app:FastifyInstance,commercial:CommercialEngine):Promise<void>{
+export async function registerCommercialRoutes(app:FastifyInstance,commercial:CommercialEngine,permissionCheckout?:PermissionCheckoutEngine):Promise<void>{
   app.get<{Params:{serviceId:string}}>('/v1/services/:serviceId/offers',async(request,reply)=>{
     const offers=await commercial.listOffers(id(request.params.serviceId,'serviceId'));
     const data:MarketplaceOffersResponse={offers};
@@ -81,7 +82,15 @@ export async function registerCommercialRoutes(app:FastifyInstance,commercial:Co
   });
   app.post<{Params:{activationId:string};Body:RevokeMarketplaceActivationRequest}>('/v1/activations/:activationId/revoke',async(request,reply)=>{
     const input=bodyObject(request.body);
-    const activation=await commercial.revokeActivation(id(request.params.activationId,'activationId'),input);
+    const activationId=id(request.params.activationId,'activationId');
+    if(permissionCheckout){
+      const checkout=await permissionCheckout.getForActivation(activationId);
+      if(checkout?.permissionRequestId){
+        const permissionRequest=await permissionCheckout.getRequest(checkout.permissionRequestId);
+        if(permissionRequest.state==='GRANT_RECONCILED'&&permissionRequest.permissionGrantId) throw new ApiInputError(`PermissionGrant ${permissionRequest.permissionGrantId} is independently active. Revoke the provider grant before ending the marketplace relationship.`,'ACTIVE_PERMISSION_GRANT');
+      }
+    }
+    const activation=await commercial.revokeActivation(activationId,input);
     const data:MarketplaceActivationResponse={activation};
     return reply.send(envelope(data,request.id));
   });

@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, FindingServiceMatch, FindingServiceMatchPage, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution, ExecutionActivityOutcomeBundle, ServiceTask, MarketplaceActivation, ActivationControlProfile, ActivationRuntimeState, ActivationActivityOutcomeBundle,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution, ExecutionActivityOutcomeBundle, ServiceTask, MarketplaceActivation, ActivationControlProfile, ActivationRuntimeState, ActivationActivityOutcomeBundle, MyAgentsPortfolio, MyAgentPortfolioItem,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -41,6 +41,8 @@ import { activationActivityOutcomesRepository } from "../repositories/activation
 import { serviceTaskRepository } from "../repositories/serviceTaskRepository";
 import { commercialRepository } from "../repositories/commercialRepository";
 import { PermissionCheckoutPage } from "../components/PermissionCheckoutPage";
+import { myAgentsRepository } from "../repositories/myAgentsRepository";
+import { LiveAgentProfilePage, LiveComparePage, LiveTryAgentPage } from "../components/LiveMarketplacePages";
 
 const {
   services: SERVICES,
@@ -3211,234 +3213,91 @@ function ExecutionActivityOutcomesPage({ executionId, navigate }: { executionId:
 
 function MyAgentsPage({ navigate, initialTab = "overview" }: { navigate: (r: Route, p?: Partial<NavState>) => void; initialTab?: MyAgentsTab }) {
   const [tab, setTab] = useState<MyAgentsTab>(initialTab);
+  const [buyerAddress, setBuyerAddress] = useState("");
+  const [portfolio, setPortfolio] = useState<MyAgentsPortfolio>();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>();
+  const [busyActivationId, setBusyActivationId] = useState<string>();
+  const [switchTargetByActivation, setSwitchTargetByActivation] = useState<Record<string,string>>({});
+
   const tabs: { key: MyAgentsTab; label: string }[] = [
     { key: "overview", label: "Overview" }, { key: "agents", label: "Agents" },
     { key: "plans", label: "Plans" }, { key: "activity", label: "Activity" },
     { key: "authority", label: "Authority" }, { key: "outcomes", label: "Outcomes" },
   ];
-  const activation = ACTIVATIONS[0];
-  const grant = PERMISSION_GRANTS[0];
 
-  return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-[#dde3ef]">My Agents</h1>
-        <Btn variant="teal-outline" size="sm" onClick={() => navigate("explore")}>
-          <Plus className="w-3.5 h-3.5" /> Add Agent
-        </Btn>
+  const load = useCallback(async (address?: string) => {
+    const buyer=(address??buyerAddress).trim();
+    if(!/^0x[0-9a-fA-F]{40}$/.test(buyer)){setError("Enter a valid BSC wallet address, or run a live Smart Money Check first.");return;}
+    setLoading(true);setError(undefined);
+    try{setPortfolio(await myAgentsRepository.getPortfolio(buyer));setBuyerAddress(buyer);}
+    catch(cause){setError(cause instanceof Error?cause.message:"Spotriq could not load My Agents.");}
+    finally{setLoading(false);}
+  },[buyerAddress]);
+
+  useEffect(()=>{
+    const sessionId=getActiveCheckSessionId();
+    if(getActiveCheckMode()!=="live"||!sessionId)return;
+    let cancelled=false;
+    void smartMoneyRepository.getCheck(sessionId).then(check=>{if(cancelled)return;setBuyerAddress(check.session.walletAddress);void load(check.session.walletAddress);}).catch(()=>undefined);
+    return()=>{cancelled=true;};
+  // load intentionally omitted to avoid re-fetch loop when buyerAddress is populated from the check.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
+  const refresh=async()=>{if(buyerAddress)await load(buyerAddress);};
+  const revoke=async(item:MyAgentPortfolioItem)=>{
+    if(!portfolio)return;setBusyActivationId(item.activation.activationId);setError(undefined);
+    try{await myAgentsRepository.revokeRelationship(portfolio.buyerAddress,item.activation.activationId,{buyerAddress:portfolio.buyerAddress});await refresh();}
+    catch(cause){setError(cause instanceof Error?cause.message:"Spotriq could not end this relationship.");}
+    finally{setBusyActivationId(undefined);}
+  };
+  const switchAgent=async(item:MyAgentPortfolioItem)=>{
+    if(!portfolio)return;const target=switchTargetByActivation[item.activation.activationId];if(!target)return;
+    setBusyActivationId(item.activation.activationId);setError(undefined);
+    try{const result=await myAgentsRepository.switchService(portfolio.buyerAddress,item.activation.activationId,{targetServiceId:target,idempotencyKey:`ui-switch:${item.activation.activationId}:${target}`});if(result.state==="BLOCKED")setError(result.blockers.join(" "));await refresh();}
+    catch(cause){setError(cause instanceof Error?cause.message:"Spotriq could not switch this relationship.");}
+    finally{setBusyActivationId(undefined);}
+  };
+
+  const outcomeLabel=(item:MyAgentPortfolioItem)=>item.activityOutcome?.outcome.financialOutcome.value??"Could Not Assess";
+  const renderRelationship=(item:MyAgentPortfolioItem)=>{
+    const eligible=item.alternatives.filter(x=>x.eligible);
+    const selected=switchTargetByActivation[item.activation.activationId]??eligible[0]?.serviceId??"";
+    return <Card key={item.activation.activationId} className="p-5 space-y-4">
+      <div className="flex items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-[#dde3ef]">{item.service.name}</span><CategoryPill category={item.service.category}/><Badge variant={item.activation.state==="ACTIVE"?"green":"muted"}>{item.activation.state}</Badge></div><div className="text-xs text-[#6b7d99] mt-1 font-mono break-all">{item.activation.activationId}</div></div><ReadinessPill state={item.readiness.state}/></div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="rounded-lg border border-white/7 bg-white/[0.02] p-3"><div className="text-[10px] uppercase font-mono text-[#6b7d99]">Commercial</div><div className="text-sm text-[#dde3ef] mt-1">{item.activation.termsSnapshot.commercialModel} · {item.activation.termsSnapshot.serviceType.replaceAll("_"," ")}</div></div>
+        <div className="rounded-lg border border-white/7 bg-white/[0.02] p-3"><div className="text-[10px] uppercase font-mono text-[#6b7d99]">Authority</div><div className="text-sm text-[#dde3ef] mt-1">{item.hasReconciledPermissionGrant?"Reconciled grant":"No financial grant"}</div></div>
+        <div className="rounded-lg border border-white/7 bg-white/[0.02] p-3"><div className="text-[10px] uppercase font-mono text-[#6b7d99]">Runtime</div><div className="text-sm text-[#dde3ef] mt-1">{item.activityOutcome?.outcome.technicalObservation.state??"Not observed"}</div></div>
+        <div className="rounded-lg border border-white/7 bg-white/[0.02] p-3"><div className="text-[10px] uppercase font-mono text-[#6b7d99]">Financial outcome</div><div className="text-sm text-[#f59e0b] mt-1">{outcomeLabel(item)}</div></div>
       </div>
+      {item.activityOutcome?.activity?.length?<div className="space-y-2"><div className="text-[10px] uppercase font-mono text-[#6b7d99]">Latest activity</div>{item.activityOutcome.activity.slice(-3).reverse().map(ev=><div key={ev.activityEventId} className="flex items-start justify-between gap-4 text-xs border-t border-white/5 pt-2"><div><div className="text-[#dde3ef]">{ev.title}</div><div className="text-[#6b7d99] mt-0.5">{ev.description}</div></div><span className="text-[#52637b] shrink-0">{new Date(ev.occurredAt).toLocaleString()}</span></div>)}</div>:<div className="text-xs text-[#6b7d99]">No Activation-scoped activity/outcome bundle has been reconciled yet.</div>}
+      {item.endRelationshipBlocker&&<div className="rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 p-3 text-xs text-[#d6a04a]">{item.endRelationshipBlocker}</div>}
+      {item.activation.state==="ACTIVE"&&<div className="flex flex-col md:flex-row md:items-center gap-2 pt-2 border-t border-white/7">
+        {eligible.length>0?<><select value={selected} onChange={e=>setSwitchTargetByActivation(v=>({...v,[item.activation.activationId]:e.target.value}))} className="bg-[#111722] border border-white/10 rounded-md px-3 py-2 text-xs text-[#dde3ef]">{eligible.map(x=><option key={x.serviceId} value={x.serviceId}>{x.name} · {x.readiness}</option>)}</select><Btn size="sm" variant="secondary" onClick={()=>void switchAgent(item)} disabled={busyActivationId===item.activation.activationId||!selected}>Switch Agent</Btn></>:<div className="text-xs text-[#6b7d99] mr-auto">No eligible same-category replacement is currently available.</div>}
+        <Btn size="sm" variant="ghost" onClick={()=>navigate("agent",{agentId:item.service.serviceId})}>View service</Btn>
+        <Btn size="sm" variant="danger" onClick={()=>void revoke(item)} disabled={!item.canEndRelationship||busyActivationId===item.activation.activationId}>End relationship</Btn>
+      </div>}
+    </Card>;
+  };
 
-      <div className="flex gap-1 mb-4 border-b border-white/7 overflow-x-auto">
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={cn("px-4 py-2.5 text-sm whitespace-nowrap border-b-2 -mb-px transition-colors",
-              tab === t.key ? "text-[#2dd4bf] border-[#2dd4bf]" : "text-[#6b7d99] border-transparent hover:text-[#9aacc4]")}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div className="text-[10px] font-mono text-center text-[#6b7d99] bg-white/3 border border-white/6 rounded px-3 py-1.5 mb-6">Example Portfolio / Sample Data · Live execution Activity & Outcomes are opened from a confirmed controlled Job Intent.</div>
-
-      {tab === "overview" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { label: "Active agents", value: "1", sub: "RangeKeeper" },
-              { label: "Authority grants", value: "1", sub: "1 active" },
-              { label: "Actions (30d)", value: "3", sub: "0 failed" },
-              { label: "Total cost (30d)", value: "$9.42", sub: "Gas + fees" },
-            ].map(s => (
-              <div key={s.label} className="bg-card border border-white/7 rounded-lg p-4">
-                <div className="text-xl font-semibold font-mono text-[#dde3ef]">{s.value}</div>
-                <div className="text-xs text-[#6b7d99]">{s.label}</div>
-                <div className="text-[11px] text-[#6b7d99]/60 mt-0.5">{s.sub}</div>
-              </div>
-            ))}
-          </div>
-
-          <div>
-            <SectionHeader label="Working for you" />
-            <Card className="p-5">
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold text-[#dde3ef]">{activation.serviceName}</span>
-                    <Badge variant="green">ACTIVE</Badge>
-                  </div>
-                  <div className="text-xs text-[#6b7d99]">{activation.managedPosition} · {activation.protocol}</div>
-                </div>
-                <Btn size="sm" variant="ghost" onClick={() => setTab("agents")}>View <ChevronRight className="w-3.5 h-3.5" /></Btn>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-                <div><div className="text-xs text-[#6b7d99]">Current state</div><div className="text-sm text-[#4ade80] font-medium mt-0.5">{activation.currentState}</div></div>
-                <div><div className="text-xs text-[#6b7d99]">Time in range (30d)</div><div className="text-sm font-mono font-medium text-[#dde3ef] mt-0.5">{activation.categorySnapshot["Time in range (30d)"]}</div></div>
-                <div><div className="text-xs text-[#6b7d99]">Last action</div><div className="text-sm text-[#dde3ef] mt-0.5">{activation.lastActionAt}</div></div>
-                <div><div className="text-xs text-[#6b7d99]">Daily authority used</div><div className="text-sm font-mono text-[#dde3ef] mt-0.5">{activation.authorityUsedToday}/{activation.authorityDailyLimit}</div></div>
-              </div>
-              <div className="h-1.5 bg-[#1c2433] rounded-full overflow-hidden">
-                <div className="h-full bg-[#2dd4bf] rounded-full" style={{ width: `${(parseInt(activation.authorityUsedToday.replace("$", "")) / parseInt(activation.authorityDailyLimit.replace("$", ""))) * 100}%` }} />
-              </div>
-            </Card>
-          </div>
-
-          <div>
-            <SectionHeader label="Recent Activity" />
-            <div className="space-y-2">
-              {ACTIVITY_EVENTS.slice(0, 3).map(ev => (
-                <div key={ev.id} className="flex items-start gap-3 p-3 bg-card border border-white/6 rounded-lg">
-                  <div className={cn("w-2 h-2 rounded-full mt-2 shrink-0", ev.severity === "success" ? "bg-[#4ade80]" : ev.severity === "warning" ? "bg-[#f59e0b]" : "bg-[#60a5fa]")} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-[#dde3ef]">{ev.title}</div>
-                    <div className="text-xs text-[#6b7d99]">{ev.description.slice(0, 80)}…</div>
-                  </div>
-                  <div className="text-xs text-[#6b7d99] shrink-0">{ev.occurredAt}</div>
-                </div>
-              ))}
-            </div>
-            <button onClick={() => setTab("activity")} className="mt-2 text-sm text-[#2dd4bf] flex items-center gap-1">
-              View all activity <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {tab === "agents" && (
-        <div className="space-y-4">
-          <Card className="p-5">
-            <div className="flex items-start justify-between gap-4 mb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-semibold text-[#dde3ef]">{activation.serviceName}</span>
-                  <Badge variant="green">ACTIVE</Badge>
-                  <CategoryPill category={activation.category} />
-                </div>
-                <div className="text-xs text-[#6b7d99]">Started {activation.startedAt} · {activation.managedPosition} · {activation.protocol}</div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-              {Object.entries(activation.categorySnapshot).map(([k, v]) => (
-                <div key={k}><div className="text-xs text-[#6b7d99]">{k}</div><div className="text-sm font-mono font-medium text-[#dde3ef] mt-0.5">{v}</div></div>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2 pt-4 border-t border-white/7">
-              <Btn size="sm" variant="secondary"><span className="w-2 h-2 bg-[#f59e0b] rounded-full" /> Pause</Btn>
-              <Btn size="sm" variant="ghost" onClick={() => navigate("compare", { compareIds: [activation.serviceId] })}>Compare Alternatives</Btn>
-              <Btn size="sm" variant="ghost" onClick={() => setTab("authority")}>Review Authority</Btn>
-              <Btn size="sm" variant="danger">Revoke / End</Btn>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {tab === "activity" && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 mb-4">
-            {["All", "Rebalancing", "Success", "Errors"].map(f => (
-              <button key={f} className={cn("px-3 py-1.5 text-xs rounded-md", f === "All" ? "bg-[#2dd4bf]/15 text-[#2dd4bf] border border-[#2dd4bf]/30" : "text-[#6b7d99] bg-[#1c2433] border border-white/8")}>{f}</button>
-            ))}
-          </div>
-          {ACTIVITY_EVENTS.map(ev => (
-            <div key={ev.id} className="flex gap-4 p-4 bg-card border border-white/6 rounded-lg hover:border-white/10 transition-colors">
-              <div className="text-xs font-mono text-[#6b7d99] w-12 shrink-0 pt-0.5">{ev.occurredAt}</div>
-              <div className={cn("w-2 h-2 rounded-full mt-1.5 shrink-0", ev.severity === "success" ? "bg-[#4ade80]" : ev.severity === "warning" ? "bg-[#f59e0b]" : "bg-[#60a5fa]")} />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-[#dde3ef] mb-0.5">{ev.title}</div>
-                <div className="text-sm text-[#6b7d99]">{ev.description}</div>
-                <div className="flex items-center gap-3 mt-2">
-                  {ev.transactionHash && <a href="#" className="text-xs text-[#2dd4bf] flex items-center gap-1"><ExternalLink className="w-3 h-3" /> {ev.transactionHash}</a>}
-                  {ev.cost && <span className="text-xs text-[#6b7d99]">Cost: {ev.cost}</span>}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {tab === "authority" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            {[{ label: "Active grants", value: "1" }, { label: "High authority", value: "0" }, { label: "Expiring (7d)", value: "1" }, { label: "Near limit", value: "0" }].map(s => (
-              <div key={s.label} className="bg-card border border-white/7 rounded-lg p-4">
-                <div className="text-xl font-semibold font-mono text-[#dde3ef]">{s.value}</div>
-                <div className="text-xs text-[#6b7d99]">{s.label}</div>
-              </div>
-            ))}
-          </div>
-          <Card className="p-5">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-semibold text-[#dde3ef]">{grant.serviceName}</span>
-                  <Badge variant="green">{grant.state}</Badge>
-                </div>
-                <div className="text-xs text-[#6b7d99]">via {grant.provider} · Wallet: {grant.wallet}</div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm mb-4">
-              {[
-                { label: "Protocols", value: grant.protocols.join(", ") },
-                { label: "Assets", value: grant.assets.join(", ") },
-                { label: "Daily limit", value: grant.dailyLimit },
-                { label: "Used today", value: grant.usedToday },
-                { label: "Expiry", value: grant.expiry },
-                { label: "Transfer capability", value: grant.transferCapability ? "Yes" : "None" },
-              ].map(row => (
-                <div key={row.label}>
-                  <div className="text-[#6b7d99] text-xs">{row.label}</div>
-                  <div className="text-[#dde3ef] mt-0.5 font-mono">{row.value}</div>
-                </div>
-              ))}
-            </div>
-            <div className="mb-4">
-              <div className="flex justify-between text-xs text-[#6b7d99] mb-1">
-                <span>Daily usage</span><span>{grant.usedToday} / {grant.dailyLimit}</span>
-              </div>
-              <div className="h-2 bg-[#1c2433] rounded-full overflow-hidden">
-                <div className="h-full bg-[#2dd4bf] rounded-full" style={{ width: "33%" }} />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Btn size="sm" variant="secondary">Change Limits</Btn>
-              <Btn size="sm" variant="danger"><X className="w-3 h-3" /> Revoke</Btn>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {tab === "outcomes" && (
-        <div className="space-y-6">
-          <div className="flex gap-2">
-            {["7D", "30D", "90D", "All"].map(r => (
-              <button key={r} className={cn("px-3 py-1.5 text-xs rounded-md", r === "30D" ? "bg-[#2dd4bf]/15 text-[#2dd4bf] border border-[#2dd4bf]/30" : "text-[#6b7d99] bg-[#1c2433] border border-white/8")}>{r}</button>
-            ))}
-          </div>
-          <div>
-            <SectionHeader label="Rebalancing — RangeKeeper (30d)" />
-            <Card className="p-5 space-y-3">
-              <div className="flex justify-between text-sm"><span className="text-[#6b7d99]">Time in range</span><span className="text-[#4ade80] font-mono">94%</span></div>
-              <div className="flex justify-between text-sm"><span className="text-[#6b7d99]">Rebalances</span><span className="font-mono text-[#dde3ef]">3</span></div>
-              <div className="flex justify-between text-sm"><span className="text-[#6b7d99]">Fees earned (LP)</span><span className="text-[#4ade80] font-mono">+$28.40</span></div>
-              <div className="flex justify-between text-sm"><span className="text-[#6b7d99]">Gas cost</span><span className="text-[#f87171] font-mono">−$3.72</span></div>
-              <div className="flex justify-between text-sm"><span className="text-[#6b7d99]">Agent fee (30d)</span><span className="text-[#f87171] font-mono">−$7.00</span></div>
-              <div className="border-t border-white/10 pt-2 flex justify-between text-sm font-medium"><span className="text-[#9aacc4]">Net result</span><span className="text-[#4ade80] font-mono">+$17.68</span></div>
-              <ProvenanceBadge type="marketplace-observed" />
-              <p className="text-[11px] text-[#6b7d99]">Attribution: fees earned are OBSERVED from LP position data. Gas is DIRECT (on-chain). Net result is DERIVED. Outcome state: MEASURED over 12-day active window.</p>
-            </Card>
-          </div>
-          <button className="text-sm text-[#2dd4bf] flex items-center gap-1">
-            <Eye className="w-3.5 h-3.5" /> View Evidence
-          </button>
-        </div>
-      )}
-
-      {tab === "plans" && (
-        <div className="space-y-4">
-          <p className="text-sm text-[#6b7d99]">No active plans. Explore curated combinations of specialist agents.</p>
-          <Btn variant="teal-outline" onClick={() => navigate("plans")}>Browse Smart Money Plans <ChevronRight className="w-4 h-4" /></Btn>
-        </div>
-      )}
-    </div>
-  );
+  return <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+    <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4"><div><div className="text-[11px] font-mono uppercase tracking-wide text-[#2dd4bf]">Live buyer portfolio</div><h1 className="text-2xl font-semibold text-[#dde3ef] mt-1">My Agents</h1><p className="text-sm text-[#6b7d99] mt-1 max-w-2xl">Commercial relationships, reviewed authority, runtime activity and outcomes stay separate. Missing financial evidence remains Could Not Assess.</p></div><Btn variant="teal-outline" size="sm" onClick={()=>navigate("explore")}><Plus className="w-3.5 h-3.5"/> Add Agent</Btn></div>
+    <Card className="p-4"><div className="flex flex-col sm:flex-row gap-2"><input value={buyerAddress} onChange={e=>setBuyerAddress(e.target.value)} placeholder="0x buyer wallet" className="flex-1 bg-[#111722] border border-white/10 rounded-md px-3 py-2 text-sm font-mono text-[#dde3ef]"/><Btn variant="secondary" onClick={()=>void load()} disabled={loading}>{loading?<RefreshCw className="w-4 h-4 animate-spin"/>:<RefreshCw className="w-4 h-4"/>} Load portfolio</Btn></div><div className="text-[10px] text-[#52637b] mt-2">A live Smart Money Check wallet is loaded automatically when available. This view does not infer wallet ownership from an address alone.</div></Card>
+    {error&&<div className="rounded-lg border border-[#f87171]/20 bg-[#f87171]/5 p-3 text-sm text-[#fca5a5]">{error}</div>}
+    {portfolio&&<>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3"><div className="bg-card border border-white/7 rounded-lg p-4"><div className="text-xl font-semibold font-mono text-[#dde3ef]">{portfolio.active.length}</div><div className="text-xs text-[#6b7d99]">Active relationships</div></div><div className="bg-card border border-white/7 rounded-lg p-4"><div className="text-xl font-semibold font-mono text-[#dde3ef]">{portfolio.history.length}</div><div className="text-xs text-[#6b7d99]">Relationship history</div></div><div className="bg-card border border-white/7 rounded-lg p-4"><div className="text-xl font-semibold font-mono text-[#dde3ef]">{portfolio.active.filter(x=>x.hasReconciledPermissionGrant).length}</div><div className="text-xs text-[#6b7d99]">Reconciled grants</div></div><div className="bg-card border border-white/7 rounded-lg p-4"><div className="text-xl font-semibold font-mono text-[#dde3ef]">{portfolio.switches.length}</div><div className="text-xs text-[#6b7d99]">Switch attempts</div></div></div>
+      <div className="flex gap-1 border-b border-white/7 overflow-x-auto">{tabs.map(t=><button key={t.key} onClick={()=>setTab(t.key)} className={cn("px-4 py-2.5 text-sm whitespace-nowrap border-b-2 -mb-px",tab===t.key?"text-[#2dd4bf] border-[#2dd4bf]":"text-[#6b7d99] border-transparent")}>{t.label}</button>)}</div>
+      {(tab==="overview"||tab==="agents")&&<div className="space-y-4">{portfolio.active.length?portfolio.active.map(renderRelationship):<Card className="p-6 text-sm text-[#6b7d99]">This wallet has no active Spotriq marketplace relationships yet.</Card>}{portfolio.history.length>0&&<><SectionHeader label="Relationship history"/>{portfolio.history.map(renderRelationship)}</>}</div>}
+      {tab==="authority"&&<div className="space-y-4">{[...portfolio.active,...portfolio.history].map(item=><Card key={item.activation.activationId} className="p-4"><div className="flex items-center justify-between gap-3"><div><div className="text-sm font-medium text-[#dde3ef]">{item.service.name}</div><div className="text-xs text-[#6b7d99] mt-1">{item.permissionRequest?`${item.permissionRequest.state} · ${item.permissionRequest.authorityTier}`:"No ScopedPermissionRequest recorded"}</div></div><Badge variant={item.hasReconciledPermissionGrant?"green":"muted"}>{item.hasReconciledPermissionGrant?"Grant reconciled":"No grant"}</Badge></div></Card>)}</div>}
+      {tab==="activity"&&<div className="space-y-3">{[...portfolio.active,...portfolio.history].flatMap(item=>(item.activityOutcome?.activity??[]).map(ev=>({item,ev}))).sort((a,b)=>b.ev.occurredAt.localeCompare(a.ev.occurredAt)).map(({item,ev})=><Card key={`${item.activation.activationId}:${ev.activityEventId}`} className="p-4"><div className="flex justify-between gap-3"><div><div className="text-sm text-[#dde3ef]">{item.service.name} · {ev.title}</div><div className="text-xs text-[#6b7d99] mt-1">{ev.description}</div></div><span className="text-[10px] text-[#52637b] shrink-0">{new Date(ev.occurredAt).toLocaleString()}</span></div></Card>)}</div>}
+      {tab==="outcomes"&&<div className="space-y-3">{[...portfolio.active,...portfolio.history].map(item=><Card key={item.activation.activationId} className="p-4"><div className="flex justify-between gap-3"><div><div className="text-sm text-[#dde3ef]">{item.service.name}</div><div className="text-xs text-[#6b7d99] mt-1">{item.activityOutcome?.outcome.financialOutcome.detail??"No defensible financial measurement exists yet."}</div></div><Badge variant="amber">{outcomeLabel(item)}</Badge></div></Card>)}</div>}
+      {tab==="plans"&&<Card className="p-6 text-sm text-[#6b7d99]">Smart Money Plans remain a later milestone. My Agents does not synthesize a plan from active services yet.</Card>}
+      {portfolio.switches.length>0&&<Card className="p-4"><SectionHeader label="Switch history"/><div className="space-y-2 mt-3">{portfolio.switches.map(sw=><div key={sw.switchId} className="border-t border-white/6 pt-2 text-xs"><div className="flex justify-between gap-3"><span className="text-[#9aacc4] font-mono break-all">{sw.sourceServiceId} → {sw.targetServiceId}</span><Badge variant={sw.state==="COMPLETED"?"green":sw.state==="BLOCKED"?"amber":"red"}>{sw.state}</Badge></div>{sw.blockers.length>0&&<div className="text-[#6b7d99] mt-1">{sw.blockers.join(" ")}</div>}</div>)}</div></Card>}
+      <div className="text-[10px] text-[#52637b]">{portfolio.limitations.join(" ")}</div>
+    </>}
+  </div>;
 }
 
 // ─── PAGE: PLAN PROFILE ───────────────────────────────────────────────────────
@@ -3938,13 +3797,13 @@ export default function App() {
         return <CheckStartPage navigate={navigate} />;
 
       case "agent":
-        return <AgentProfilePage serviceId={nav.agentId || "svc-rangekeeper-01"} navigate={navigate} initialTab={nav.agentProfileTab} />;
+        return <LiveAgentProfilePage serviceId={nav.agentId || "svc:reference:rangekeeper"} navigate={navigate} />;
 
       case "compare":
-        return <ComparePage compareIds={nav.compareIds || []} navigate={navigate} />;
+        return <LiveComparePage compareIds={nav.compareIds || []} navigate={navigate} />;
 
       case "try":
-        return <TryAgentPage serviceId={nav.agentId || "svc-rangekeeper-01"} navigate={navigate} />;
+        return <LiveTryAgentPage serviceId={nav.agentId || "svc:reference:rangekeeper"} navigate={navigate} />;
 
       case "checkout":
         return <CheckoutPage serviceId={nav.agentId || "svc-rangekeeper-01"} jobIntentId={nav.jobIntentId} navigate={navigate} />;

@@ -30,6 +30,7 @@ import { createServiceTaskEngine, MemoryServiceTaskStore, PostgresServiceTaskSto
 import { CommercialError, createCommercialEngine, createErc8183PaymentAdapter, MemoryCommercialStore, PostgresCommercialStore, type CommercialEngine } from "@spotriq/commercial";
 import { createPermissionCheckoutEngine, MemoryPermissionCheckoutStore, PermissionCheckoutError, PostgresPermissionCheckoutStore, type PermissionCheckoutEngine } from "@spotriq/permission-checkout";
 import { createFinancialExecutionAdapterEngine, FinancialExecutionAdapterError, MemoryFinancialExecutionAssessmentStore, PostgresFinancialExecutionAssessmentStore, type FinancialExecutionAdapterEngine } from "@spotriq/financial-execution-adapters";
+import { createMyAgentsEngine, MemoryMyAgentsStore, MyAgentsError, PostgresMyAgentsStore, type MyAgentsEngine } from "@spotriq/my-agents";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
@@ -51,6 +52,7 @@ import { registerReferenceAgentRoutes } from "./routes/reference-agents.js";
 import { registerCommercialRoutes } from "./routes/commercial.js";
 import { registerPermissionCheckoutRoutes } from "./routes/permission-checkout.js";
 import { registerFinancialExecutionAdapterRoutes } from "./routes/financial-execution-adapters.js";
+import { registerMyAgentsRoutes } from "./routes/my-agents.js";
 import { createReferenceAgentCatalog, type ReferenceAgentIdentityBinding, type ReferenceAgentSlug } from "@spotriq/reference-agents";
 
 export interface BuildServerOptions {
@@ -74,6 +76,7 @@ export interface BuildServerOptions {
   commercial?: CommercialEngine;
   permissionCheckout?: PermissionCheckoutEngine;
   financialExecutionAdapters?: FinancialExecutionAdapterEngine;
+  myAgents?: MyAgentsEngine;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -224,6 +227,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     : new MemoryActivityOutcomesStore();
   const activityOutcomes = options.activityOutcomes ?? createActivityOutcomesEngine({ store: activityOutcomesStore, executions: controlledExecution, jobs: jobIntents, plans: executionPlans, boundaries: executionBoundary, authority, pancakeSwap });
   const activationActivityOutcomes = options.activationActivityOutcomes ?? createActivationActivityOutcomesEngine({ store: activityOutcomesStore, commercial, tasks: serviceTasks, permissionCheckout, executionAdapters: financialExecutionAdapters });
+  const myAgentsStore = sqlDatabase ? new PostgresMyAgentsStore(sqlDatabase) : new MemoryMyAgentsStore();
+  const myAgents = options.myAgents ?? createMyAgentsEngine({ store: myAgentsStore, commercial, marketplace: marketplaceSupply, permissionCheckout, activityOutcomes: activationActivityOutcomes });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
@@ -244,7 +249,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.27.0",
+      version: "0.28.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -323,6 +328,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       categoryExecutionDispatchEnabled: false,
       fourCategoryActivityOutcomeParityEnabled: true,
       activationOutcomeCouldNotAssessEnabled: true,
+      myAgentsPortfolioEnabled: true,
+      myAgentsSwitchingEnabled: true,
+      liveMarketplaceProfileCompareTryEnabled: true,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
@@ -360,6 +368,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "A category adapter does not create a PermissionGrant. Grid/Yield/Health provider reconciliation remains a separate future authority-provider bridge, and category dispatch remains disabled until a non-bypassable signer consumes an exact reconciled grant.",
         "v0.27 adds Activation-scoped Activity & Outcomes parity across Rebalancing, Grid, Yield and Health. Runtime observations, permission review, execution preflight/guard state and relationship revocation are reconciled into one deterministic timeline without converting technical success into financial success.",
         "When no independently reconciled transaction and defensible measurement window exist, financial outcome is explicitly Could Not Assess. Grid PnL/fills, realised yield and Health protective effects are never inferred from read-only runtime output or guarded calldata preparation.",
+        "v0.28 replaces sample My Agents state with a buyer-scoped portfolio aggregated from real commercial Activation, Permission Checkout, runtime/activity and outcome resources. Same-category switching is persisted and idempotent, and relationship ending fails closed when an independently reconciled PermissionGrant would be stranded.",
+        "Agent profile, comparison and Try surfaces use live marketplace/Test Lab resources rather than fabricated reviews, fills, PnL or example performance claims.",
         "Paid rails are provider-neutral adapters. ERC-8183 is observed from BSC job/funding state; X402/B402 are represented in the domain but no live adapter is enabled yet, so Spotriq cannot falsely mark those payments verified.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
@@ -377,7 +387,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerCheckRoutes(app, smartMoney, marketplaceSupply);
   await registerAgentRoutes(app, agentRegistry, config.agentDiscoveryChainId);
   await registerMarketplaceRoutes(app, marketplaceSupply, config.agentDiscoveryChainId);
-  await registerCommercialRoutes(app, commercial);
+  await registerCommercialRoutes(app, commercial, permissionCheckout);
   await registerPermissionCheckoutRoutes(app, permissionCheckout);
   await registerFinancialExecutionAdapterRoutes(app, financialExecutionAdapters);
   await registerReferenceAgentRoutes(app, { publicBaseUrl: config.publicApiBaseUrl, pancakeSwap, venus, marketContext, identityBindings: referenceIdentityBindings });
@@ -388,6 +398,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerControlledExecutionRoutes(app, controlledExecution, jobIntents, activityOutcomes);
   await registerActivityOutcomeRoutes(app, activityOutcomes);
   await registerActivationActivityOutcomeRoutes(app, activationActivityOutcomes);
+  await registerMyAgentsRoutes(app, myAgents);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {
@@ -439,6 +450,14 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
 
     if (error instanceof JobIntentError) {
       const statusCode = error.code === "JOB_INTENT_NOT_FOUND" ? 404 : error.code === "MATCH_REQUIRED" || error.code === "UNSUPPORTED_FINDING" || error.code === "INVALID_STATE" ? 422 : 400;
+      const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
+      return reply.code(statusCode).send(body);
+    }
+
+    if (error instanceof MyAgentsError) {
+      const statusCode = error.code === "IDEMPOTENCY_CONFLICT" ? 409
+        : error.code === "WRONG_BUYER" || error.code === "ACTIVATION_NOT_ACTIVE" || error.code === "SAME_SERVICE" || error.code === "CATEGORY_MISMATCH" || error.code === "NETWORK_MISMATCH" || error.code === "TARGET_NOT_ELIGIBLE" || error.code === "ACTIVE_PERMISSION_GRANT" ? 422
+          : 400;
       const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
       return reply.code(statusCode).send(body);
     }

@@ -2771,3 +2771,62 @@ export interface ActivationActivityOutcomeBundle {
   methodVersion: string;
   limitations: string[];
 }
+
+// ─── Buyer My Agents + switching (v0.28) ─────────────────────────────────────
+export type MyAgentRelationshipBucket = "ACTIVE" | "HISTORY";
+export type MyAgentSwitchState = "BLOCKED" | "COMPLETED" | "FAILED";
+
+export interface MyAgentAlternative {
+  serviceId: string;
+  name: string;
+  category: ServiceCategory;
+  readiness: ReadinessState;
+  serviceChainId?: AgentRegistryChainId;
+  commercialModel?: PricingModel["model"];
+  serviceType?: CommercialServiceType;
+  eligible: boolean;
+  reason: string;
+}
+
+export interface MyAgentPortfolioItem {
+  activation: MarketplaceActivation;
+  service: AgentService;
+  readiness: ReadinessSnapshot;
+  control: ActivationControlProfile;
+  permissionCheckout?: PermissionCheckout;
+  permissionRequest?: ScopedPermissionRequest;
+  activityOutcome?: ActivationActivityOutcomeBundle;
+  relationshipBucket: MyAgentRelationshipBucket;
+  hasReconciledPermissionGrant: boolean;
+  canEndRelationship: boolean;
+  endRelationshipBlocker?: string;
+  alternatives: MyAgentAlternative[];
+}
+
+export interface MyAgentSwitchRecord {
+  switchId: string;
+  buyerAddress: string;
+  sourceActivationId: string;
+  sourceServiceId: string;
+  targetServiceId: string;
+  category: ServiceCategory;
+  state: MyAgentSwitchState;
+  idempotencyKey: string;
+  replacementActivationId?: string;
+  blockers: string[];
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface MyAgentsPortfolio {
+  buyerAddress: string;
+  active: MyAgentPortfolioItem[];
+  history: MyAgentPortfolioItem[];
+  switches: MyAgentSwitchRecord[];
+  generatedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}

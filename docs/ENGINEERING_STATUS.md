@@ -1,113 +1,79 @@
 # Spotriq Engineering Status
 
-**Release candidate:** v0.27.0  
+**Release candidate:** v0.28.0  
 **Date:** 2026-09-01  
-**State:** Four-Category Activity + Outcome Parity implemented; v0.26 externally accepted; local dependency-aware validation and external v0.27 acceptance pending.
+**State:** My Agents + Switching/Revocation + Marketplace UX Completion implemented; v0.27 externally accepted; local dependency-aware validation and external v0.28 acceptance pending.
 
 ## Accepted baseline
 
-Production acceptance is complete through v0.26:
+Production acceptance is complete through v0.27.
 
-- v0.22 — four reference runtimes/Test Lab/ERC-8004 reconciliation;
-- v0.23 — FREE Offer → Quote → Hire → NOT_REQUIRED payment → read-only Activation;
-- v0.24 — four-category Activation-bound runtime/control/revocation parity;
-- v0.25 — four-category Permission Checkout; all current reference services persist immutable BLOCKED ScopedPermissionRequests and no fake PermissionGrant;
-- v0.26 — four-category financial execution adapters/guards accepted without unauthorized dispatch.
+v0.27 proved that all four category Activation journeys can persist truthful technical activity/outcome state while absent transaction/performance evidence remains `Could Not Assess`.
 
-## v0.26 architecture
+## v0.28 package
 
-New package: `@spotriq/financial-execution-adapters`.
+`@spotriq/my-agents`
 
-It owns:
+Responsibilities:
 
-- four-category adapter catalog;
-- deterministic execution preflight;
-- exact target/argument guard preparation;
-- memory/PostgreSQL assessment persistence;
-- no transaction dispatch.
-
-The category adapter layer intentionally exposes `executionEligible: false`; it proves preparedness/guard state, not signing or execution.
-
-### Rebalancing
-
-`LEGACY_REBALANCING_BOUNDARY`. Existing v0.16–v0.20 deep execution architecture remains authoritative. No duplicate execution stack was introduced.
-
-### Grid
-
-PancakeSwap V3 `exactInputSingle` only. Guard checks reviewed pool/token membership, canonical router, buyer recipient, reviewed amount caps, non-zero min output, deadline/expiry and fresh chain/pool state. Multi-hop/multicall/Permit2/unlimited approval are out of scope.
-
-### Yield
-
-Venus ERC-20 vToken `mint` / `redeemUnderlying` only. Guard checks exact allowlisted vToken, exact underlying asset, reviewed amount/allocation limits and fresh reads. Borrow/native-asset supply are excluded.
-
-### Health
-
-Protective `repayBorrow` / add-collateral `mint` only. Guard checks exact market/underlying, explicit reviewed protective action, intervention cap, fresh health trigger and existing collateral-enabled state for add-collateral. Borrow/collateral-withdraw are absent.
-
-## Current authority truth
-
-A category adapter never creates a PermissionGrant.
-
-Grid/Yield/Health Permission Checkout no longer reports “adapter missing”; it now reports the remaining **authority-provider bridge** requirement. Current first-party services also remain `READ_ONLY` / not financially READY, so preflight fails closed before calldata preparation.
-
-Future category dispatch requires a separately implemented non-bypassable signer/boundary that consumes an exact independently reconciled grant. Capability `categoryExecutionDispatchEnabled` remains `false`.
+- aggregate buyer Activations into active/history portfolio buckets;
+- attach live AgentService/readiness/control state;
+- attach Permission Checkout / ScopedPermissionRequest state without treating it as commercial state;
+- attach Activation Activity + Outcome when available;
+- calculate same-category replacement candidates;
+- persist idempotent switch records;
+- fail closed when an independent reconciled PermissionGrant would be stranded;
+- activate replacement before revoking the source relationship.
 
 ## Persistence
 
-Migration `0019_four_category_financial_execution_adapters.sql` adds `financial_execution_adapter_assessments` with `PREFLIGHT` / `GUARD` payloads tied by FK to `scoped_permission_requests`.
+Migration `0021_my_agents_switching.sql` adds `my_agent_switches` with buyer-scoped idempotency and immutable source/target identity.
 
-Assessment evidence is not PermissionGrant/transaction/receipt/outcome evidence.
+Switch history is not a PermissionGrant or financial transaction log.
 
 ## API
 
-- `GET /v1/execution-adapters`
-- `GET /v1/execution-adapters/:category`
-- `POST /v1/scoped-permission-requests/:permissionRequestId/execution-preflight`
-- `POST /v1/scoped-permission-requests/:permissionRequestId/execution-guard`
-- `GET /v1/scoped-permission-requests/:permissionRequestId/execution-state`
+- `GET /v1/accounts/:address/my-agents`
+- `GET /v1/accounts/:address/my-agents/switches`
+- `POST /v1/accounts/:address/my-agents/:activationId/switch`
+- `POST /v1/accounts/:address/my-agents/:activationId/revoke`
 
-Fastify error handling preserves explicit client/protocol error semantics rather than flattening everything to 500.
+Fastify exposes explicit My Agents errors, including idempotency conflict and active independent PermissionGrant blockers.
 
 ## Web
 
-Permission Checkout now loads v0.26 preflight after the reviewed ScopedPermissionRequest exists. It displays adapter state/mode and deterministic blockers, plus **Execution dispatch: DISABLED**. There is no client-side financial execution shortcut.
+My Agents no longer reads the Figma/sample `ACTIVATIONS`, `PERMISSION_GRANTS` or sample activity data for the active buyer view.
+
+The page loads a live wallet portfolio, shows commercial/authority/runtime/outcome separately, offers only eligible same-category switch candidates and uses the safe My Agents revoke endpoint.
+
+Service Profile / Compare / Try now use live marketplace/Test Lab APIs instead of scripted performance/test results.
+
+## Capability truth
+
+- `myAgentsPortfolioEnabled = true`
+- `myAgentsSwitchingEnabled = true`
+- `liveMarketplaceProfileCompareTryEnabled = true`
+
+These flags do not imply broad paid switching, mainnet execution or automatic PermissionGrant revocation.
 
 ## Verification
 
-Static repository guard: `pnpm verify`.
+Local:
 
-Accepted regression verifiers:
+`pnpm --filter @spotriq/api build`
 
-- `pnpm verify:reference-acceptance`
-- `pnpm verify:commercial-acceptance`
-- `pnpm verify:activation-parity`
-- `pnpm verify:permission-checkout`
+`pnpm check`
 
-New v0.26 acceptance contract:
+Production regressions:
 
-- `pnpm verify:execution-adapter-parity`
+`verify:reference-acceptance → verify:commercial-acceptance → verify:activation-parity → verify:permission-checkout → verify:execution-adapter-parity → verify:activity-outcome-parity`
 
-It must prove all four adapters are implemented/testnet-only, exact target scope passes, current services remain blocked at real readiness/grant gates, blocked services receive no prepared financial call, Rebalancing delegates to the existing boundary and assessments persist.
+New v0.28 gate:
 
-## Release gate
+`pnpm verify:my-agents`
 
-`pnpm --filter @spotriq/api build → pnpm check → commit/push → Railway migration 0019 → deployment → four prior acceptance regressions → verify:execution-adapter-parity`
+The v0.28 verifier creates truthful FREE read-only relationships, confirms they appear in the buyer portfolio, persists a same-service switch as BLOCKED, confirms switch history, revokes relationships through the safe My Agents boundary and confirms they move into history.
 
-Do not call v0.26 externally accepted before this sequence passes.
+## Next after acceptance
 
-## Next milestone after acceptance
-
-**v0.28 — My Agents + Switching/Revocation + Marketplace UX Completion.**
-
-
-## v0.27 implementation candidate
-
-Four-category Activation Activity & Outcome parity is implemented. The API reconciles Activation, ServiceTask, Permission Checkout/ScopedPermissionRequest, execution preflight/guard state and revocation into persistent `activity_events` / `outcome_windows` / `outcome_metrics` records.
-
-Latest migration: `0020_four_category_activity_outcomes.sql`.
-
-New verifier: `pnpm verify:activity-outcome-parity`.
-
-Financial outcome remains `Could Not Assess` when no independently reconciled transaction and defensible measurement window exist. The older controlled Rebalancing execution outcome path remains separate.
-
-Do not mark v0.27 externally accepted before local API build + `pnpm check`, Railway migration/deploy, all v0.22–v0.26 regressions and the v0.27 live verifier pass.
+v0.29 — Smart Money Plans + Compatibility/Conflict Handling.

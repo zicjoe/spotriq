@@ -1,8 +1,8 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-09-01  
-**Current implementation:** v0.27.0  
-**Current milestone:** Four-Category Activity + Outcome Parity
+**Current implementation:** v0.28.0  
+**Current milestone:** My Agents + Switching/Revocation + Marketplace UX Completion
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
 
@@ -47,7 +47,7 @@ Four-category reviewed scope:
 
 ## v0.26.0 — Four-Category Financial Execution Adapter Parity
 
-**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+**Status: COMPLETE / externally accepted.**
 
 ### Goal
 
@@ -95,7 +95,13 @@ Acceptance:
 
 ## v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion
 
-Unify buyer commercial state, permission state, authority revocation, runtime/activity/outcomes, service switching and active-agent management. Complete remaining live Explore/Compare/Try/service-profile gaps without mock readiness/performance.
+**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+
+Unify buyer commercial state, permission state, runtime/activity/outcomes, safe relationship revocation, service switching and active-agent management without collapsing their meanings. My Agents is a buyer-scoped API resource, switching is persisted/idempotent and fails closed when a reconciled PermissionGrant would be stranded. Agent Profile, Compare and Try consume live marketplace/Test Lab evidence rather than mock performance/reviews.
+
+Migration: `0021_my_agents_switching.sql`.
+
+Acceptance: `API build → pnpm check → Railway migration 0021/deploy → v0.22–v0.27 regressions → verify:my-agents → record acceptance`.
 
 ## v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling
 

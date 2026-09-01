@@ -589,3 +589,20 @@ Live acceptance after deployment:
 ```powershell
 pnpm verify:activity-outcome-parity
 ```
+
+## v0.28.0 My Agents + Switching/Revocation + Marketplace UX Completion
+
+Spotriq now exposes a buyer-scoped **My Agents** portfolio from persisted marketplace state instead of sample portfolio data. The portfolio keeps commercial Activation, reviewed authority, reconciled PermissionGrant state, runtime/activity evidence and financial outcomes as separate resources, then presents them together without collapsing their meanings.
+
+A same-category service switch is now a persisted, idempotent marketplace operation. Spotriq activates the replacement relationship before revoking the source relationship, refuses same-service or incompatible replacements, and fails closed when an independently reconciled financial PermissionGrant would otherwise be stranded. Ending a relationship follows the same authority boundary; it does not silently revoke an independent grant.
+
+The surrounding marketplace UX is live as well: Agent Profile and Compare read marketplace/Test Lab evidence, while Try runs the bounded Marketplace Test Lab rather than a scripted simulation. Historical sample performance/review claims are no longer presented as buyer truth.
+
+New API resources include:
+
+- `GET /v1/accounts/:address/my-agents`
+- `GET /v1/accounts/:address/my-agents/switches`
+- `POST /v1/accounts/:address/my-agents/:activationId/switch`
+- `POST /v1/accounts/:address/my-agents/:activationId/revoke`
+
+Migration `0021_my_agents_switching.sql` persists switch history. Production acceptance command: `pnpm verify:my-agents`.

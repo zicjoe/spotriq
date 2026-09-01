@@ -1,7 +1,7 @@
 {
   "name": "spotriq",
   "private": true,
-  "version": "0.27.0",
+  "version": "0.28.0",
   "packageManager": "pnpm@10.14.0",
   "type": "module",
   "scripts": {
@@ -21,7 +21,8 @@
     "verify:activation-parity": "node scripts/verify-activation-parity.mjs",
     "verify:permission-checkout": "node scripts/verify-permission-checkout.mjs",
     "verify:execution-adapter-parity": "node scripts/verify-execution-adapter-parity.mjs",
-    "verify:activity-outcome-parity": "node scripts/verify-activity-outcome-parity.mjs"
+    "verify:activity-outcome-parity": "node scripts/verify-activity-outcome-parity.mjs",
+    "verify:my-agents": "node scripts/verify-my-agents.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -1,17 +1,17 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.27.0  
-**Implementation status:** Four-Category Activity + Outcome Parity implemented; dependency-aware local validation and external v0.27 acceptance pending.  
+**Current implementation release:** v0.28.0  
+**Implementation status:** My Agents + Switching/Revocation + Marketplace UX Completion implemented; dependency-aware local validation and external v0.28 acceptance pending.  
 **Last state update:** 2026-09-01  
-**Repository role:** Concise present-state map. Current repository remains implementation truth.
+**Repository role:** concise present-state map; current repository remains implementation truth.
 
-## 1. Product position
+## Product position
 
-Spotriq is a **BSC financial-agent marketplace** that helps a wallet understand financial needs, discover/evaluate specialist AgentServices, hire/activate them, review scoped authority, pass deterministic execution gates, observe activity and measure outcomes only when defensible evidence exists.
+Spotriq is a **BSC financial-agent marketplace**. It helps a wallet understand financial needs, discover/evaluate specialist AgentServices, hire/activate them, review scoped authority, observe runtime/execution state, measure only defensible outcomes, and decide whether to continue, switch or end a relationship.
 
 Lifecycle:
 
-`Understand → Discover → Match → Evaluate → Hire / Activate → Permission Checkout → PermissionGrant where eligible → Guarded Execution where eligible → Activity → Outcome → Reassess`
+`Understand → Discover → Match → Evaluate → Hire / Activate → Permission Checkout → PermissionGrant where eligible → Guarded Execution where eligible → Activity → Outcome → Continue / Switch / Revoke`
 
 Locked separation:
 
@@ -19,111 +19,94 @@ Locked separation:
 
 `Technical observation ≠ financial outcome`
 
-`Guarded calldata ≠ transaction`
+AI explains. Deterministic systems decide.
 
-`Transaction success ≠ strategy success`
+## Externally accepted baseline
 
-AI may explain. Deterministic systems decide identity, evidence, readiness, authority, protocol targets, execution safety and financial truth.
+- **v0.22 ✅** Four public reference runtimes + Test Lab + canonical BSC Testnet ERC-8004 reconciliation.
+- **v0.23 ✅** FREE Offer → Quote → Hire → NOT_REQUIRED payment → ACTIVE read-only Activation for all four.
+- **v0.24 ✅** Four-category Activation-bound runtime/control/revocation parity.
+- **v0.25 ✅** Four-category Permission Checkout; immutable blocked requests for current read-only services; no fake PermissionGrant.
+- **v0.26 ✅** Four-category execution-adapter/argument-guard acceptance without unauthorized dispatch.
+- **v0.27 ✅** Four-category Activation Activity + Outcome parity; missing transaction/performance evidence remains `Could Not Assess`.
 
-## 2. Externally accepted baseline
-
-- **v0.22 ✅** Four public reference agents: runtime/Test Lab/ERC-8004 canonical acceptance.
-- **v0.23 ✅** `FREE Offer → Quote → Hire → NOT_REQUIRED payment → ACTIVE read-only Activation` for all four.
-- **v0.24 ✅** Activation-bound category runtime parity and marketplace relationship revocation for all four.
-- **v0.25 ✅** Four category Permission Checkout scopes persist as immutable BLOCKED ScopedPermissionRequests for current read-only services; no fake PermissionGrant.
-- **v0.26 ✅** Four category financial execution-adapter acceptance passed. Exact target/argument adapters exist, but current reference services remain blocked at real readiness/PermissionGrant gates and no unauthorized transaction is dispatched.
-
-## 3. Current architecture
+## Current architecture
 
 - `apps/web` — React/Vite marketplace UX.
 - `apps/api` — Fastify API.
 - `apps/worker` — worker seam.
-- `@spotriq/domain`, `@spotriq/api-contracts` — shared domain/REST truth.
-- `@spotriq/db` — PostgreSQL migrations `0001`–`0020`.
-- deterministic BSC/PancakeSwap/Venus/market-context/Smart Money packages.
-- ERC-8004 registry, marketplace supply/Test Lab and four first-party reference runtimes.
+- shared `@spotriq/domain` and `@spotriq/api-contracts`.
+- PostgreSQL migrations `0001`–`0021`.
+- deterministic BSC, PancakeSwap, Venus, market-context and Smart Money packages.
+- ERC-8004 discovery, marketplace supply/readiness/Test Lab, and four first-party reference runtimes.
 - `@spotriq/commercial` — Offer/Quote/Hire/Payment/Activation/control/revocation.
-- `@spotriq/service-tasks` — attributed A2A runtime tasks across all four categories.
-- `@spotriq/permission-checkout` — reviewed category authority + immutable ScopedPermissionRequest.
-- `@spotriq/financial-execution-adapters` — category preflight and exact call guards.
-- `@spotriq/activity-outcomes` — legacy controlled Rebalancing execution outcomes **plus v0.27 Activation-scoped four-category Activity & Outcomes reconciliation**.
+- `@spotriq/service-tasks` — attributed read-only category runtimes.
+- `@spotriq/permission-checkout` — reviewed authority + immutable ScopedPermissionRequest.
+- `@spotriq/financial-execution-adapters` — category preflight/exact argument guards.
+- `@spotriq/activity-outcomes` — controlled Rebalancing execution outcomes + Activation-scoped four-category outcome truth.
+- **`@spotriq/my-agents` — buyer portfolio aggregation, fail-closed relationship ending and persisted service switching.**
 
-## 4. v0.27 — Four-Category Activity + Outcome Parity
+## v0.28 — My Agents + Switching/Revocation + Marketplace UX Completion
 
-v0.27 extends outcome truth beyond the older controlled-Rebalancing-only view.
+My Agents is now a real buyer-scoped resource rather than sample portfolio data.
 
-For any category Activation Spotriq can reconcile:
+It aggregates, without merging their meanings:
 
 `MarketplaceActivation`
-`→ ServiceTask/runtime observation`
-`→ Permission Checkout / ScopedPermissionRequest`
-`→ execution preflight / guard assessment`
-`→ relationship revocation`
-`→ persisted Activation activity timeline`
-`→ Activation outcome snapshot`
+`+ PermissionCheckout / ScopedPermissionRequest / PermissionGrant link`
+`+ Activation control`
+`+ runtime Activity + Outcome`
+`+ same-category replacement candidates`
 
-New outcome truth includes:
+New behavior:
 
-- `transactionObserved = false` unless a future independently reconciled transaction is actually linked;
-- technical observation state is separate from financial outcome state;
-- absent transaction/performance evidence is explicitly `COULD_NOT_ASSESS / Could Not Assess`;
-- category metrics are observational only:
-  - Rebalancing — range/current-tick state;
-  - Grid — regime/confidence/TWAP dispersion where available;
-  - Yield — opportunity count/current base APY observations;
-  - Health — Venus pool/risk monitoring observations.
+- active and historical relationships are returned for one buyer wallet;
+- exact authority state is visible independently from commercial state;
+- financial outcome remains `Could Not Assess` unless prior outcome evidence supports more;
+- relationship ending is blocked when an independently reconciled PermissionGrant would be stranded;
+- switching is idempotent and persisted;
+- a replacement service must be same-category, same-network and truthfully FREE/read-only in the current live switch path;
+- replacement Activation is established before the source marketplace relationship is revoked;
+- changed-input reuse of a switch idempotency key returns conflict rather than overwriting immutable switch intent.
 
-Spotriq does **not** infer:
+Marketplace UX completion:
 
-- Grid fills, PnL or drawdown from market context;
-- realised yield from current APY;
-- Health protective effect or avoided liquidation from a monitoring snapshot;
-- Rebalancing success from read-only position analysis.
+- Agent Profile reads live `MarketplaceServiceRecord` and Test Lab evidence;
+- Compare reads live marketplace/readiness/commercial facts and does not invent a winner;
+- Try runs the bounded Marketplace Test Lab rather than scripted portfolio returns;
+- My Agents no longer presents sample costs, returns, fills, reviews or fabricated performance as buyer state.
 
-The older v0.20 controlled Rebalancing transaction outcome path remains intact for actual independently reconciled Rebalancing execution evidence.
-
-## 5. Persistence
+## Persistence
 
 Latest migration:
 
-`0020_four_category_activity_outcomes.sql`
+`0021_my_agents_switching.sql`
 
-It extends the existing `activity_events`, `outcome_windows` and `outcome_metrics` foundation for Activation-scoped category evidence while keeping controlled-execution records separate.
+It persists switch attempts/history separately from Activations and PermissionGrants.
 
-No `DATABASE_URL` → memory fallback where supported.  
-`DATABASE_URL` → PostgreSQL.
+## API
 
-## 6. v0.27 API / UX
+- `GET  /v1/accounts/:address/my-agents`
+- `GET  /v1/accounts/:address/my-agents/switches`
+- `POST /v1/accounts/:address/my-agents/:activationId/switch`
+- `POST /v1/accounts/:address/my-agents/:activationId/revoke`
 
-New Activation resources:
+Existing low-level Activation revocation also checks for a reconciled PermissionGrant when the Permission Checkout engine is available.
 
-- `POST /v1/activations/:activationId/activity-outcomes/sync`
-- `GET  /v1/activations/:activationId/activity-outcomes`
-- `GET  /v1/activations/:activationId/activity`
-- `GET  /v1/activations/:activationId/outcome`
+## Safety / network truth
 
-Explore surfaces the reconciled event count, technical observation state and truthful financial-outcome status after an activation-bound runtime task exists.
-
-Capabilities expose:
-
-- `fourCategoryActivityOutcomeParityEnabled = true`
-- `activationOutcomeCouldNotAssessEnabled = true`
-
-## 7. Network / safety policy
-
-- Marketplace discovery may use BSC Mainnet `56`.
-- Reference identity, authority and financial development remain BSC Testnet `97`.
-- Category execution dispatch remains disabled for the current read-only reference services.
+- Discovery may use BSC Mainnet `56`.
+- Reference identity/authority/execution acceptance remains BSC Testnet `97`.
 - Mainnet financial execution remains prohibited until explicitly approved.
+- My Agents switching does not revoke or manufacture an independent PermissionGrant.
 
-## 8. Verification / release state
+## Verification
 
-Local gates:
+Authoritative local gate:
 
-- `pnpm --filter @spotriq/api build`
-- `pnpm check`
+`pnpm --filter @spotriq/api build → pnpm check`
 
-Regression/live gates:
+Accepted production regression verifiers remain:
 
 - `pnpm verify:reference-acceptance`
 - `pnpm verify:commercial-acceptance`
@@ -132,10 +115,14 @@ Regression/live gates:
 - `pnpm verify:execution-adapter-parity`
 - `pnpm verify:activity-outcome-parity`
 
-Do **not** call v0.27 externally accepted until local checks, Railway migration `0020`, deployment and all six live acceptance gates pass.
+New v0.28 gate:
 
-## 9. Roadmap position
+`pnpm verify:my-agents`
 
-**Current:** v0.27.0 implementation candidate — Four-Category Activity + Outcome Parity.
+Do not call v0.28 externally accepted until local validation, migration `0021`, Railway deployment and the full verifier chain pass.
 
-**Next after acceptance:** v0.28 — My Agents + Switching/Revocation + Marketplace UX Completion.
+## Next roadmap milestone after acceptance
+
+**v0.29 — Smart Money Plans + Compatibility/Conflict Handling.**
+
+`Plan ≠ Super-agent`; plan composition must preserve service, capital, authority, protocol and evidence boundaries.

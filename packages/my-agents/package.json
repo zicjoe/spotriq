@@ -1,5 +1,5 @@
 {
-  "name": "@spotriq/financial-execution-adapters",
+  "name": "@spotriq/my-agents",
   "private": true,
   "version": "0.28.0",
   "type": "module",
@@ -8,13 +8,10 @@
   },
   "dependencies": {
     "@spotriq/domain": "workspace:*",
-    "@spotriq/chain": "workspace:*",
     "@spotriq/commercial": "workspace:*",
     "@spotriq/marketplace-supply": "workspace:*",
     "@spotriq/permission-checkout": "workspace:*",
-    "@spotriq/protocol-pancakeswap": "workspace:*",
-    "@spotriq/protocol-venus": "workspace:*",
-    "viem": "2.47.6"
+    "@spotriq/activity-outcomes": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

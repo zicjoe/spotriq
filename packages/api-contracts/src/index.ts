@@ -93,6 +93,9 @@ export interface CapabilityResponse {
   categoryExecutionDispatchEnabled: boolean;
   fourCategoryActivityOutcomeParityEnabled: boolean;
   activationOutcomeCouldNotAssessEnabled: boolean;
+  myAgentsPortfolioEnabled: boolean;
+  myAgentsSwitchingEnabled: boolean;
+  liveMarketplaceProfileCompareTryEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -482,3 +485,11 @@ export interface ActivationOutcomeResponse {
   activationId: string;
   outcome: import("@spotriq/domain").ActivationOutcomeSnapshot;
 }
+
+
+// v0.28 My Agents + switching
+export interface MyAgentsPortfolioResponse { portfolio: import("@spotriq/domain").MyAgentsPortfolio; }
+export interface SwitchMyAgentRequest { targetServiceId: string; idempotencyKey: string; }
+export interface MyAgentSwitchResponse { switch: import("@spotriq/domain").MyAgentSwitchRecord; }
+export interface MyAgentSwitchesResponse { switches: import("@spotriq/domain").MyAgentSwitchRecord[]; }
+export interface EndMyAgentRelationshipRequest { buyerAddress: string; }
