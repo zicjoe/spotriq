@@ -29,6 +29,7 @@ import { ActivityOutcomesError, createActivityOutcomesEngine, MemoryActivityOutc
 import { createServiceTaskEngine, MemoryServiceTaskStore, PostgresServiceTaskStore, ServiceTaskError, type ServiceTaskEngine } from "@spotriq/service-tasks";
 import { CommercialError, createCommercialEngine, createErc8183PaymentAdapter, MemoryCommercialStore, PostgresCommercialStore, type CommercialEngine } from "@spotriq/commercial";
 import { createPermissionCheckoutEngine, MemoryPermissionCheckoutStore, PermissionCheckoutError, PostgresPermissionCheckoutStore, type PermissionCheckoutEngine } from "@spotriq/permission-checkout";
+import { createFinancialExecutionAdapterEngine, FinancialExecutionAdapterError, MemoryFinancialExecutionAssessmentStore, PostgresFinancialExecutionAssessmentStore, type FinancialExecutionAdapterEngine } from "@spotriq/financial-execution-adapters";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
@@ -48,6 +49,7 @@ import { registerServiceTaskRoutes } from "./routes/service-tasks.js";
 import { registerReferenceAgentRoutes } from "./routes/reference-agents.js";
 import { registerCommercialRoutes } from "./routes/commercial.js";
 import { registerPermissionCheckoutRoutes } from "./routes/permission-checkout.js";
+import { registerFinancialExecutionAdapterRoutes } from "./routes/financial-execution-adapters.js";
 import { createReferenceAgentCatalog, type ReferenceAgentIdentityBinding, type ReferenceAgentSlug } from "@spotriq/reference-agents";
 
 export interface BuildServerOptions {
@@ -69,6 +71,7 @@ export interface BuildServerOptions {
   serviceTasks?: ServiceTaskEngine;
   commercial?: CommercialEngine;
   permissionCheckout?: PermissionCheckoutEngine;
+  financialExecutionAdapters?: FinancialExecutionAdapterEngine;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -190,6 +193,18 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     jobs: jobIntents,
     authority,
   });
+  const financialExecutionAssessmentStore = sqlDatabase
+    ? new PostgresFinancialExecutionAssessmentStore(sqlDatabase)
+    : new MemoryFinancialExecutionAssessmentStore();
+  const financialExecutionAdapters = options.financialExecutionAdapters ?? createFinancialExecutionAdapterEngine({
+    chain,
+    pancakeSwap,
+    venus,
+    commercial,
+    marketplace: marketplaceSupply,
+    permissionCheckout,
+    store: financialExecutionAssessmentStore,
+  });
   const executionPlanStore = sqlDatabase
     ? new PostgresExecutionPlanStore(sqlDatabase)
     : new MemoryExecutionPlanStore();
@@ -226,7 +241,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.25.0",
+      version: "0.26.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -300,6 +315,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       fourCategoryAuthorityScopeParityEnabled: true,
       scopedPermissionRequestEnabled: true,
       permissionGrantReconciliationBridgeEnabled: true,
+      fourCategoryFinancialExecutionAdapterParityEnabled: true,
+      categoryArgumentGuardEnabled: true,
+      categoryExecutionDispatchEnabled: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
@@ -333,7 +351,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "v0.24 generalizes Activation-bound ServiceTask semantics across Rebalancing, Grid, Yield and Health without forcing non-Rebalancing categories through the Rebalancing JobIntent/execution model. Current category tasks are read-only observations only.",
         "Each active reference relationship exposes category-specific controls and can be revoked independently. Grid observations do not become trading P&L, Yield rates do not become realised yield, and Health snapshots do not become protective-write authority.",
         "v0.25 adds a dedicated Permission Checkout that snapshots category-specific authority, limits, cost/risk disclosures and blockers before creating an immutable ScopedPermissionRequest. Current read-only reference services remain blocked from write authority rather than being silently upgraded.",
-        "Rebalancing Permission Checkout can bridge to the existing bounded Altana/JobIntent authority path when the exact real prerequisites exist. Grid, Yield and Health expose explicit future financial/protective scopes but provider submission remains blocked until category-specific execution adapters and argument-level guards exist.",
+        "v0.26 implements category-specific guarded execution adapters for Grid, Yield and Health while preserving the existing Rebalancing boundary stack. Exact protocol targets, argument limits and fresh-state checks are modeled, but current read-only services still cannot receive a financial signer or dispatch transactions.",
+        "A category adapter does not create a PermissionGrant. Grid/Yield/Health provider reconciliation remains a separate future authority-provider bridge, and category dispatch remains disabled until a non-bypassable signer consumes an exact reconciled grant.",
         "Paid rails are provider-neutral adapters. ERC-8183 is observed from BSC job/funding state; X402/B402 are represented in the domain but no live adapter is enabled yet, so Spotriq cannot falsely mark those payments verified.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
@@ -353,6 +372,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerMarketplaceRoutes(app, marketplaceSupply, config.agentDiscoveryChainId);
   await registerCommercialRoutes(app, commercial);
   await registerPermissionCheckoutRoutes(app, permissionCheckout);
+  await registerFinancialExecutionAdapterRoutes(app, financialExecutionAdapters);
   await registerReferenceAgentRoutes(app, { publicBaseUrl: config.publicApiBaseUrl, pancakeSwap, venus, marketContext, identityBindings: referenceIdentityBindings });
   await registerJobIntentRoutes(app, smartMoney, marketplaceSupply, jobIntents);
   await registerServiceTaskRoutes(app, serviceTasks, jobIntents, commercial);
@@ -411,6 +431,15 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
 
     if (error instanceof JobIntentError) {
       const statusCode = error.code === "JOB_INTENT_NOT_FOUND" ? 404 : error.code === "MATCH_REQUIRED" || error.code === "UNSUPPORTED_FINDING" || error.code === "INVALID_STATE" ? 422 : 400;
+      const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
+      return reply.code(statusCode).send(body);
+    }
+
+    if (error instanceof FinancialExecutionAdapterError) {
+      const statusCode = error.code === "ADAPTER_NOT_FOUND" ? 404
+        : error.code === "PROTOCOL_READ_FAILED" ? 502
+          : error.code === "WRONG_BUYER" || error.code === "WRONG_CATEGORY" || error.code === "INVALID_STATE" || error.code === "TARGET_NOT_ALLOWED" || error.code === "LIMIT_EXCEEDED" ? 422
+            : 400;
       const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
       return reply.code(statusCode).send(body);
     }

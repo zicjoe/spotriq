@@ -41,9 +41,9 @@ if(!/^0x[0-9a-f]{40}$/.test(authorityAsset))throw new Error("Set SPOTRIQ_ACCEPTA
 
 const services=[
   {slug:"rangekeeper",category:"rebalancing",scope:{category:"rebalancing",positionTokenId:tokenId,token0Limit:"1",token1Limit:"1",maxActionsPerDay:4},required:"REBALANCING_JOB_INTENT_REQUIRED"},
-  {slug:"gridpilot",category:"grid",scope:{category:"grid",poolAddress,capitalAssetAddress:authorityAsset,capitalLimit:"10",perActionLimit:"2",maxActionsPerDay:12},required:"GRID_EXECUTION_ADAPTER_REQUIRED"},
-  {slug:"yieldpilot",category:"yield",scope:{category:"yield",assetAddress:authorityAsset,allowedMarketAddresses:[],capitalLimit:"10",perActionLimit:"2",maxActionsPerDay:4},required:"YIELD_EXECUTION_ADAPTER_REQUIRED"},
-  {slug:"venusguard",category:"health",scope:{category:"health",assetAddress:authorityAsset,marketAddresses:[],protectiveActions:["REPAY"],interventionCap:"2",triggerHealthFactor:"1.25",maxInterventionsPerDay:2},required:"HEALTH_PROTECTIVE_WRITE_ADAPTER_REQUIRED"},
+  {slug:"gridpilot",category:"grid",scope:{category:"grid",poolAddress,capitalAssetAddress:authorityAsset,capitalLimit:"10",perActionLimit:"2",maxActionsPerDay:12},required:"AUTHORITY_PROVIDER_BRIDGE_REQUIRED"},
+  {slug:"yieldpilot",category:"yield",scope:{category:"yield",assetAddress:authorityAsset,allowedMarketAddresses:[],capitalLimit:"10",perActionLimit:"2",maxActionsPerDay:4},required:"AUTHORITY_PROVIDER_BRIDGE_REQUIRED"},
+  {slug:"venusguard",category:"health",scope:{category:"health",assetAddress:authorityAsset,marketAddresses:[],protectiveActions:["REPAY"],interventionCap:"2",triggerHealthFactor:"1.25",maxInterventionsPerDay:2},required:"AUTHORITY_PROVIDER_BRIDGE_REQUIRED"},
 ];
 
 for(const spec of services){

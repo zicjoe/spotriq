@@ -141,7 +141,7 @@ POST http://localhost:3001/v1/permission-grants/:permissionGrantId/reverify
 GET  http://localhost:3001/v1/checks/:checkSessionId/events
 ```
 
-Current live check coverage now has real data foundations across all four required financial categories: Rebalancing from supported PancakeSwap V3 LP range state, Health from Venus Core/Isolated lending risk, Yield from wallet-relevant Venus supply markets, and Grid from wallet-relevant PancakeSwap V3 onchain oracle averages. v0.13.0 adds an on-demand deterministic Finding → AgentService compatibility handoff. v0.14.0 adds the first live Rebalancing vertical handoff into a reviewable, persisted PREPARE_ONLY Job Intent. v0.15.0 derives exact bounded Altana-oriented authority requests, reconciles observed grants against the reviewed scope, and independently verifies current Keystore validity while keeping execution disabled. Wallet-wide token discovery, Infinity wallet-wide discovery, and historical realised-performance analytics remain explicitly unsupported/partial instead of being faked.
+Current live check coverage has real data foundations across all four required financial categories: Rebalancing from supported PancakeSwap V3 LP range state, Health from Venus Core/Isolated lending risk, Yield from wallet-relevant Venus supply markets, and Grid from wallet-relevant PancakeSwap V3 onchain oracle averages. v0.13.0 adds an on-demand deterministic Finding → AgentService compatibility handoff. v0.14.0 adds the first live Rebalancing vertical handoff into a reviewable, persisted PREPARE_ONLY Job Intent. v0.15.0 derives exact bounded Altana-oriented authority requests, reconciles observed grants against the reviewed scope, and independently verifies current Keystore validity while keeping execution disabled. Wallet-wide token discovery, Infinity wallet-wide discovery, and historical realised-performance analytics remain explicitly unsupported/partial instead of being faked.
 
 ## Live ERC-8004 / 8004scan agent discovery
 
@@ -450,7 +450,7 @@ POST /v1/execution-boundaries/:boundaryId/preflight
 
 Spotriq now separates a user-reviewed financial authority contract from both the commercial Activation and any provider PermissionGrant. A real ACTIVE relationship can open category-specific Permission Checkout for Rebalancing, Grid, Yield or Health, producing explicit allowed/denied actions, targets, limits, validity, approval mode, known/unknown cost separation, risks and deterministic blockers.
 
-The current four reference services remain `READ_ONLY` / `TESTNET_ONLY`, so their truthful v0.25 result is a persisted **BLOCKED** checkout/request with **no PermissionGrant**. Rebalancing alone can bridge to the existing JobIntent/Altana bounded-authority spine when the exact service/job/position/readiness prerequisites are real. Grid/Yield/Health remain provider-blocked until their category execution adapters and guards are implemented.
+The current four reference services remain `READ_ONLY` / `TESTNET_ONLY`, so their accepted v0.25 result is a persisted **BLOCKED** checkout/request with **no PermissionGrant**. Rebalancing alone can bridge to the existing JobIntent/Altana bounded-authority spine when exact prerequisites are real. In v0.26, Grid/Yield/Health now have deterministic protocol/action/argument adapters, so their remaining authority blocker is the independently reconciled category PermissionGrant/provider bridge plus real financial service readiness—not a missing adapter.
 
 New migration: `0018_permission_checkout_scoped_authority.sql`.
 
@@ -550,3 +550,20 @@ The four services are injected into normal marketplace supply/readiness/matching
 
 Public HTTPS Test Lab evidence and ERC-8004 registration were deployment-bound v0.22 acceptance steps and are now complete for all four reference services. v0.23 adds a separate FREE read-only commercial Activation path while leaving financial execution eligibility independently gated. See `docs/IMPLEMENTATION_REPORT_LIVE_REFERENCE_AGENT_SUPPLY_v0.22.0.md`.
 
+
+
+## v0.26.0 Four-Category Financial Execution Adapter Parity
+
+Spotriq now has a provider-neutral `@spotriq/financial-execution-adapters` layer covering all four financial categories while keeping transaction dispatch fail-closed. Rebalancing delegates to its existing sealed JobIntent/ExecutionPlan/Boundary/controlled-execution architecture. Grid models only PancakeSwap V3 `exactInputSingle` with exact reviewed pool/token/router/recipient/amount/deadline guards. Yield models only Venus ERC-20 vToken `mint` and `redeemUnderlying` for explicitly reviewed markets/assets/limits. Health models only protective `repayBorrow` and add-collateral `mint`, with exact market/action/intervention bounds and a fresh health trigger.
+
+The v0.26 adapter preflight checks ACTIVE buyer/service Activation, BSC Testnet policy, unexpired ScopedPermissionRequest, service financial readiness, independently reconciled PermissionGrant, exact target scope and fresh chain state. Current RangeKeeper/GridPilot/YieldPilot/VenusGuard remain read-only and therefore fail closed before category calldata preparation. `categoryExecutionDispatchEnabled` remains `false`; an implemented adapter is not a PermissionGrant, signer, transaction or outcome.
+
+New API resources:
+
+- `GET /v1/execution-adapters`
+- `GET /v1/execution-adapters/:category`
+- `POST /v1/scoped-permission-requests/:permissionRequestId/execution-preflight`
+- `POST /v1/scoped-permission-requests/:permissionRequestId/execution-guard`
+- `GET /v1/scoped-permission-requests/:permissionRequestId/execution-state`
+
+Migration `0019_four_category_financial_execution_adapters.sql` persists preflight/guard assessments without calling them grants, transactions or outcomes. Production acceptance command: `pnpm verify:execution-adapter-parity`.

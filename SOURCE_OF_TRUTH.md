@@ -1,193 +1,186 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.25.0**  
-**Release status:** Permission Checkout + Scoped Financial Authority Parity implementation candidate complete; local dependency-aware validation and external v0.25 acceptance pending  
-**Updated:** 2026-09-01
+**Current repository release:** **v0.26.0**  
+**Release status:** Four-Category Financial Execution Adapter Parity implementation candidate; local dependency-aware validation and external v0.26 acceptance pending.  
+**State date:** 2026-09-01
 
-This file records the current repository/runtime contract. The latest supplied repository/ZIP is implementation truth. `SPOTRIQ_FOUNDATION.md` remains the canonical product doctrine and `PROJECT_STATE.md` is the concise present-state map.
+## Authority hierarchy
 
-## Product
+1. Current repository / latest replacement ZIP — implementation truth.
+2. `PROJECT_STATE.md` — concise current product/engineering state.
+3. `SPOTRIQ_FOUNDATION.md` — locked product doctrine.
+4. `PROJECT_OPERATING_RULES.md` — engineering workflow.
+5. `CORRECTED_ROADMAP.md` — active milestone sequence.
+6. `SPOTRIQ_DRIFT_AUDIT.md` — foundation/alignment history.
+7. `docs/` — subsystem/release detail.
+8. Old conversations — historical reasoning only.
 
-Spotriq is a **BSC financial-agent marketplace**.
+Do not override implemented code with stale conversation assumptions. Do not discard roadmap obligations merely because they are not implemented yet.
+
+## Product truth
+
+Spotriq is a **BSC financial-agent marketplace**, not a generic agent marketplace or super-agent.
 
 Primary lifecycle:
 
-`Wallet need → Finding → real AgentService → evidence/readiness → recommendation → Offer → Quote → Hire → payment where required → permission where required → Activation → ServiceTask/AgentAction → Transaction where applicable → Outcome`
+`wallet need → deterministic finding → real AgentService → evidence/readiness → recommendation → Offer → Quote → Hire → payment where required → MarketplaceActivation → Permission Checkout where required → independently reconciled PermissionGrant → guarded execution where eligible → activity → outcome`
 
-Locked boundaries remain:
+Locked invariants:
 
-- `AgentIdentity ≠ AgentListing ≠ AgentService ≠ Offer`
-- `Offer ≠ Quote ≠ Hire ≠ Payment ≠ Activation`
-- `Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome`
-- `Finding ≠ Recommendation`
-- `Evidence ≠ AI explanation`
-- `Search relevance ≠ Capability proof`
-- `Registry identity ≠ Marketplace readiness`
+`AgentIdentity ≠ AgentListing ≠ AgentService ≠ Offer`
 
-AI may explain. Deterministic systems decide financial truth, identity, compatibility, readiness, authority, payment reconciliation, runtime attribution and outcomes.
+`Offer ≠ Quote ≠ Hire ≠ Payment ≠ Activation`
+
+`PermissionProfile ≠ PermissionCheckout ≠ ScopedPermissionRequest ≠ PermissionGrant`
+
+`Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome`
+
+`AgentAction ≠ Blockchain Transaction`
+
+`Transaction ≠ Outcome`
+
+`Evidence ≠ AI explanation`
+
+AI explains. Deterministic systems decide.
+
+## Required financial categories
+
+All remain first-class:
+
+1. Rebalancing — RangeKeeper.
+2. Grid Trading — GridPilot.
+3. Yield Optimisation — YieldPilot.
+4. Health Factor Monitoring — VenusGuard.
+
+The project must not regress to Rebalancing-only product depth.
 
 ## Network truth
 
-Two BSC contexts remain deliberately separate:
+- Discovery may use BSC Mainnet (`chainId 56`).
+- Reference identity/authority/execution acceptance uses BSC Testnet (`chainId 97`).
+- `AGENT_DISCOVERY_CHAIN_ID` and reference execution/registry chain are separate concepts.
+- Mainnet financial execution is prohibited until explicitly approved.
 
-1. **Marketplace discovery:** may use BSC Mainnet, chain ID `56`.
-2. **Reference identity / authority / transactional development:** BSC Testnet, chain ID `97`.
+## Accepted release truth
 
-`AGENT_DISCOVERY_CHAIN_ID` and `REFERENCE_AGENT_REGISTRY_CHAIN_ID` must not be conflated. Mainnet transactional execution remains out of scope until explicitly approved.
+### v0.22 ✅
 
-## Accepted v0.22 reference-service baseline
+Four public first-party reference runtimes + A2A Agent Cards + Test Lab + BSC Testnet ERC-8004 canonical registration/reconciliation accepted.
 
-The repository contains four genuine first-party deterministic A2A AgentServices:
+### v0.23 ✅
 
-- **RangeKeeper** — Rebalancing — PancakeSwap concentrated-liquidity range/position analysis.
-- **GridPilot** — Grid Trading — PancakeSwap V3/TWAP market-context analysis.
-- **YieldPilot** — Yield Optimisation — supported current yield-opportunity analysis including Venus data.
-- **VenusGuard** — Health Factor Monitoring — Venus lending/liquidation-risk monitoring.
+Four-category FREE commercial lifecycle accepted:
 
-All four passed the v0.22 external contract: public HTTPS runtime, public A2A Agent Card, Marketplace Test Lab PASS, runtime/capability observation, BSC Testnet ERC-8004 registration, canonical on-chain verification, backlink/A2A endpoint reconciliation and stable AgentService ↔ identity reconciliation.
+`Offer → Quote → Hire → Payment NOT_REQUIRED → ACTIVE read-only MarketplaceActivation`
 
-Their financial readiness remains `TESTNET_ONLY` and existing financial `marketplaceActivationEligible = false` remains deliberate. Canonical identity or commercial Activation does not grant financial authority.
+### v0.24 ✅
 
-Known explicit acceptance fact: RangeKeeper is BSC Testnet ERC-8004 Agent ID `2017`, owner `0x08a594e828133D18A43918cc804754f46dAF44dB`. Do not infer numeric IDs for the other services from this document.
+Four-category read-only activation/runtime parity accepted:
 
-## Accepted v0.23 commercial baseline
+`Activation → control → category ServiceTask → runtime observation → truthful monitoring/outcome state → relationship revocation`
 
-`@spotriq/commercial` implements:
+### v0.25 ✅
 
-`ServiceOffer → CommercialQuote → CommercialHire → CommercialPaymentEvidence → MarketplaceActivation`
+On 2026-09-01 `verify:permission-checkout` passed all four production reference services. Category-specific reviewed scopes persisted as immutable `BLOCKED` ScopedPermissionRequests with **no PermissionGrant fabricated**.
 
-The four reference services publish truthful `FREE / READ_ONLY_SERVICE / FREE` offers with zero price, no wallet-signing requirement and no financial-authority requirement. Quotes are immutable snapshots. Hires are idempotent. FREE payment evidence is `NOT_REQUIRED`, never fabricated as paid. Paid rails remain provider-neutral adapters; ERC-8183 is observed/reconciled read-only and X402/B402 remain represented rails without live adapters.
+Current reference services therefore remain commercial/read-only relationships, not financial delegates.
 
-Production v0.23 acceptance passed all four reference services through:
+## v0.26 implementation truth
 
-`Offer → Quote → Hire → NOT_REQUIRED payment → ACTIVE read-only Activation`
+New package: `@spotriq/financial-execution-adapters`.
 
-The v0.22 external reference acceptance verifier also passed after the v0.23 deployment.
+Purpose: make the protocol/action/argument layer explicit for all four categories while continuing to fail closed until independent authority and financial readiness are real.
 
-## Accepted v0.24 Four-Category End-to-End Activation Parity
+### Adapter catalog
 
-v0.24 is externally accepted. The production deployment passed `verify:reference-acceptance`, `verify:commercial-acceptance` and `verify:activation-parity` for all four reference services on 2026-09-01.
+- **Rebalancing:** `LEGACY_REBALANCING_BOUNDARY`; delegates to the existing deep Rebalancing JobIntent/Altana/ExecutionPlan/FinancialExecutionBoundary/controlled-execution stack.
+- **Grid:** PancakeSwap V3 `exactInputSingle` only, exact reviewed pool/token pair, canonical router, buyer recipient, bounded amount/deadline/min-output.
+- **Yield:** Venus ERC-20 vToken `mint(uint256)` / `redeemUnderlying(uint256)` only, exact reviewed market/underlying and amount limits.
+- **Health:** Venus protective `repayBorrow(uint256)` / add-collateral `mint(uint256)` only, exact reviewed market/underlying/action/intervention cap plus fresh health-trigger state.
 
-v0.24 generalizes the **post-Activation read-only runtime relationship** across all four categories while preserving the deeper Rebalancing financial execution spine as a separate authority path.
+Excluded by design include arbitrary routers, multicall, Permit2, unlimited approvals, unrelated markets, borrowing for Yield, borrowing/withdrawal for Health, and mainnet execution.
 
-### Activation controls
+### Preflight truth
 
-Every Activation can expose an `ActivationControlProfile` describing:
+A preflight independently checks:
 
-- category and Activation state;
-- runtime capability and required inputs;
-- read-only permissions;
-- financial-write permissions;
-- wallet-signing and financial-execution authority flags;
-- revocability and revoke effect.
+- adapter implementation;
+- BSC Testnet policy;
+- ACTIVE buyer/service Activation;
+- unexpired ScopedPermissionRequest;
+- service financial readiness;
+- independently reconciled PermissionGrant;
+- exact target scope;
+- fresh BSC state.
 
-The current four reference-service Activations are `READ_ONLY`: `financialWrite = []`, `walletSigningAuthorityGranted = false`, `financialExecutionAuthorityGranted = false`.
+Current four reference services fail service-readiness and PermissionGrant gates. Adapter implementation cannot upgrade them.
 
-Marketplace relationship revocation is buyer-bound and idempotent. It stops new Activation-bound tasks and retains commercial/task history. It does **not** silently revoke or create a separate `PermissionGrant`.
+### Guard truth
 
-### Category-aware Activation tasks
+Grid/Yield/Health guard preparation occurs only when deterministic preflight is `READY_FOR_GUARD`. Blocked current services receive **no prepared call**.
 
-`ServiceTask` now has two explicit origins:
+Rebalancing returns `LEGACY_BOUNDARY_REQUIRED` because actual calldata safety/dispatch remains in the existing sealed Rebalancing boundary.
 
-- `JOB_INTENT` — existing deep Rebalancing proposal/origin-proof path;
-- `ACTIVATION` — category-aware read-only service relationship task.
+Even a future category guard that passes returns `PASS_BUT_EXECUTION_BLOCKED`; v0.26 does not provide a category signer or submit a transaction. Capability truth:
 
-Activation task contracts:
+`fourCategoryFinancialExecutionAdapterParityEnabled = true`
 
-- Rebalancing → `ANALYZE_POSITION` with PancakeSwap V3 `tokenId`;
-- Grid → `ANALYZE_GRID_MARKET` with PancakeSwap V3 `poolAddress`; optional capital context is descriptive only and grants no spend/trading authority;
-- Yield → `SCAN_YIELD_OPPORTUNITIES` using the Activation buyer wallet server-side;
-- Health → `INSPECT_HEALTH` using the Activation buyer wallet and a monitoring-snapshot mode.
+`categoryArgumentGuardEnabled = true`
 
-First-party task attribution requires canonical ERC-8004 reconciliation, fresh Marketplace Test Lab PASS and the same-origin Spotriq reference runtime. External-service task attribution retains fresh service-owned key-control proof. Spotriq does not fabricate a first-party signing key merely to fit the external proof mechanism.
-
-### Runtime and outcome truth
-
-`ActivationRuntimeState` distinguishes `NOT_RUN`, `OBSERVED`, `FAILED` and `REVOKED` relationship/runtime states.
-
-Technical success is not promoted into financial success:
-
-- Grid market context ≠ profit, drawdown or fill quality;
-- Yield current rates/opportunities ≠ realised yield;
-- Health snapshot = monitoring state, not protective intervention;
-- Rebalancing read-only position analysis ≠ executed rebalance outcome.
-
-Health exposes a genuine `SNAPSHOT_OBSERVED` monitoring state when a structured health snapshot is accepted.
-
-## HTTP resources added/extended in v0.24
-
-- `GET /v1/activations/:activationId/control`
-- `POST /v1/activations/:activationId/revoke`
-- `POST /v1/activations/:activationId/service-tasks`
-- `GET /v1/activations/:activationId/service-task`
-- `POST /v1/activations/:activationId/service-task/retry`
-- `GET /v1/activations/:activationId/runtime-state`
-
-The Explore UI uses the same real API contracts after **Hire free read-only** to display controls, request category-specific observations, show runtime/monitoring/outcome state and revoke the marketplace relationship.
-
-## v0.25 Permission Checkout + Scoped Financial Authority Parity
-
-v0.25 inserts a first-class deterministic authority-review layer:
-
-`MarketplaceActivation → PermissionCheckout → ScopedPermissionRequest → PermissionGrant → Execution`
-
-The resources are deliberately distinct. A reviewed scope is not a PermissionGrant, and a PermissionGrant is not Execution.
-
-Category contracts are explicit:
-
-- Rebalancing: exact LP position, token0/token1 spend caps, action count, validity and approval mode.
-- Grid: exact pool/capital asset with capital/per-action/action-count bounds.
-- Yield: exact asset, optional Venus-market allowlist and allocation/action bounds.
-- Health: protective `REPAY`/`ADD_COLLATERAL` only with health trigger, intervention cap and frequency bounds.
-
-Current RangeKeeper/GridPilot/YieldPilot/VenusGuard services remain `READ_ONLY` / `TESTNET_ONLY`, so current v0.25 behavior is intentionally:
-
-`BLOCKED PermissionCheckout → immutable BLOCKED ScopedPermissionRequest → no PermissionGrant`
-
-The blockers preserve service declaration/readiness and category execution prerequisites. Rebalancing is the only category with an existing authority/provider bridge; even there, a provider grant is linked only after buyer/service/JobIntent/request/spend-cap and onchain `EXACT_MATCH` reconciliation.
+`categoryExecutionDispatchEnabled = false`
 
 ## Persistence truth
 
-Migration history is immutable. Current latest migration:
+Migrations are immutable and currently run through:
 
-`0018_permission_checkout_scoped_authority.sql`
+`0019_four_category_financial_execution_adapters.sql`
 
-It adds durable `permission_checkout_sessions` and `scoped_permission_requests` with buyer/idempotency, Activation/service and optional grant-link constraints. Railway pre-deploy remains `pnpm db:migrate`.
+v0.26 adds `financial_execution_adapter_assessments` for persisted `PREFLIGHT` and `GUARD` artifacts linked to `scoped_permission_requests`.
 
-## v0.25 HTTP resources
+These records are assessment evidence only. They are not PermissionGrants, Blockchain Transactions, receipts or Outcomes.
 
-- `POST /v1/activations/:activationId/permission-checkouts`
-- `GET /v1/activations/:activationId/permission-checkout`
-- `GET /v1/permission-checkouts/:checkoutId`
-- `POST /v1/permission-checkouts/:checkoutId/confirm`
-- `POST /v1/permission-checkouts/:checkoutId/cancel`
-- `GET /v1/scoped-permission-requests/:permissionRequestId`
-- `POST /v1/scoped-permission-requests/:permissionRequestId/reconcile`
-- `GET /v1/accounts/:address/permission-state`
+## HTTP truth
 
-The web checkout now uses these real APIs and starts from an ACTIVE marketplace relationship. The former mock permission/activation path is not used for this flow.
+Current v0.26 resources include:
 
-## Verification truth
+- `GET /v1/execution-adapters`
+- `GET /v1/execution-adapters/:category`
+- `POST /v1/scoped-permission-requests/:permissionRequestId/execution-preflight`
+- `POST /v1/scoped-permission-requests/:permissionRequestId/execution-guard`
+- `GET /v1/scoped-permission-requests/:permissionRequestId/execution-state`
 
-Root commands:
+Existing commercial/Activation/ServiceTask/Permission Checkout APIs remain valid and independent.
 
-```powershell
-pnpm --filter @spotriq/api build
-pnpm check
-pnpm verify:reference-acceptance
-pnpm verify:commercial-acceptance
-pnpm verify:activation-parity
-pnpm verify:permission-checkout
-```
+## UI truth
 
-The first three production verifiers are accepted v0.22–v0.24 regression contracts. `verify:permission-checkout` is the v0.25 acceptance contract and must prove all four current reference services preserve BLOCKED scoped authority with no fabricated PermissionGrant.
+The Permission Checkout is API-backed. After a reviewed ScopedPermissionRequest exists, the UI loads the server-side v0.26 execution preflight and shows:
 
-## Current roadmap position
+- adapter implementation/mode;
+- exact deterministic blockers;
+- dispatch disabled status.
 
-- v0.22.x — external reference-agent acceptance: **complete**.
-- v0.23.0 — commercial hiring/read-only Activation: **externally accepted**.
-- v0.24.0 — four-category read-only Activation/runtime parity: **externally accepted**.
-- v0.25.0 — Permission Checkout + Scoped Financial Authority Parity: **implementation candidate; acceptance pending**.
-- v0.26.0 — Four-Category Financial Execution Adapter Parity: **next after acceptance**.
+It does not expose a fake financial Execute path for current reference services.
 
-Do not broaden transactional or authority work to BSC Mainnet without explicit approval.
+## Acceptance commands
+
+Accepted regression contracts:
+
+- `pnpm verify:reference-acceptance`
+- `pnpm verify:commercial-acceptance`
+- `pnpm verify:activation-parity`
+- `pnpm verify:permission-checkout`
+
+Current candidate contract:
+
+- `pnpm verify:execution-adapter-parity`
+
+v0.26 external acceptance requires local API build + `pnpm check`, Railway migration/deploy, all regression verifiers and the v0.26 verifier.
+
+## Roadmap position
+
+- v0.22–v0.25 — **externally accepted**.
+- v0.26 — **implementation candidate; acceptance pending**.
+- v0.27 — Four-Category Activity + Outcome Parity, next after v0.26 acceptance.
+- v0.28 — My Agents + switching/revocation + marketplace UX completion.
+- v0.29 — Smart Money Plans + compatibility/conflict handling.
+- Later — paid rails expansion, operator workspace, Agent Studio depth, AI explanation layer, Agent Advantage, observability/security/production hardening and mainnet readiness only after explicit approval.

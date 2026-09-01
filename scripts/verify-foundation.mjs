@@ -144,6 +144,15 @@ const required = [
   "scripts/verify-permission-checkout.mjs",
   "docs/PERMISSION_CHECKOUT_SCOPED_AUTHORITY.md",
   "docs/IMPLEMENTATION_REPORT_PERMISSION_CHECKOUT_SCOPED_AUTHORITY_v0.25.0.md",
+  "packages/financial-execution-adapters/package.json",
+  "packages/financial-execution-adapters/src/index.ts",
+  "packages/financial-execution-adapters/src/index.test.ts",
+  "packages/db/migrations/0019_four_category_financial_execution_adapters.sql",
+  "apps/api/src/routes/financial-execution-adapters.ts",
+  "apps/api/src/routes/financial-execution-adapters.test.ts",
+  "apps/web/src/repositories/financialExecutionAdapterRepository.ts",
+  "scripts/verify-execution-adapter-parity.mjs",
+  "docs/IMPLEMENTATION_REPORT_FOUR_CATEGORY_FINANCIAL_EXECUTION_ADAPTER_PARITY_v0.26.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -157,8 +166,8 @@ for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper
   if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
 }
 const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
-if (!projectState.includes("v0.24 — COMPLETE") || !projectState.includes("v0.25.0 implementation candidate") || !projectState.includes("Permission Checkout + Scoped Financial Authority Parity")) {
-  throw new Error("PROJECT_STATE.md must record externally accepted v0.24 and the current v0.25 Permission Checkout candidate.");
+if (!projectState.includes("v0.25 — Permission Checkout + scoped authority parity ✅") || !projectState.includes("v0.26.0 implementation candidate") || !projectState.includes("Four-Category Financial Execution Adapter Parity")) {
+  throw new Error("PROJECT_STATE.md must record externally accepted v0.25 and the current v0.26 execution-adapter candidate.");
 }
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
 for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity"]) {
@@ -698,8 +707,7 @@ for (const marker of [
   "PERMISSION_CHECKOUT_METHOD", "SCOPED_PERMISSION_REQUEST_METHOD", "PermissionCheckoutStore",
   "MemoryPermissionCheckoutStore", "PostgresPermissionCheckoutStore", "createPermissionCheckoutEngine",
   "create(activationId", "confirm(checkoutId", "reconcileGrant", "getBuyerState",
-  "SERVICE_READ_ONLY", "SERVICE_NOT_FINANCIALLY_READY", "GRID_EXECUTION_ADAPTER_REQUIRED",
-  "YIELD_EXECUTION_ADAPTER_REQUIRED", "HEALTH_PROTECTIVE_WRITE_ADAPTER_REQUIRED", "MAINNET_EXECUTION_NOT_APPROVED",
+  "SERVICE_READ_ONLY", "SERVICE_NOT_FINANCIALLY_READY", "AUTHORITY_PROVIDER_BRIDGE_REQUIRED", "MAINNET_EXECUTION_NOT_APPROVED",
 ]) {
   if (!permissionCheckout.replaceAll(" ", "").includes(marker.replaceAll(" ", ""))) throw new Error(`v0.25 Permission Checkout kernel is missing ${marker}.`);
 }
@@ -736,7 +744,48 @@ for (const marker of ["rangekeeper", "gridpilot", "yieldpilot", "venusguard", "S
   if (!permissionVerifier.includes(marker)) throw new Error(`v0.25 live verifier is missing ${marker}.`);
 }
 if (rootManifest.scripts?.["verify:permission-checkout"] !== "node scripts/verify-permission-checkout.mjs") throw new Error("Root package.json must expose pnpm verify:permission-checkout.");
-if (!apiApp.includes('version: "0.25.0"')) throw new Error("API metadata must report v0.25.0.");
+// v0.26 — Four-Category Financial Execution Adapter Parity.
+const financialExecutionAdapters = await readFile(path.join(root, "packages/financial-execution-adapters/src/index.ts"), "utf8");
+for (const marker of [
+  "FINANCIAL_EXECUTION_ADAPTER_METHOD", "FinancialExecutionAssessmentStore", "MemoryFinancialExecutionAssessmentStore", "PostgresFinancialExecutionAssessmentStore",
+  "GRID_SWAP_EXACT_INPUT_SINGLE", "YIELD_SUPPLY", "YIELD_WITHDRAW", "HEALTH_REPAY", "HEALTH_ADD_COLLATERAL",
+  "LEGACY_REBALANCING_BOUNDARY", "CATEGORY_GUARDED_CALL", "PERMISSION_GRANT", "SERVICE_FINANCIAL_READINESS", "TARGET_SCOPE",
+  "exactInputSingle", "redeemUnderlying", "repayBorrow", "executionEligible:false",
+]) {
+  if (!financialExecutionAdapters.replaceAll(" ", "").includes(marker.replaceAll(" ", ""))) throw new Error(`v0.26 financial execution adapter package is missing ${marker}.`);
+}
+const migration0019 = await readFile(path.join(root, "packages/db/migrations/0019_four_category_financial_execution_adapters.sql"), "utf8");
+for (const marker of ["financial_execution_adapter_assessments", "permission_request_id", "PREFLIGHT", "GUARD", "payload"]) {
+  if (!migration0019.includes(marker)) throw new Error(`v0.26 execution-adapter migration is missing ${marker}.`);
+}
+const financialExecutionRoutes = await readFile(path.join(root, "apps/api/src/routes/financial-execution-adapters.ts"), "utf8");
+for (const route of [
+  "/v1/execution-adapters", "/v1/execution-adapters/:category",
+  "/v1/scoped-permission-requests/:permissionRequestId/execution-preflight",
+  "/v1/scoped-permission-requests/:permissionRequestId/execution-guard",
+  "/v1/scoped-permission-requests/:permissionRequestId/execution-state",
+]) {
+  if (!financialExecutionRoutes.includes(route)) throw new Error(`Missing v0.26 financial execution route ${route}.`);
+}
+for (const marker of ["FinancialExecutionAdapterDescriptor", "FinancialExecutionPreflight", "CategoryExecutionGuardReport", "GuardedFinancialCall", "PrepareFinancialExecutionInput"]) {
+  if (!domain.includes(marker)) throw new Error(`v0.26 domain model is missing ${marker}.`);
+}
+for (const marker of ["fourCategoryFinancialExecutionAdapterParityEnabled: true", "categoryArgumentGuardEnabled: true", "categoryExecutionDispatchEnabled: false"]) {
+  if (!apiApp.includes(marker)) throw new Error(`API capabilities must expose truthful v0.26 feature ${marker}.`);
+}
+const financialExecutionRepo = await readFile(path.join(root, "apps/web/src/repositories/financialExecutionAdapterRepository.ts"), "utf8");
+for (const marker of ["getAdapter", "preflight", "getState", "/execution-preflight", "/execution-state"]) {
+  if (!financialExecutionRepo.includes(marker)) throw new Error(`v0.26 web execution-adapter repository is missing ${marker}.`);
+}
+for (const marker of ["v0.26 execution adapter", "financialExecutionAdapterRepository.preflight", "Execution dispatch:", "DISABLED"]) {
+  if (!permissionUi.includes(marker)) throw new Error(`v0.26 Permission Checkout execution-adapter UI is missing ${marker}.`);
+}
+const executionAdapterVerifier = await readFile(path.join(root, "scripts/verify-execution-adapter-parity.mjs"), "utf8");
+for (const marker of ["rangekeeper", "gridpilot", "yieldpilot", "venusguard", "SERVICE_FINANCIAL_READINESS", "PERMISSION_GRANT", "TARGET_SCOPE", "LEGACY_BOUNDARY_REQUIRED", "no financial dispatch fabricated"]) {
+  if (!executionAdapterVerifier.includes(marker)) throw new Error(`v0.26 live verifier is missing ${marker}.`);
+}
+if (rootManifest.scripts?.["verify:execution-adapter-parity"] !== "node scripts/verify-execution-adapter-parity.mjs") throw new Error("Root package.json must expose pnpm verify:execution-adapter-parity.");
+if (!apiApp.includes('version: "0.26.0"')) throw new Error("API metadata must report v0.26.0.");
 
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -750,11 +799,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 27) throw new Error(`v0.25 expects 27 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 28) throw new Error(`v0.26 expects 28 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.25.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.25.0.`);
+  if (manifest.version !== "0.26.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.26.0.`);
 }
 
-console.log("Spotriq foundation + accepted v0.22/v0.23/v0.24 + v0.25 Permission Checkout/scoped financial authority parity verification passed.");
+console.log("Spotriq foundation + accepted v0.22–v0.25 + v0.26 four-category financial execution-adapter parity verification passed.");
 

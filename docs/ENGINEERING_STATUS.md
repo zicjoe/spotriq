@@ -1,93 +1,99 @@
 # Spotriq Engineering Status
 
-**Release candidate:** v0.25.0  
+**Release candidate:** v0.26.0  
 **Date:** 2026-09-01  
-**State:** Permission Checkout + Scoped Financial Authority Parity implemented; dependency-aware local validation and external v0.25 acceptance pending.
+**State:** Four-Category Financial Execution Adapter Parity implemented; local dependency-aware validation and external acceptance pending.
 
-## Accepted production baseline
+## Accepted baseline
 
-v0.22 external reference acceptance, v0.23 commercial hiring acceptance and v0.24 four-category read-only Activation/runtime parity are externally accepted. On 2026-09-01 all three live verifiers passed for RangeKeeper, GridPilot, YieldPilot and VenusGuard.
+Production acceptance is complete through v0.25:
 
-The governing boundary remains:
+- v0.22 — four reference runtimes/Test Lab/ERC-8004 reconciliation;
+- v0.23 — FREE Offer → Quote → Hire → NOT_REQUIRED payment → read-only Activation;
+- v0.24 — four-category Activation-bound runtime/control/revocation parity;
+- v0.25 — four-category Permission Checkout; all current reference services persist immutable BLOCKED ScopedPermissionRequests and no fake PermissionGrant.
 
-`PermissionProfile ≠ PermissionCheckout ≠ ScopedPermissionRequest ≠ PermissionGrant ≠ Execution`
+## v0.26 architecture
 
-and:
+New package: `@spotriq/financial-execution-adapters`.
 
-`Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome`
+It owns:
 
-## v0.25 architecture
+- four-category adapter catalog;
+- deterministic execution preflight;
+- exact target/argument guard preparation;
+- memory/PostgreSQL assessment persistence;
+- no transaction dispatch.
 
-### `@spotriq/permission-checkout`
+The category adapter layer intentionally exposes `executionEligible: false`; it proves preparedness/guard state, not signing or execution.
 
-New domain package with memory/PostgreSQL stores and deterministic methods to:
+### Rebalancing
 
-- create idempotent buyer/Activation-bound Permission Checkouts;
-- freeze category-specific reviewed scope behind `scopeHash`;
-- derive immutable commercial-cost context, risk/failure context and blockers;
-- create immutable `ScopedPermissionRequest` resources;
-- expose buyer permission state;
-- cancel unreconciled checkout/request state;
-- reconcile a real provider PermissionGrant only through the existing bounded Rebalancing authority path when every exact-match prerequisite passes.
+`LEGACY_REBALANCING_BOUNDARY`. Existing v0.16–v0.20 deep execution architecture remains authoritative. No duplicate execution stack was introduced.
 
-No client `paid`, `verified`, `activationEligible` or `permissionGranted` flag can satisfy these server-side gates.
+### Grid
 
-### Four category contracts
+PancakeSwap V3 `exactInputSingle` only. Guard checks reviewed pool/token membership, canonical router, buyer recipient, reviewed amount caps, non-zero min output, deadline/expiry and fresh chain/pool state. Multi-hop/multicall/Permit2/unlimited approval are out of scope.
 
-Rebalancing, Grid, Yield and Health each receive explicit targets/actions/denials/limits rather than a generic opaque permission blob. Current reference services remain READ_ONLY/TESTNET_ONLY and therefore blocked from write authority. Grid/Yield/Health additionally require category-specific guarded execution adapters before provider submission can become possible.
+### Yield
 
-### Rebalancing bridge
+Venus ERC-20 vToken `mint` / `redeemUnderlying` only. Guard checks exact allowlisted vToken, exact underlying asset, reviewed amount/allocation limits and fresh reads. Borrow/native-asset supply are excluded.
 
-v0.25 does not replace `@spotriq/authority`. If a future/eligible Rebalancing service has a matching JobIntent in `AWAITING_AUTHORITY`, the checkout can prepare the existing `BoundedPermissionRequest`. A provider grant must later be ACTIVE, onchain-valid, `EXACT_MATCH`, belong to the same buyer/service/JobIntent and match the reviewed token caps before reconciliation.
+### Health
 
-### Persistence
+Protective `repayBorrow` / add-collateral `mint` only. Guard checks exact market/underlying, explicit reviewed protective action, intervention cap, fresh health trigger and existing collateral-enabled state for add-collateral. Borrow/collateral-withdraw are absent.
 
-Migration `0018_permission_checkout_scoped_authority.sql` adds:
+## Current authority truth
 
-- `permission_checkout_sessions`;
-- `scoped_permission_requests`;
-- buyer/idempotency, Activation, service and grant-link constraints/indexes.
+A category adapter never creates a PermissionGrant.
 
-No historical migration is changed.
+Grid/Yield/Health Permission Checkout no longer reports “adapter missing”; it now reports the remaining **authority-provider bridge** requirement. Current first-party services also remain `READ_ONLY` / not financially READY, so preflight fails closed before calldata preparation.
 
-## API surface
+Future category dispatch requires a separately implemented non-bypassable signer/boundary that consumes an exact independently reconciled grant. Capability `categoryExecutionDispatchEnabled` remains `false`.
 
-- `POST /v1/activations/:activationId/permission-checkouts`
-- `GET /v1/activations/:activationId/permission-checkout`
-- `GET /v1/permission-checkouts/:checkoutId`
-- `POST /v1/permission-checkouts/:checkoutId/confirm`
-- `POST /v1/permission-checkouts/:checkoutId/cancel`
-- `GET /v1/scoped-permission-requests/:permissionRequestId`
-- `POST /v1/scoped-permission-requests/:permissionRequestId/reconcile`
-- `GET /v1/accounts/:address/permission-state`
+## Persistence
 
-Framework/client errors retain their real 4xx/5xx classes; `PermissionCheckoutError` has explicit mapping.
+Migration `0019_four_category_financial_execution_adapters.sql` adds `financial_execution_adapter_assessments` with `PREFLIGHT` / `GUARD` payloads tied by FK to `scoped_permission_requests`.
 
-## UX
+Assessment evidence is not PermissionGrant/transaction/receipt/outcome evidence.
 
-The old mock Reference Checkout is replaced by `PermissionCheckoutPage`, backed by real marketplace/commercial/permission APIs. It requires a real ACTIVE service relationship, shows category-specific allowed/denied authority, limits, validity and approval mode, then server-derived cost/risk/blocker review. Current reference services end truthfully at **Scope reviewed — authority not granted**.
+## API
+
+- `GET /v1/execution-adapters`
+- `GET /v1/execution-adapters/:category`
+- `POST /v1/scoped-permission-requests/:permissionRequestId/execution-preflight`
+- `POST /v1/scoped-permission-requests/:permissionRequestId/execution-guard`
+- `GET /v1/scoped-permission-requests/:permissionRequestId/execution-state`
+
+Fastify error handling preserves explicit client/protocol error semantics rather than flattening everything to 500.
+
+## Web
+
+Permission Checkout now loads v0.26 preflight after the reviewed ScopedPermissionRequest exists. It displays adapter state/mode and deterministic blockers, plus **Execution dispatch: DISABLED**. There is no client-side financial execution shortcut.
 
 ## Verification
 
-Local release gate:
+Static repository guard: `pnpm verify`.
 
-```powershell
-pnpm install
-pnpm --filter @spotriq/api build
-pnpm check
-```
+Accepted regression verifiers:
 
-Production regression/acceptance after Railway migration `0018`:
+- `pnpm verify:reference-acceptance`
+- `pnpm verify:commercial-acceptance`
+- `pnpm verify:activation-parity`
+- `pnpm verify:permission-checkout`
 
-```powershell
-pnpm verify:reference-acceptance
-pnpm verify:commercial-acceptance
-pnpm verify:activation-parity
-pnpm verify:permission-checkout
-```
+New v0.26 acceptance contract:
 
-The v0.25 verifier creates fresh FREE read-only relationships, records category-specific reviewed scopes for all four reference services and proves each remains blocked with no fabricated PermissionGrant.
+- `pnpm verify:execution-adapter-parity`
+
+It must prove all four adapters are implemented/testnet-only, exact target scope passes, current services remain blocked at real readiness/grant gates, blocked services receive no prepared financial call, Rebalancing delegates to the existing boundary and assessments persist.
+
+## Release gate
+
+`pnpm --filter @spotriq/api build → pnpm check → commit/push → Railway migration 0019 → deployment → four prior acceptance regressions → verify:execution-adapter-parity`
+
+Do not call v0.26 externally accepted before this sequence passes.
 
 ## Next milestone after acceptance
 
-**v0.26 — Four-Category Financial Execution Adapter Parity.**
+**v0.27 — Four-Category Activity + Outcome Parity.**

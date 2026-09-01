@@ -170,9 +170,9 @@ function Btn({ children, variant = "primary", size = "md", onClick, disabled, cl
   );
 }
 
-function Card({ children, className = "", hover = false }: { children: React.ReactNode; className?: string; hover?: boolean }) {
+function Card({ children, className = "", hover = false, ...props }: React.HTMLAttributes<HTMLDivElement> & { hover?: boolean }) {
   return (
-    <div className={cn("bg-card border border-white/7 rounded-lg", hover && "hover:border-white/12 transition-colors cursor-pointer", className)}>
+    <div {...props} className={cn("bg-card border border-white/7 rounded-lg", hover && "hover:border-white/12 transition-colors cursor-pointer", className)}>
       {children}
     </div>
   );
@@ -1649,12 +1649,20 @@ function CheckScanPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState
     return () => { closed = true; subscription.close(); };
   }, [mode, navigate]);
 
-  const sourceRows = mode === "example" ? exampleSources : (liveSources ?? []).map((source) => ({
-    key: source.key,
-    label: source.label,
-    status: source.state === "COMPLETED" ? "done" : source.state === "RUNNING" ? "running" : source.state === "PARTIAL" ? "partial" : source.state === "FAILED" ? "failed" : source.state === "NOT_SUPPORTED" ? "unsupported" : "queued",
-    detail: source.detail,
-  }));
+  type ScanSourceRow = {
+    key: string;
+    label: string;
+    status: "done" | "running" | "partial" | "failed" | "unsupported" | "queued";
+    detail?: string;
+  };
+  const sourceRows: ScanSourceRow[] = mode === "example"
+    ? exampleSources.map((source) => ({ ...source, status: source.status as ScanSourceRow["status"] }))
+    : (liveSources ?? []).map((source) => ({
+        key: source.key,
+        label: source.label,
+        status: source.state === "COMPLETED" ? "done" : source.state === "RUNNING" ? "running" : source.state === "PARTIAL" ? "partial" : source.state === "FAILED" ? "failed" : source.state === "NOT_SUPPORTED" ? "unsupported" : "queued",
+        detail: source.detail,
+      }));
 
   return (
     <div className="max-w-lg mx-auto px-6 py-16 space-y-8">
@@ -1677,7 +1685,7 @@ function CheckScanPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState
               {s.status === "running" && <span className="flex items-center gap-1.5 text-[#2dd4bf] text-xs"><span className="w-2 h-2 rounded-full bg-[#2dd4bf] animate-pulse" />Running</span>}
               {s.status === "queued" && <span className="w-2 h-2 rounded-full bg-[#1c2433] border border-white/15" />}
             </div>
-            {'detail' in s && s.detail && <p className="text-[11px] text-[#52637b] mt-1 pr-12">{s.detail}</p>}
+            {s.detail ? <p className="text-[11px] text-[#52637b] mt-1 pr-12">{s.detail}</p> : null}
           </div>
         ))}
       </Card>
@@ -3674,7 +3682,7 @@ function OperatorWorkspacePage({ navigate }: { navigate: (r: Route, p?: Partial<
 
 // ─── FOOTER ───────────────────────────────────────────────────────────────────
 
-type FooterNavLink = { label: string; route: Route | null; category?: ExploreCategory; tab?: MyAgentsTab };
+type FooterNavLink = { readonly label: string; readonly route: Route | null; readonly category?: ExploreCategory; readonly tab?: MyAgentsTab };
 
 function FooterLink({ item, navigate }: {
   item: FooterNavLink;
@@ -3700,7 +3708,7 @@ function FooterLink({ item, navigate }: {
 
 interface FooterColumnProps {
   label: string;
-  links: FooterNavLink[];
+  links: readonly FooterNavLink[];
   navigate: (r: Route, p?: Partial<NavState>) => void;
 }
 
@@ -3754,10 +3762,12 @@ function Footer({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => v
   const year = new Date().getFullYear();
 
   const columns: FooterColumnProps[] = [
-    { label: "Product", links: cfg.nav.product as FooterNavLink[], navigate },
-    { label: "Explore", links: cfg.nav.explore as FooterNavLink[], navigate },
-    { label: "Trust & Resources", links: cfg.nav.resources as FooterNavLink[], navigate },
+    { label: "Product", links: cfg.nav.product, navigate },
+    { label: "Explore", links: cfg.nav.explore, navigate },
+    { label: "Trust & Resources", links: cfg.nav.resources, navigate },
   ];
+  const operatorLinks: readonly FooterNavLink[] = cfg.nav.operator;
+  const legalLinks: readonly FooterNavLink[] = cfg.legal.links;
 
   return (
     <footer className="border-t border-white/6 bg-[#080b10]">
@@ -3810,9 +3820,9 @@ function Footer({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => v
                 Operators
               </div>
               <ul className="space-y-2.5">
-                {cfg.nav.operator.map(l => (
+                {operatorLinks.map(l => (
                   <li key={l.label}>
-                    <FooterLink item={l as FooterNavLink} navigate={navigate} />
+                    <FooterLink item={l} navigate={navigate} />
                   </li>
                 ))}
               </ul>
@@ -3838,9 +3848,9 @@ function Footer({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => v
                 Operators
               </div>
               <ul className="flex gap-5">
-                {cfg.nav.operator.map(l => (
+                {operatorLinks.map(l => (
                   <li key={l.label}>
-                    <FooterLink item={l as FooterNavLink} navigate={navigate} />
+                    <FooterLink item={l} navigate={navigate} />
                   </li>
                 ))}
               </ul>
@@ -3869,13 +3879,13 @@ function Footer({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => v
 
           {/* Legal links */}
           <nav aria-label="Legal links" className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            {cfg.legal.links.map((l, i) => (
+            {legalLinks.map((l, i) => (
               <React.Fragment key={l.label}>
                 {i > 0 && (
                   <span className="text-[#1e2d3d] select-none hidden sm:inline" aria-hidden>·</span>
                 )}
                 <button
-                  onClick={l.route ? () => navigate(l.route as Route) : undefined}
+                  onClick={l.route ? () => navigate(l.route) : undefined}
                   className={cn(
                     "text-[11px] font-mono text-[#2d3d52] hover:text-[#4d6280] transition-colors",
                     !l.route && "cursor-default"

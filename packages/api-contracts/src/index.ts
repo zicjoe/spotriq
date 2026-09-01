@@ -88,6 +88,9 @@ export interface CapabilityResponse {
   fourCategoryAuthorityScopeParityEnabled: boolean;
   scopedPermissionRequestEnabled: boolean;
   permissionGrantReconciliationBridgeEnabled: boolean;
+  fourCategoryFinancialExecutionAdapterParityEnabled: boolean;
+  categoryArgumentGuardEnabled: boolean;
+  categoryExecutionDispatchEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -314,6 +317,14 @@ export interface ScopedPermissionRequestResponse { request: import("@spotriq/dom
 export interface ReconcileScopedPermissionGrantRequest { buyerAddress: string; permissionGrantId: string; }
 export interface CancelPermissionCheckoutRequest { buyerAddress: string; }
 export interface BuyerPermissionStateResponse { state: import("@spotriq/domain").BuyerPermissionState; }
+
+export interface FinancialExecutionAdaptersResponse { adapters: import("@spotriq/domain").FinancialExecutionAdapterDescriptor[]; }
+export interface FinancialExecutionAdapterResponse { adapter: import("@spotriq/domain").FinancialExecutionAdapterDescriptor; }
+export interface FinancialExecutionPreflightRequest { buyerAddress: string; }
+export interface FinancialExecutionPreflightResponse { preflight: import("@spotriq/domain").FinancialExecutionPreflight; }
+export interface CategoryExecutionGuardRequest { buyerAddress: string; proposal: import("@spotriq/domain").PrepareFinancialExecutionInput; }
+export interface CategoryExecutionGuardResponse { report: import("@spotriq/domain").CategoryExecutionGuardReport; }
+export interface FinancialExecutionAdapterStateResponse { state: import("@spotriq/domain").FinancialExecutionAdapterStateResponseModel; }
 
 export interface InvokeServiceTaskRequest { activationId?: string; }
 export interface InvokeActivationServiceTaskRequest {

@@ -696,6 +696,109 @@ export interface BuyerPermissionState {
   limitations: string[];
 }
 
+export type FinancialExecutionAction =
+  | "REBALANCING_EXISTING_BOUNDARY"
+  | "GRID_SWAP_EXACT_INPUT_SINGLE"
+  | "YIELD_SUPPLY"
+  | "YIELD_WITHDRAW"
+  | "HEALTH_REPAY"
+  | "HEALTH_ADD_COLLATERAL";
+
+export type FinancialExecutionAdapterMode = "LEGACY_REBALANCING_BOUNDARY" | "CATEGORY_GUARDED_CALL";
+export type FinancialExecutionAdapterState = "IMPLEMENTED" | "UNAVAILABLE";
+export type FinancialExecutionCheckState = "PASS" | "FAIL" | "INCONCLUSIVE";
+
+export interface FinancialExecutionAdapterDescriptor {
+  adapterId: string;
+  category: ServiceCategory;
+  protocol: "PancakeSwap" | "Venus";
+  networkPolicy: "BSC_TESTNET_ONLY";
+  state: FinancialExecutionAdapterState;
+  mode: FinancialExecutionAdapterMode;
+  actions: FinancialExecutionAction[];
+  targetPolicy: string;
+  argumentGuard: string;
+  staleStatePolicy: string;
+  signerPolicy: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface FinancialExecutionCheck {
+  code: string;
+  label: string;
+  state: FinancialExecutionCheckState;
+  detail: string;
+  blocking: boolean;
+}
+
+export interface FinancialExecutionPreflight {
+  preflightId: string;
+  permissionRequestId: string;
+  activationId: string;
+  serviceId: string;
+  buyerAddress: string;
+  category: ServiceCategory;
+  adapter: FinancialExecutionAdapterDescriptor;
+  state: "READY_FOR_GUARD" | "BLOCKED" | "STALE";
+  checks: FinancialExecutionCheck[];
+  observedBlockNumber?: string;
+  permissionGrantId?: string;
+  permissionGrantSatisfied: boolean;
+  serviceFinancialReadinessSatisfied: boolean;
+  activationSatisfied: boolean;
+  targetScopeSatisfied: boolean;
+  executionEligible: false;
+  checkedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export type PrepareFinancialExecutionInput =
+  | { category: "rebalancing"; action: "REBALANCING_EXISTING_BOUNDARY" }
+  | { category: "grid"; action: "GRID_SWAP_EXACT_INPUT_SINGLE"; amountIn: string; amountOutMinimumRaw: string; deadlineUnix: number; sqrtPriceLimitX96?: string }
+  | { category: "yield"; action: "YIELD_SUPPLY" | "YIELD_WITHDRAW"; marketAddress: string; amount: string }
+  | { category: "health"; action: "HEALTH_REPAY" | "HEALTH_ADD_COLLATERAL"; marketAddress: string; amount: string };
+
+export interface GuardedFinancialCall {
+  to: string;
+  data: string;
+  valueRaw: string;
+  functionName: string;
+  decodedArguments: Record<string, string | number | boolean>;
+}
+
+export interface CategoryExecutionGuardReport {
+  guardReportId: string;
+  permissionRequestId: string;
+  activationId: string;
+  serviceId: string;
+  buyerAddress: string;
+  category: ServiceCategory;
+  action: FinancialExecutionAction;
+  state: "PASS_BUT_EXECUTION_BLOCKED" | "BLOCKED" | "LEGACY_BOUNDARY_REQUIRED";
+  preflight: FinancialExecutionPreflight;
+  call?: GuardedFinancialCall;
+  checks: FinancialExecutionCheck[];
+  exactTargetSatisfied: boolean;
+  argumentLimitsSatisfied: boolean;
+  staleStateSatisfied: boolean;
+  permissionGrantSatisfied: boolean;
+  executionEligible: false;
+  guardedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface FinancialExecutionAdapterStateResponseModel {
+  permissionRequestId: string;
+  latestPreflight?: FinancialExecutionPreflight;
+  latestGuard?: CategoryExecutionGuardReport;
+  generatedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
 export type PermissionAuthorityProvider = "ALTANA";
 export type PermissionSpendPeriod = "hour" | "day";
 export type PermissionGrantReconciliationState =
