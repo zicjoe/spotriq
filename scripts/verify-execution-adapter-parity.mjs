@@ -82,7 +82,11 @@ for(const spec of services){
  const guard=(await json(`/v1/scoped-permission-requests/${encodeURIComponent(request.permissionRequestId)}/execution-guard`,{method:"POST",body:JSON.stringify({buyerAddress:buyer,proposal:spec.proposal})}))?.report;
  if(spec.category==="rebalancing"){if(guard?.state!=="LEGACY_BOUNDARY_REQUIRED")throw new Error(`${serviceId}: Rebalancing must delegate to the existing sealed boundary stack.`);}else{if(guard?.state!=="BLOCKED"||guard?.call)throw new Error(`${serviceId}: blocked current service must not receive prepared calldata.`);}
  const persisted=(await json(`/v1/scoped-permission-requests/${encodeURIComponent(request.permissionRequestId)}/execution-state`))?.state;
- if(persisted?.latestPreflight?.preflightId!==preflight.preflightId||persisted?.latestGuard?.guardReportId!==guard.guardReportId)throw new Error(`${serviceId}: preflight/guard assessment did not persist.`);
+ // Guarding deliberately re-runs preflight immediately before proposal validation so stale
+ // authority/protocol state cannot be reused. The persisted latest preflight must therefore
+ // be the fresh preflight embedded in the guard report, not the earlier standalone preflight.
+ if(persisted?.latestPreflight?.preflightId!==guard?.preflight?.preflightId||persisted?.latestGuard?.guardReportId!==guard.guardReportId)throw new Error(`${serviceId}: latest fresh preflight/guard assessment did not persist.`);
+ if(guard?.preflight?.permissionRequestId!==request.permissionRequestId)throw new Error(`${serviceId}: guard did not bind its fresh preflight to the scoped permission request.`);
  console.log(`PASS ${serviceId}: adapter implemented → exact target scoped → preflight blocked on real service/grant gates → no financial dispatch fabricated.`);
 }
 console.log("PASS: Spotriq v0.26 four-category financial execution-adapter parity contract passed without granting or submitting unauthorized transactions.");

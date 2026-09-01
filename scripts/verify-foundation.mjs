@@ -786,7 +786,7 @@ for (const marker of ["/v1/protocols/venus/markets", "getMarketCatalog"]) {
   if (!venusProtocolRoutes026.includes(marker) && !venusAdapter026.includes(marker)) throw new Error(`v0.26 Venus acceptance-context discovery is missing ${marker}.`);
 }
 const executionAdapterVerifier = await readFile(path.join(root, "scripts/verify-execution-adapter-parity.mjs"), "utf8");
-for (const marker of ["rangekeeper", "gridpilot", "yieldpilot", "venusguard", "SERVICE_FINANCIAL_READINESS", "PERMISSION_GRANT", "TARGET_SCOPE", "LEGACY_BOUNDARY_REQUIRED", "no financial dispatch fabricated", "/v1/protocols/venus/markets"]) {
+for (const marker of ["rangekeeper", "gridpilot", "yieldpilot", "venusguard", "SERVICE_FINANCIAL_READINESS", "PERMISSION_GRANT", "TARGET_SCOPE", "LEGACY_BOUNDARY_REQUIRED", "no financial dispatch fabricated", "/v1/protocols/venus/markets", "guard?.preflight?.preflightId", "latest fresh preflight/guard assessment did not persist"]) {
   if (!executionAdapterVerifier.includes(marker)) throw new Error(`v0.26 live verifier is missing ${marker}.`);
 }
 if (rootManifest.scripts?.["verify:execution-adapter-parity"] !== "node scripts/verify-execution-adapter-parity.mjs") throw new Error("Root package.json must expose pnpm verify:execution-adapter-parity.");
