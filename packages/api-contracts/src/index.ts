@@ -91,6 +91,8 @@ export interface CapabilityResponse {
   fourCategoryFinancialExecutionAdapterParityEnabled: boolean;
   categoryArgumentGuardEnabled: boolean;
   categoryExecutionDispatchEnabled: boolean;
+  fourCategoryActivityOutcomeParityEnabled: boolean;
+  activationOutcomeCouldNotAssessEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -466,4 +468,17 @@ export interface ExecutionOutcomeResponse {
   executionId: string;
   outcome?: import("@spotriq/domain").RebalancingExecutionOutcome;
   evidence: import("@spotriq/domain").EvidenceRecord[];
+}
+
+// ─── Four-category Activation Activity & Outcomes (v0.27) ───────────────────
+export interface ActivationActivityOutcomesResponse {
+  bundle: import("@spotriq/domain").ActivationActivityOutcomeBundle;
+}
+export interface ActivationActivityResponse {
+  activationId: string;
+  activity: import("@spotriq/domain").ActivationActivityEvent[];
+}
+export interface ActivationOutcomeResponse {
+  activationId: string;
+  outcome: import("@spotriq/domain").ActivationOutcomeSnapshot;
 }

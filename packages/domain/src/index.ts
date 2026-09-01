@@ -2681,3 +2681,93 @@ export interface ExecutionActivityOutcomeBundle {
   syncedAt: string;
   limitations: string[];
 }
+
+// ─── Four-category Activation Activity & Outcomes (v0.27) ───────────────────
+export type ActivationActivityEventType =
+  | "ACTIVATION_STARTED"
+  | "ACTIVATION_REVOKED"
+  | "SERVICE_TASK_STARTED"
+  | "SERVICE_TASK_OBSERVED"
+  | "SERVICE_TASK_FAILED"
+  | "PERMISSION_SCOPE_REVIEWED"
+  | "PERMISSION_REQUEST_BLOCKED"
+  | "PERMISSION_GRANT_RECONCILED"
+  | "EXECUTION_PREFLIGHT_BLOCKED"
+  | "EXECUTION_PREFLIGHT_READY"
+  | "EXECUTION_GUARD_BLOCKED"
+  | "EXECUTION_GUARD_PREPARED";
+
+export interface ActivationActivityEvent {
+  activityEventId: string;
+  activationId: string;
+  serviceId: string;
+  buyerAddress: string;
+  category: ServiceCategory;
+  eventType: ActivationActivityEventType;
+  severity: "info" | "success" | "warning" | "error";
+  title: string;
+  description: string;
+  occurredAt: string;
+  provenance: EvidenceProvenance;
+  sourceType: "MARKETPLACE_ACTIVATION" | "SERVICE_TASK" | "PERMISSION_CHECKOUT" | "SCOPED_PERMISSION_REQUEST" | "FINANCIAL_EXECUTION_PREFLIGHT" | "FINANCIAL_EXECUTION_GUARD";
+  sourceId: string;
+  evidenceIds: string[];
+  metadata: Record<string, string | number | boolean>;
+}
+
+export interface ActivationOutcomeMetric {
+  outcomeMetricId: string;
+  activationId: string;
+  metric: string;
+  value: string | number | boolean;
+  unit?: string;
+  attribution: "DIRECT" | "OBSERVED" | "DERIVED";
+  provenance: EvidenceProvenance;
+  evidenceIds: string[];
+  limitation?: string;
+}
+
+export type ActivationJourneyOutcomeState = "NOT_STARTED" | "OBSERVATION_ONLY" | "EXECUTION_BLOCKED" | "EXECUTION_PREPARED_NOT_DISPATCHED" | "FAILED" | "REVOKED";
+export type FinancialOutcomeMeasurementState = "COULD_NOT_ASSESS" | "INSUFFICIENT_HISTORY" | "MEASURED";
+
+export interface ActivationOutcomeSnapshot {
+  outcomeId: string;
+  activationId: string;
+  serviceId: string;
+  buyerAddress: string;
+  category: ServiceCategory;
+  state: ActivationJourneyOutcomeState;
+  serviceTaskId?: string;
+  permissionRequestId?: string;
+  executionPreflightId?: string;
+  executionGuardReportId?: string;
+  transactionObserved: false;
+  technicalObservation: {
+    state: "NOT_OBSERVED" | "OBSERVED" | "FAILED";
+    detail: string;
+  };
+  financialOutcome: {
+    state: FinancialOutcomeMeasurementState;
+    value: "Could Not Assess" | string;
+    detail: string;
+  };
+  metrics: ActivationOutcomeMetric[];
+  evidenceIds: string[];
+  startedAt: string;
+  measuredAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface ActivationActivityOutcomeBundle {
+  activation: MarketplaceActivation;
+  serviceTask?: ServiceTask;
+  permissionCheckout?: PermissionCheckout;
+  permissionRequest?: ScopedPermissionRequest;
+  executionState?: FinancialExecutionAdapterStateResponseModel;
+  activity: ActivationActivityEvent[];
+  outcome: ActivationOutcomeSnapshot;
+  syncedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}

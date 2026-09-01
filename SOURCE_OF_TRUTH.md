@@ -1,7 +1,7 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.26.0**  
-**Release status:** Four-Category Financial Execution Adapter Parity implementation candidate; local dependency-aware validation and external v0.26 acceptance pending.  
+**Current repository release:** **v0.27.0**  
+**Release status:** Four-Category Activity + Outcome Parity implementation candidate; v0.26 externally accepted; local dependency-aware validation and external v0.27 acceptance pending.  
 **State date:** 2026-09-01
 
 ## Authority hierarchy
@@ -179,8 +179,18 @@ v0.26 external acceptance requires local API build + `pnpm check`, Railway migra
 ## Roadmap position
 
 - v0.22–v0.25 — **externally accepted**.
-- v0.26 — **implementation candidate; acceptance pending**.
-- v0.27 — Four-Category Activity + Outcome Parity, next after v0.26 acceptance.
-- v0.28 — My Agents + switching/revocation + marketplace UX completion.
+- v0.26 — **externally accepted**.
+- v0.27 — **implementation candidate:** Four-Category Activity + Outcome Parity.
+- v0.28 — My Agents + switching/revocation + marketplace UX completion, next after v0.27 acceptance.
 - v0.29 — Smart Money Plans + compatibility/conflict handling.
 - Later — paid rails expansion, operator workspace, Agent Studio depth, AI explanation layer, Agent Advantage, observability/security/production hardening and mainnet readiness only after explicit approval.
+
+
+## v0.27 current implementation truth
+
+- `@spotriq/activity-outcomes` now contains both the legacy controlled-Rebalancing execution outcome engine and a distinct Activation-scoped four-category reconciliation engine.
+- Migration `0020_four_category_activity_outcomes.sql` persists Activation activity/outcome links without converting them into transaction records.
+- New Activation endpoints expose/sync activity timelines and outcome snapshots.
+- `technicalObservation` is independent from `financialOutcome`. When transaction/performance evidence is absent, financial truth is `COULD_NOT_ASSESS / Could Not Assess`.
+- Grid context does not become PnL/fills; Yield current APY does not become realised yield; Health monitoring does not become protective effect; read-only Rebalancing analysis does not become an executed rebalance.
+- v0.27 is not externally accepted until local checks, Railway migration/deployment and `pnpm verify:activity-outcome-parity` pass together with all prior regression verifiers.

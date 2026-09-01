@@ -153,6 +153,11 @@ const required = [
   "apps/web/src/repositories/financialExecutionAdapterRepository.ts",
   "scripts/verify-execution-adapter-parity.mjs",
   "docs/IMPLEMENTATION_REPORT_FOUR_CATEGORY_FINANCIAL_EXECUTION_ADAPTER_PARITY_v0.26.0.md",
+  "packages/db/migrations/0020_four_category_activity_outcomes.sql",
+  "apps/api/src/routes/activation-activity-outcomes.ts",
+  "apps/web/src/repositories/activationActivityOutcomesRepository.ts",
+  "scripts/verify-activity-outcome-parity.mjs",
+  "docs/IMPLEMENTATION_REPORT_FOUR_CATEGORY_ACTIVITY_OUTCOMES_v0.27.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -166,11 +171,11 @@ for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper
   if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
 }
 const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
-if (!projectState.includes("v0.25 — Permission Checkout + scoped authority parity ✅") || !projectState.includes("v0.26.0 implementation candidate") || !projectState.includes("Four-Category Financial Execution Adapter Parity")) {
-  throw new Error("PROJECT_STATE.md must record externally accepted v0.25 and the current v0.26 execution-adapter candidate.");
+if (!projectState.includes("v0.26 ✅") || !projectState.includes("v0.27.0 implementation candidate") || !projectState.includes("Four-Category Activity + Outcome Parity")) {
+  throw new Error("PROJECT_STATE.md must record externally accepted v0.26 and the current v0.27 Activity + Outcome candidate.");
 }
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
-for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity"]) {
+for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity"]) {
   if (!correctedRoadmap.includes(marker)) throw new Error(`Corrected roadmap is missing ${marker}.`);
 }
 
@@ -790,7 +795,38 @@ for (const marker of ["rangekeeper", "gridpilot", "yieldpilot", "venusguard", "S
   if (!executionAdapterVerifier.includes(marker)) throw new Error(`v0.26 live verifier is missing ${marker}.`);
 }
 if (rootManifest.scripts?.["verify:execution-adapter-parity"] !== "node scripts/verify-execution-adapter-parity.mjs") throw new Error("Root package.json must expose pnpm verify:execution-adapter-parity.");
-if (!apiApp.includes('version: "0.26.0"')) throw new Error("API metadata must report v0.26.0.");
+
+
+// v0.27 — Four-Category Activity + Outcome Parity.
+const activationActivityRoutes = await readFile(path.join(root, "apps/api/src/routes/activation-activity-outcomes.ts"), "utf8");
+const activityOutcomes027 = await readFile(path.join(root, "packages/activity-outcomes/src/index.ts"), "utf8");
+const migration0020 = await readFile(path.join(root, "packages/db/migrations/0020_four_category_activity_outcomes.sql"), "utf8");
+const activationActivityRepo = await readFile(path.join(root, "apps/web/src/repositories/activationActivityOutcomesRepository.ts"), "utf8");
+const activityOutcomeVerifier = await readFile(path.join(root, "scripts/verify-activity-outcome-parity.mjs"), "utf8");
+for (const marker of ["ActivationActivityEvent", "ActivationOutcomeSnapshot", "ActivationActivityOutcomeBundle", "COULD_NOT_ASSESS", "transactionObserved: false"]) {
+  if (!domain.replaceAll(" ", "").includes(marker.replaceAll(" ", ""))) throw new Error(`v0.27 domain model is missing ${marker}.`);
+}
+for (const marker of ["createActivationActivityOutcomesEngine", "replaceActivationActivity", "saveActivationOutcome", "Could Not Assess", "EXECUTION_GUARD_PREPARED"]) {
+  if (!activityOutcomes027.includes(marker)) throw new Error(`v0.27 Activity & Outcomes engine is missing ${marker}.`);
+}
+for (const marker of ["service_task_id", "permission_request_id", "ACTIVATION_SCOPED", "outcome_windows_activation_scoped_idx"]) {
+  if (!migration0020.includes(marker)) throw new Error(`v0.27 activity/outcome migration is missing ${marker}.`);
+}
+for (const route of ["/v1/activations/:activationId/activity-outcomes/sync", "/v1/activations/:activationId/activity-outcomes", "/v1/activations/:activationId/activity", "/v1/activations/:activationId/outcome"]) {
+  if (!activationActivityRoutes.includes(route)) throw new Error(`Missing v0.27 Activation Activity & Outcomes route ${route}.`);
+}
+for (const marker of ["fourCategoryActivityOutcomeParityEnabled: true", "activationOutcomeCouldNotAssessEnabled: true"]) {
+  if (!apiApp.includes(marker)) throw new Error(`API capabilities must expose truthful v0.27 feature ${marker}.`);
+}
+for (const marker of ["activationActivityOutcomesRepository.sync", "Activity & Outcomes", "Financial outcome:"]) {
+  if (!appUi.includes(marker)) throw new Error(`v0.27 Explore Activity & Outcomes UI is missing ${marker}.`);
+}
+for (const marker of ["rangekeeper", "gridpilot", "yieldpilot", "venusguard", "Could Not Assess", "SERVICE_TASK_OBSERVED", "PERMISSION_REQUEST_BLOCKED", "EXECUTION_PREFLIGHT_BLOCKED", "/activity-outcomes/sync"]) {
+  if (!activityOutcomeVerifier.includes(marker)) throw new Error(`v0.27 live verifier is missing ${marker}.`);
+}
+if (!activationActivityRepo.includes("/activity-outcomes")) throw new Error("v0.27 web Activity & Outcomes repository is missing the Activation endpoint.");
+if (rootManifest.scripts?.["verify:activity-outcome-parity"] !== "node scripts/verify-activity-outcome-parity.mjs") throw new Error("Root package.json must expose pnpm verify:activity-outcome-parity.");
+if (!apiApp.includes('version: "0.27.0"')) throw new Error("API metadata must report v0.27.0.");
 
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -804,11 +840,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 28) throw new Error(`v0.26 expects 28 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 28) throw new Error(`v0.27 expects 28 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.26.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.26.0.`);
+  if (manifest.version !== "0.27.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.27.0.`);
 }
 
-console.log("Spotriq foundation + accepted v0.22–v0.25 + v0.26 four-category financial execution-adapter parity verification passed.");
+console.log("Spotriq foundation + accepted v0.22–v0.26 + v0.27 four-category Activity + Outcome parity verification passed.");
 

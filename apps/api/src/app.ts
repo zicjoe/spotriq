@@ -25,7 +25,7 @@ import { createAltanaKeystoreVerifier } from "@spotriq/authority/altana";
 import { createExecutionPlanEngine, ExecutionPlanError, MemoryExecutionPlanStore, PostgresExecutionPlanStore, type ExecutionPlanEngine } from "@spotriq/execution-plans";
 import { createExecutionBoundaryEngine, ExecutionBoundaryError, MemoryExecutionBoundaryStore, PostgresExecutionBoundaryStore, type ExecutionBoundaryEngine } from "@spotriq/execution-boundary";
 import { ControlledExecutionError, createControlledExecutionEngine, MemoryControlledExecutionStore, PostgresControlledExecutionStore, type ControlledExecutionEngine } from "@spotriq/controlled-execution";
-import { ActivityOutcomesError, createActivityOutcomesEngine, MemoryActivityOutcomesStore, PostgresActivityOutcomesStore, type ActivityOutcomesEngine } from "@spotriq/activity-outcomes";
+import { ActivityOutcomesError, createActivityOutcomesEngine, createActivationActivityOutcomesEngine, MemoryActivityOutcomesStore, PostgresActivityOutcomesStore, type ActivityOutcomesEngine, type ActivationActivityOutcomesEngine } from "@spotriq/activity-outcomes";
 import { createServiceTaskEngine, MemoryServiceTaskStore, PostgresServiceTaskStore, ServiceTaskError, type ServiceTaskEngine } from "@spotriq/service-tasks";
 import { CommercialError, createCommercialEngine, createErc8183PaymentAdapter, MemoryCommercialStore, PostgresCommercialStore, type CommercialEngine } from "@spotriq/commercial";
 import { createPermissionCheckoutEngine, MemoryPermissionCheckoutStore, PermissionCheckoutError, PostgresPermissionCheckoutStore, type PermissionCheckoutEngine } from "@spotriq/permission-checkout";
@@ -45,6 +45,7 @@ import { registerAuthorityRoutes } from "./routes/authority.js";
 import { registerExecutionPlanRoutes } from "./routes/execution-plans.js";
 import { registerControlledExecutionRoutes } from "./routes/controlled-execution.js";
 import { registerActivityOutcomeRoutes } from "./routes/activity-outcomes.js";
+import { registerActivationActivityOutcomeRoutes } from "./routes/activation-activity-outcomes.js";
 import { registerServiceTaskRoutes } from "./routes/service-tasks.js";
 import { registerReferenceAgentRoutes } from "./routes/reference-agents.js";
 import { registerCommercialRoutes } from "./routes/commercial.js";
@@ -68,6 +69,7 @@ export interface BuildServerOptions {
   executionBoundary?: ExecutionBoundaryEngine;
   controlledExecution?: ControlledExecutionEngine;
   activityOutcomes?: ActivityOutcomesEngine;
+  activationActivityOutcomes?: ActivationActivityOutcomesEngine;
   serviceTasks?: ServiceTaskEngine;
   commercial?: CommercialEngine;
   permissionCheckout?: PermissionCheckoutEngine;
@@ -221,6 +223,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     ? new PostgresActivityOutcomesStore(sqlDatabase)
     : new MemoryActivityOutcomesStore();
   const activityOutcomes = options.activityOutcomes ?? createActivityOutcomesEngine({ store: activityOutcomesStore, executions: controlledExecution, jobs: jobIntents, plans: executionPlans, boundaries: executionBoundary, authority, pancakeSwap });
+  const activationActivityOutcomes = options.activationActivityOutcomes ?? createActivationActivityOutcomesEngine({ store: activityOutcomesStore, commercial, tasks: serviceTasks, permissionCheckout, executionAdapters: financialExecutionAdapters });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
@@ -241,7 +244,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.26.0",
+      version: "0.27.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -318,6 +321,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       fourCategoryFinancialExecutionAdapterParityEnabled: true,
       categoryArgumentGuardEnabled: true,
       categoryExecutionDispatchEnabled: false,
+      fourCategoryActivityOutcomeParityEnabled: true,
+      activationOutcomeCouldNotAssessEnabled: true,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
@@ -353,6 +358,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "v0.25 adds a dedicated Permission Checkout that snapshots category-specific authority, limits, cost/risk disclosures and blockers before creating an immutable ScopedPermissionRequest. Current read-only reference services remain blocked from write authority rather than being silently upgraded.",
         "v0.26 implements category-specific guarded execution adapters for Grid, Yield and Health while preserving the existing Rebalancing boundary stack. Exact protocol targets, argument limits and fresh-state checks are modeled, but current read-only services still cannot receive a financial signer or dispatch transactions.",
         "A category adapter does not create a PermissionGrant. Grid/Yield/Health provider reconciliation remains a separate future authority-provider bridge, and category dispatch remains disabled until a non-bypassable signer consumes an exact reconciled grant.",
+        "v0.27 adds Activation-scoped Activity & Outcomes parity across Rebalancing, Grid, Yield and Health. Runtime observations, permission review, execution preflight/guard state and relationship revocation are reconciled into one deterministic timeline without converting technical success into financial success.",
+        "When no independently reconciled transaction and defensible measurement window exist, financial outcome is explicitly Could Not Assess. Grid PnL/fills, realised yield and Health protective effects are never inferred from read-only runtime output or guarded calldata preparation.",
         "Paid rails are provider-neutral adapters. ERC-8183 is observed from BSC job/funding state; X402/B402 are represented in the domain but no live adapter is enabled yet, so Spotriq cannot falsely mark those payments verified.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
@@ -380,6 +387,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerExecutionPlanRoutes(app, executionPlans, executionBoundary, authority, jobIntents);
   await registerControlledExecutionRoutes(app, controlledExecution, jobIntents, activityOutcomes);
   await registerActivityOutcomeRoutes(app, activityOutcomes);
+  await registerActivationActivityOutcomeRoutes(app, activationActivityOutcomes);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {

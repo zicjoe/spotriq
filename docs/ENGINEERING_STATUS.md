@@ -1,17 +1,18 @@
 # Spotriq Engineering Status
 
-**Release candidate:** v0.26.0  
+**Release candidate:** v0.27.0  
 **Date:** 2026-09-01  
-**State:** Four-Category Financial Execution Adapter Parity implemented; local dependency-aware validation and external acceptance pending.
+**State:** Four-Category Activity + Outcome Parity implemented; v0.26 externally accepted; local dependency-aware validation and external v0.27 acceptance pending.
 
 ## Accepted baseline
 
-Production acceptance is complete through v0.25:
+Production acceptance is complete through v0.26:
 
 - v0.22 — four reference runtimes/Test Lab/ERC-8004 reconciliation;
 - v0.23 — FREE Offer → Quote → Hire → NOT_REQUIRED payment → read-only Activation;
 - v0.24 — four-category Activation-bound runtime/control/revocation parity;
-- v0.25 — four-category Permission Checkout; all current reference services persist immutable BLOCKED ScopedPermissionRequests and no fake PermissionGrant.
+- v0.25 — four-category Permission Checkout; all current reference services persist immutable BLOCKED ScopedPermissionRequests and no fake PermissionGrant;
+- v0.26 — four-category financial execution adapters/guards accepted without unauthorized dispatch.
 
 ## v0.26 architecture
 
@@ -96,4 +97,17 @@ Do not call v0.26 externally accepted before this sequence passes.
 
 ## Next milestone after acceptance
 
-**v0.27 — Four-Category Activity + Outcome Parity.**
+**v0.28 — My Agents + Switching/Revocation + Marketplace UX Completion.**
+
+
+## v0.27 implementation candidate
+
+Four-category Activation Activity & Outcome parity is implemented. The API reconciles Activation, ServiceTask, Permission Checkout/ScopedPermissionRequest, execution preflight/guard state and revocation into persistent `activity_events` / `outcome_windows` / `outcome_metrics` records.
+
+Latest migration: `0020_four_category_activity_outcomes.sql`.
+
+New verifier: `pnpm verify:activity-outcome-parity`.
+
+Financial outcome remains `Could Not Assess` when no independently reconciled transaction and defensible measurement window exist. The older controlled Rebalancing execution outcome path remains separate.
+
+Do not mark v0.27 externally accepted before local API build + `pnpm check`, Railway migration/deploy, all v0.22–v0.26 regressions and the v0.27 live verifier pass.

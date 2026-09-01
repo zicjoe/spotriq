@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, FindingServiceMatch, FindingServiceMatchPage, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution, ExecutionActivityOutcomeBundle, ServiceTask, MarketplaceActivation, ActivationControlProfile, ActivationRuntimeState,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution, ExecutionActivityOutcomeBundle, ServiceTask, MarketplaceActivation, ActivationControlProfile, ActivationRuntimeState, ActivationActivityOutcomeBundle,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -37,6 +37,7 @@ import { altanaHandlers } from "../services/altanaHandlers";
 import { executionPlanRepository } from "../repositories/executionPlanRepository";
 import { controlledExecutionRepository } from "../repositories/controlledExecutionRepository";
 import { activityOutcomesRepository } from "../repositories/activityOutcomesRepository";
+import { activationActivityOutcomesRepository } from "../repositories/activationActivityOutcomesRepository";
 import { serviceTaskRepository } from "../repositories/serviceTaskRepository";
 import { commercialRepository } from "../repositories/commercialRepository";
 import { PermissionCheckoutPage } from "../components/PermissionCheckoutPage";
@@ -700,6 +701,13 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
   const [poolAddress,setPoolAddress]=useState("");
   const [capitalAsset,setCapitalAsset]=useState("");
   const [capitalAmount,setCapitalAmount]=useState("");
+  const [activationActivityBundle,setActivationActivityBundle]=useState<ActivationActivityOutcomeBundle>();
+  useEffect(()=>{
+    let cancelled=false;
+    if(!activation?.activationId||!runtimeState?.latestTask){setActivationActivityBundle(undefined);return()=>{cancelled=true;};}
+    void activationActivityOutcomesRepository.sync(activation.activationId).then(bundle=>{if(!cancelled)setActivationActivityBundle(bundle);}).catch(()=>{if(!cancelled)setActivationActivityBundle(undefined);});
+    return()=>{cancelled=true;};
+  },[activation?.activationId,activation?.state,runtimeState?.latestTask?.updatedAt]);
   const isReference = service.origin === "REFERENCE" || record.identity.sourceKind === "MARKETPLACE_REFERENCE" || record.identity.identity.namespace === "marketplace";
   const failedOrUnknown = (record.readiness.checks ?? []).filter((check) => check.state !== "PASS");
   const machineEndpoints = (service.runtimeEndpoints ?? []).filter((endpoint) => endpoint.machineCallable);
@@ -775,6 +783,7 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
           <div className="flex items-center gap-2 flex-wrap"><Btn variant="teal-outline" size="sm" onClick={()=>onRunActivationTask({tokenId:tokenId||undefined,poolAddress:poolAddress||undefined,capitalAsset:capitalAsset||undefined,capitalAmount:capitalAmount||undefined})} disabled={runtimeBusy}>{runtimeBusy?<><RefreshCw className="w-3.5 h-3.5 animate-spin"/> Running</>:<><Play className="w-3.5 h-3.5"/> {service.category==="health"?"Refresh health snapshot":"Run read-only task"}</>}</Btn>{onRevokeActivation&&<Btn variant="ghost" size="sm" onClick={onRevokeActivation} disabled={runtimeBusy} className="text-[#f59e0b]">Revoke relationship</Btn>}</div>
         </div>}
         {runtimeState && <div className="rounded border border-white/6 bg-black/10 px-2.5 py-2"><div className="flex items-center gap-2"><span className="text-[#dde3ef]">Runtime state</span><Badge variant={runtimeState.observationState==="OBSERVED"?"green":runtimeState.observationState==="FAILED"?"amber":"muted"}>{runtimeState.observationState}</Badge></div><div className="mt-1 text-[#8090a8]">{runtimeState.activity.summary}</div>{runtimeState.monitoring&&<div className="mt-1 text-[#6b7d99]">Monitoring: {runtimeState.monitoring.state} · {runtimeState.monitoring.detail}</div>}<div className="mt-1 text-[#6b7d99]">Outcome: {runtimeState.outcome.state} · {runtimeState.outcome.detail}</div></div>}
+        {activationActivityBundle && <div className="rounded border border-[#2dd4bf]/15 bg-[#2dd4bf]/[0.035] px-2.5 py-2"><div className="flex items-center gap-2"><span className="text-[#dde3ef]">Activity & Outcomes</span><Badge variant={activationActivityBundle.outcome.state==="FAILED"?"amber":"teal"}>{activationActivityBundle.outcome.state.replaceAll("_"," ")}</Badge></div><div className="mt-1 text-[#8090a8]">{activationActivityBundle.activity.length} reconciled event{activationActivityBundle.activity.length===1?"":"s"} · technical observation: {activationActivityBundle.outcome.technicalObservation.state}</div><div className="mt-1 text-[#f59e0b]">Financial outcome: {activationActivityBundle.outcome.financialOutcome.value}</div><div className="mt-1 text-[#6b7d99]">{activationActivityBundle.outcome.financialOutcome.detail}</div></div>}
       </div>}
 
       <div className="flex items-center justify-between pt-1 gap-3">

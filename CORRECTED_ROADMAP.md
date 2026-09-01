@@ -1,8 +1,8 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-09-01  
-**Current implementation:** v0.26.0  
-**Current milestone:** Four-Category Financial Execution Adapter Parity
+**Current implementation:** v0.27.0  
+**Current milestone:** Four-Category Activity + Outcome Parity
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
 
@@ -85,9 +85,13 @@ Acceptance:
 
 ## v0.27.0 — Four-Category Activity + Outcome Parity
 
-**Next after v0.26 acceptance.**
+**Status: IMPLEMENTED / external acceptance pending.**
 
-Extend activity/reconciliation/outcome truth beyond Rebalancing. Technical execution success must remain distinct from financial outcome. Grid fills/PnL, Yield realised returns and Health protective effects require defensible evidence/time windows and explicit `Could Not Assess` handling.
+Activation-scoped timelines now reconcile marketplace Activation, attributed ServiceTask observations, Permission Checkout/ScopedPermissionRequest state, execution preflight/guard assessment and relationship revocation across all four categories. Category technical metrics remain distinct from financial outcomes. With no independently reconciled transaction/performance window, the financial result is explicitly `COULD_NOT_ASSESS / Could Not Assess`.
+
+Acceptance:
+
+`API build → pnpm check → Railway migration 0020/deploy → v0.22–v0.26 regressions → verify:activity-outcome-parity → record acceptance`
 
 ## v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion
 

@@ -567,3 +567,25 @@ New API resources:
 - `GET /v1/scoped-permission-requests/:permissionRequestId/execution-state`
 
 Migration `0019_four_category_financial_execution_adapters.sql` persists preflight/guard assessments without calling them grants, transactions or outcomes. Production acceptance command: `pnpm verify:execution-adapter-parity`.
+
+## v0.27.0 Four-Category Activity + Outcome Parity
+
+Spotriq now reconciles marketplace Activity & Outcomes at the **Activation** boundary across Rebalancing, Grid, Yield and Health. The existing controlled-Rebalancing transaction outcome path remains separate and intact.
+
+For an activated service, Spotriq can persist and expose:
+
+`Activation → attributed ServiceTask → Permission Checkout / ScopedPermissionRequest → execution preflight / guard → activity timeline → outcome snapshot → revocation`
+
+The outcome contract deliberately separates technical observations from financial results. A successful read-only runtime task or prepared guarded call does **not** imply a transaction occurred. When no independently reconciled transaction and defensible measurement window exist, Spotriq returns:
+
+`financialOutcome.state = COULD_NOT_ASSESS`
+
+`financialOutcome.value = "Could Not Assess"`
+
+This prevents Grid context from becoming fabricated PnL, current Yield APY from becoming realised return, Health monitoring from becoming claimed protective effect, or read-only range analysis from becoming an executed rebalance.
+
+Live acceptance after deployment:
+
+```powershell
+pnpm verify:activity-outcome-parity
+```

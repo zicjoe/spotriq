@@ -1,190 +1,141 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.26.0  
-**Implementation status:** Four-Category Financial Execution Adapter Parity implemented; dependency-aware local validation and external v0.26 acceptance pending.  
+**Current implementation release:** v0.27.0  
+**Implementation status:** Four-Category Activity + Outcome Parity implemented; dependency-aware local validation and external v0.27 acceptance pending.  
 **Last state update:** 2026-09-01  
 **Repository role:** Concise present-state map. Current repository remains implementation truth.
 
 ## 1. Product position
 
-Spotriq is a **BSC financial-agent marketplace** for understanding what a wallet needs, discovering specialist financial AgentServices, evaluating evidence, hiring/activating services, reviewing scoped financial authority, executing only through independently satisfied deterministic gates, monitoring activity and measuring outcomes when defensible evidence exists.
+Spotriq is a **BSC financial-agent marketplace** that helps a wallet understand financial needs, discover/evaluate specialist AgentServices, hire/activate them, review scoped authority, pass deterministic execution gates, observe activity and measure outcomes only when defensible evidence exists.
 
-Core lifecycle:
+Lifecycle:
 
-`Understand → Discover → Match → Evaluate → Compare → Hire / Activate → Permission Checkout → PermissionGrant where eligible → Guarded Execution where eligible → Monitor → Measure → Reassess`
+`Understand → Discover → Match → Evaluate → Hire / Activate → Permission Checkout → PermissionGrant where eligible → Guarded Execution where eligible → Activity → Outcome → Reassess`
 
 Locked separation:
 
-`AgentIdentity ≠ AgentListing ≠ AgentService ≠ Offer`
-
-`Offer ≠ Quote ≠ Hire ≠ Payment ≠ Activation`
-
-`PermissionProfile ≠ PermissionCheckout ≠ ScopedPermissionRequest ≠ PermissionGrant`
-
 `Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome`
 
-AI may explain. Deterministic systems decide identity, evidence, compatibility, readiness, commercial state, authority eligibility, protocol targets, execution arguments, payment reconciliation and financial truth.
+`Technical observation ≠ financial outcome`
 
-## 2. Current architecture
+`Guarded calldata ≠ transaction`
+
+`Transaction success ≠ strategy success`
+
+AI may explain. Deterministic systems decide identity, evidence, readiness, authority, protocol targets, execution safety and financial truth.
+
+## 2. Externally accepted baseline
+
+- **v0.22 ✅** Four public reference agents: runtime/Test Lab/ERC-8004 canonical acceptance.
+- **v0.23 ✅** `FREE Offer → Quote → Hire → NOT_REQUIRED payment → ACTIVE read-only Activation` for all four.
+- **v0.24 ✅** Activation-bound category runtime parity and marketplace relationship revocation for all four.
+- **v0.25 ✅** Four category Permission Checkout scopes persist as immutable BLOCKED ScopedPermissionRequests for current read-only services; no fake PermissionGrant.
+- **v0.26 ✅** Four category financial execution-adapter acceptance passed. Exact target/argument adapters exist, but current reference services remain blocked at real readiness/PermissionGrant gates and no unauthorized transaction is dispatched.
+
+## 3. Current architecture
 
 - `apps/web` — React/Vite marketplace UX.
 - `apps/api` — Fastify API.
 - `apps/worker` — worker seam.
-- `@spotriq/domain`, `@spotriq/api-contracts` — canonical domain and REST contracts.
-- `@spotriq/db` — PostgreSQL and immutable migrations.
-- chain/evidence/PancakeSwap/Venus/market-context/Smart Money packages — deterministic BSC financial-data spine.
-- `@spotriq/agent-registry`, `@spotriq/marketplace-supply`, `@spotriq/reference-agents` — ERC-8004 discovery/verification, Test Lab/readiness and four real first-party runtimes.
-- `@spotriq/commercial` — Offer/Quote/Hire/Payment/Activation + Activation controls/revocation.
-- `@spotriq/service-tasks` — Rebalancing JobIntent origin proof plus four-category Activation-bound read-only runtime tasks.
-- `@spotriq/permission-checkout` — four-category reviewed authority scopes, immutable ScopedPermissionRequest and PermissionGrant reconciliation boundary.
-- `@spotriq/financial-execution-adapters` — v0.26 category execution adapter catalog, deterministic preflight, exact-target/argument guards and persisted assessment state.
-- Existing deep Rebalancing financial stack remains intact: `job-intents`, `authority`, `execution-guard`, `execution-plans`, `execution-boundary`, `controlled-execution`, `activity-outcomes`.
+- `@spotriq/domain`, `@spotriq/api-contracts` — shared domain/REST truth.
+- `@spotriq/db` — PostgreSQL migrations `0001`–`0020`.
+- deterministic BSC/PancakeSwap/Venus/market-context/Smart Money packages.
+- ERC-8004 registry, marketplace supply/Test Lab and four first-party reference runtimes.
+- `@spotriq/commercial` — Offer/Quote/Hire/Payment/Activation/control/revocation.
+- `@spotriq/service-tasks` — attributed A2A runtime tasks across all four categories.
+- `@spotriq/permission-checkout` — reviewed category authority + immutable ScopedPermissionRequest.
+- `@spotriq/financial-execution-adapters` — category preflight and exact call guards.
+- `@spotriq/activity-outcomes` — legacy controlled Rebalancing execution outcomes **plus v0.27 Activation-scoped four-category Activity & Outcomes reconciliation**.
 
-## 3. Externally accepted baseline
+## 4. v0.27 — Four-Category Activity + Outcome Parity
 
-### v0.22 — external reference-agent acceptance ✅
+v0.27 extends outcome truth beyond the older controlled-Rebalancing-only view.
 
-All four reference services passed public runtime/A2A Agent Card, Marketplace Test Lab, BSC Testnet ERC-8004 registration/canonical verification and service↔identity reconciliation. Financial readiness remains distinct from identity/readiness evidence.
+For any category Activation Spotriq can reconcile:
 
-### v0.23 — commercial hiring/activation ✅
+`MarketplaceActivation`
+`→ ServiceTask/runtime observation`
+`→ Permission Checkout / ScopedPermissionRequest`
+`→ execution preflight / guard assessment`
+`→ relationship revocation`
+`→ persisted Activation activity timeline`
+`→ Activation outcome snapshot`
 
-Production accepted all four through:
+New outcome truth includes:
 
-`FREE Offer → immutable Quote → idempotent Hire → Payment NOT_REQUIRED → ACTIVE read-only MarketplaceActivation`
+- `transactionObserved = false` unless a future independently reconciled transaction is actually linked;
+- technical observation state is separate from financial outcome state;
+- absent transaction/performance evidence is explicitly `COULD_NOT_ASSESS / Could Not Assess`;
+- category metrics are observational only:
+  - Rebalancing — range/current-tick state;
+  - Grid — regime/confidence/TWAP dispersion where available;
+  - Yield — opportunity count/current base APY observations;
+  - Health — Venus pool/risk monitoring observations.
 
-No signing or financial authority is implied.
+Spotriq does **not** infer:
 
-### v0.24 — four-category read-only runtime parity ✅
+- Grid fills, PnL or drawdown from market context;
+- realised yield from current APY;
+- Health protective effect or avoided liquidation from a monitoring snapshot;
+- Rebalancing success from read-only position analysis.
 
-Production accepted:
+The older v0.20 controlled Rebalancing transaction outcome path remains intact for actual independently reconciled Rebalancing execution evidence.
 
-`Activation → control profile → category ServiceTask → real runtime → observed runtime/monitoring state → truthful outcome classification → relationship revocation`
+## 5. Persistence
 
-for RangeKeeper, GridPilot, YieldPilot and VenusGuard.
+Latest migration:
 
-### v0.25 — Permission Checkout + scoped authority parity ✅
+`0020_four_category_activity_outcomes.sql`
 
-On 2026-09-01 production `pnpm verify:permission-checkout` passed all four reference services. Each real read-only Activation produced a category-specific immutable `BLOCKED` ScopedPermissionRequest with **no fabricated PermissionGrant**.
+It extends the existing `activity_events`, `outcome_windows` and `outcome_metrics` foundation for Activation-scoped category evidence while keeping controlled-execution records separate.
 
-Accepted current truth:
+No `DATABASE_URL` → memory fallback where supported.  
+`DATABASE_URL` → PostgreSQL.
 
-`ACTIVE read-only Activation → reviewed authority scope → BLOCKED ScopedPermissionRequest → no PermissionGrant → no financial execution`
+## 6. v0.27 API / UX
 
-## 4. v0.26 implementation
+New Activation resources:
 
-v0.26 adds category-specific **financial execution adapters and guards** without granting current reference services authority and without submitting transactions.
+- `POST /v1/activations/:activationId/activity-outcomes/sync`
+- `GET  /v1/activations/:activationId/activity-outcomes`
+- `GET  /v1/activations/:activationId/activity`
+- `GET  /v1/activations/:activationId/outcome`
 
-### Rebalancing
+Explore surfaces the reconciled event count, technical observation state and truthful financial-outcome status after an activation-bound runtime task exists.
 
-Uses the existing sealed Rebalancing spine rather than duplicating it:
+Capabilities expose:
 
-`JobIntent → bounded PermissionGrant → ExecutionPlan → FinancialExecutionBoundary → controlled execution`
+- `fourCategoryActivityOutcomeParityEnabled = true`
+- `activationOutcomeCouldNotAssessEnabled = true`
 
-The v0.26 adapter reports `LEGACY_REBALANCING_BOUNDARY` and delegates actual calldata guarding/dispatch to that already hardened path.
+## 7. Network / safety policy
 
-### Grid Trading
-
-Adapter: PancakeSwap V3 exact-input-single only.
-
-Guards include:
-
-- exact reviewed V3 pool;
-- reviewed capital asset must be one pool token;
-- other pool token becomes token-out;
-- canonical V3 router only;
-- buyer recipient only;
-- reviewed per-action/capital limits;
-- non-zero minimum output;
-- short-lived deadline no later than authority expiry;
-- fresh pool/BSC state.
-
-Multi-hop, multicall, Permit2, arbitrary routers and unlimited approvals are excluded.
-
-### Yield Optimisation
-
-Adapter: Venus ERC-20 vToken supply/withdraw only.
-
-Guards include:
-
-- exact allowlisted vToken;
-- vToken underlying must equal the reviewed asset;
-- reviewed per-action and allocation limits;
-- `mint(uint256)` for supply;
-- `redeemUnderlying(uint256)` for withdraw;
-- fresh chain/market reads.
-
-Borrowing, arbitrary transfers and native-asset Venus supply are not enabled by this adapter.
-
-### Health Factor Monitoring / protective write
-
-Adapter: narrowly scoped Venus protective writes.
-
-Allowed modeled actions only:
-
-- `repayBorrow(uint256)`;
-- `mint(uint256)` as add-collateral.
-
-Guards require exact reviewed market/underlying, explicit action allowlist, intervention cap, current health at/below reviewed trigger, and existing collateral-enabled state for add-collateral. Borrowing and collateral withdrawal are absent.
-
-## 5. Fail-closed authority/execution truth
-
-An execution adapter **does not create a PermissionGrant**.
-
-Current first-party services remain `READ_ONLY` / financially `TESTNET_ONLY`, so v0.26 preflight intentionally returns blockers including:
-
-- service financial readiness not satisfied;
-- no independently reconciled PermissionGrant;
-- any missing exact target/fresh-state prerequisite.
-
-Even a future `READY_FOR_GUARD` result has `executionEligible = false` in the category adapter layer. v0.26 can prepare/validate exact calldata only after all prior gates pass; category signer provisioning and transaction dispatch remain a separate non-bypassable boundary. `categoryExecutionDispatchEnabled = false`.
-
-## 6. Persistence
-
-- No `DATABASE_URL` → memory fallback where supported.
-- `DATABASE_URL` → PostgreSQL.
-- Migrations `0001` through `0019` are present.
-- Latest migration: `0019_four_category_financial_execution_adapters.sql`.
-
-It persists deterministic `PREFLIGHT` / `GUARD` assessment artifacts keyed to `scoped_permission_requests`. These rows are not grants, transactions, receipts or outcomes.
-
-## 7. v0.26 API / UX
-
-New resources:
-
-- `GET /v1/execution-adapters`
-- `GET /v1/execution-adapters/:category`
-- `POST /v1/scoped-permission-requests/:permissionRequestId/execution-preflight`
-- `POST /v1/scoped-permission-requests/:permissionRequestId/execution-guard`
-- `GET /v1/scoped-permission-requests/:permissionRequestId/execution-state`
-
-Permission Checkout now shows the actual server-derived execution-adapter preflight after a reviewed scope is recorded. Current reference services show their implemented adapter plus exact blockers and **Execution dispatch: DISABLED**. There is no browser-only execution shortcut.
-
-## 8. Network/deployment policy
-
-- Marketplace discovery may use BSC Mainnet (`56`).
-- Reference identity, authority and transaction development remain BSC Testnet (`97`).
-- v0.26 execution-adapter acceptance is Testnet-only.
+- Marketplace discovery may use BSC Mainnet `56`.
+- Reference identity, authority and financial development remain BSC Testnet `97`.
+- Category execution dispatch remains disabled for the current read-only reference services.
 - Mainnet financial execution remains prohibited until explicitly approved.
-- Railway hosts API/PostgreSQL; pre-deploy remains `pnpm db:migrate`; Vercel remains frontend direction.
 
-## 9. Verification / release state
+## 8. Verification / release state
 
-Repository gates:
+Local gates:
 
 - `pnpm --filter @spotriq/api build`
 - `pnpm check`
+
+Regression/live gates:
+
 - `pnpm verify:reference-acceptance`
 - `pnpm verify:commercial-acceptance`
 - `pnpm verify:activation-parity`
 - `pnpm verify:permission-checkout`
 - `pnpm verify:execution-adapter-parity`
+- `pnpm verify:activity-outcome-parity`
 
-Do **not** call v0.26 externally accepted until:
+Do **not** call v0.27 externally accepted until local checks, Railway migration `0020`, deployment and all six live acceptance gates pass.
 
-`local API build → pnpm check → commit/push → Railway migration 0019/deploy → v0.22 regression → v0.23 regression → v0.24 regression → v0.25 regression → v0.26 execution-adapter acceptance → record acceptance`
+## 9. Roadmap position
 
-## 10. Roadmap position
+**Current:** v0.27.0 implementation candidate — Four-Category Activity + Outcome Parity.
 
-**Current:** v0.26.0 implementation candidate — Four-Category Financial Execution Adapter Parity.
-
-**Next after acceptance:** v0.27 — Four-Category Activity + Outcome Parity.
+**Next after acceptance:** v0.28 — My Agents + Switching/Revocation + Marketplace UX Completion.
