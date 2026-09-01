@@ -186,6 +186,15 @@ const required = [
   "scripts/verify-operator-workspace.mjs",
   "docs/IMPLEMENTATION_REPORT_OPERATOR_SUPPLY_LIFECYCLE_v0.30.0.md",
   "docs/IMPLEMENTATION_REPORT_PAID_COMMERCIAL_RAILS_v0.31.0.md",
+  "packages/agent-studio/package.json",
+  "packages/agent-studio/src/index.ts",
+  "packages/agent-studio/src/index.test.ts",
+  "packages/db/migrations/0025_agent_studio_integration.sql",
+  "apps/api/src/routes/agent-studio.ts",
+  "apps/web/src/repositories/agentStudioRepository.ts",
+  "scripts/verify-agent-studio.mjs",
+  "docs/AGENT_STUDIO_INTEGRATION.md",
+  "docs/IMPLEMENTATION_REPORT_AGENT_STUDIO_v0.32.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -199,11 +208,11 @@ for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper
   if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
 }
 const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
-if (!projectState.includes("v0.30 ✅") || !projectState.includes("v0.31.0") || !projectState.includes("Paid Commercial Rails")) {
-  throw new Error("PROJECT_STATE.md must record externally accepted v0.30 and the current v0.31 paid-rails candidate.");
+if (!projectState.includes("v0.31 ✅") || !projectState.includes("v0.32") || !projectState.includes("Agent Studio")) {
+  throw new Error("PROJECT_STATE.md must record externally accepted v0.31 and the current v0.32 Agent Studio candidate.");
 }
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
-for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation"]) {
+for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation", "v0.32.0 — Deeper BNB Agent Studio Integration"]) {
   if (!correctedRoadmap.includes(marker)) throw new Error(`Corrected roadmap is missing ${marker}.`);
 }
 
@@ -886,7 +895,7 @@ for (const marker of ["same-service switch", "BLOCKED", "/my-agents", "/switches
   if (!myAgentsVerifier.includes(marker)) throw new Error(`v0.28 live verifier is missing ${marker}.`);
 }
 if (rootManifest.scripts?.["verify:my-agents"] !== "node scripts/verify-my-agents.mjs") throw new Error("Root package.json must expose pnpm verify:my-agents.");
-if (!apiApp.includes('version: "0.31.0"')) throw new Error("API metadata must report v0.31.0 after v0.30 acceptance.");
+if (!apiApp.includes('version: "0.32.0"')) throw new Error("API metadata must report v0.31.0 after v0.30 acceptance.");
 
 
 // v0.29 — Smart Money Plans + Compatibility/Conflict Handling.
@@ -924,7 +933,7 @@ for (const marker of ["NO_SHARED_EXECUTION", "INDEPENDENT_PER_SERVICE", "/plans"
 }
 if (legacyMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes('apiRequest<SmartMoneyPlanTemplate[]>("/v1/plans")')) throw new Error("Legacy marketplace repositories must not reuse the persisted /v1/plans namespace for mock plan templates.");
 if (rootManifest.scripts?.["verify:smart-money-plans"] !== "node scripts/verify-smart-money-plans.mjs") throw new Error("Root package.json must expose pnpm verify:smart-money-plans.");
-if (!apiApp.includes('version: "0.31.0"')) throw new Error("API metadata must report v0.31.0.");
+if (!apiApp.includes('version: "0.32.0"')) throw new Error("API metadata must report v0.31.0.");
 
 
 
@@ -978,6 +987,23 @@ for (const marker of ["x402B402PaymentAdaptersEnabled: true", "paidCommercialRai
 for (const marker of ["ERC8183", "X402", "B402", "settlementDispatchEnabled", "paid commercial rails contract passed"]) { if (!paidRailsVerifier.includes(marker)) throw new Error(`v0.31 live verifier is missing ${marker}.`); }
 if (rootManifest.scripts?.["verify:paid-rails"] !== "node scripts/verify-paid-rails.mjs") throw new Error("Root package.json must expose pnpm verify:paid-rails.");
 
+// v0.32 — Deeper BNB Agent Studio normalized integration.
+const agentStudio = await readFile(path.join(root, "packages/agent-studio/src/index.ts"), "utf8");
+const agentStudioRoutes = await readFile(path.join(root, "apps/api/src/routes/agent-studio.ts"), "utf8");
+const agentStudioRepo = await readFile(path.join(root, "apps/web/src/repositories/agentStudioRepository.ts"), "utf8");
+const operatorStudioUi = await readFile(path.join(root, "apps/web/src/components/LiveOperatorWorkspace.tsx"), "utf8");
+const migration0025 = await readFile(path.join(root, "packages/db/migrations/0025_agent_studio_integration.sql"), "utf8");
+const agentStudioVerifier = await readFile(path.join(root, "scripts/verify-agent-studio.mjs"), "utf8");
+for (const marker of ["AgentStudioDeploymentDeclaration", "AgentStudioDeploymentReconciliation", "AgentStudioIntegrationStatus", "AgentStudioOperatorState"]) { if (!domain.includes(marker)) throw new Error(`v0.32 domain model is missing ${marker}.`); }
+for (const marker of ["createAgentStudioEngine", "CANONICAL_OWNER_REQUIRED", "A2A_REGISTRATION", "MARKETPLACE_TEST_LAB", "COMMERCE_ALIGNMENT", "studioCliDispatchEnabled:false", "paymentOrExecutionDispatchEnabled:false"]) { if (!agentStudio.includes(marker)) throw new Error(`v0.32 Agent Studio engine is missing ${marker}.`); }
+for (const route of ["/v1/agent-studio/status", "/v1/operator/agent-studio/deployments", "/reconcile"]) { if (!agentStudioRoutes.includes(route)) throw new Error(`Missing v0.32 Agent Studio route ${route}.`); }
+for (const marker of ["agent_studio_deployments", "reconciliation", "operator_address", "service_id"]) { if (!migration0025.includes(marker)) throw new Error(`v0.32 migration is missing ${marker}.`); }
+for (const marker of ["importDeployment", "reconcile", "list"]) { if (!agentStudioRepo.includes(marker)) throw new Error(`v0.32 web Agent Studio repository is missing ${marker}.`); }
+for (const marker of ["BNB Agent Studio", "Import Studio deployment", "Reconcile identity + runtime", "never runs"]) { if (!operatorStudioUi.includes(marker)) throw new Error(`v0.32 Operator Workspace Studio UI is missing ${marker}.`); }
+for (const marker of ["agentStudioIntegrationEnabled: true", "agentStudioDeploymentReconciliationEnabled: true", "agentStudioCliDispatchEnabled: false"]) { if (!apiApp.includes(marker)) throw new Error(`API capabilities must expose truthful v0.32 feature ${marker}.`); }
+for (const marker of ["NORMALIZED_ADAPTER", "canonical-owner", "studioCliDispatchEnabled", "paymentOrExecutionDispatchEnabled", "Agent Studio normalized integration contract passed"]) { if (!agentStudioVerifier.toLowerCase().includes(marker.toLowerCase())) throw new Error(`v0.32 live verifier is missing ${marker}.`); }
+if (rootManifest.scripts?.["verify:agent-studio"] !== "node scripts/verify-agent-studio.mjs") throw new Error("Root package.json must expose pnpm verify:agent-studio.");
+
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const output = [];
@@ -990,11 +1016,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 32) throw new Error(`v0.31 expects 32 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 33) throw new Error(`v0.32 expects 33 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.31.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.31.0.`);
+  if (manifest.version !== "0.32.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.32.0.`);
 }
 
-console.log("Spotriq foundation + accepted v0.22–v0.30 + v0.31 paid commercial rails reconciliation verification passed.");
+console.log("Spotriq foundation + accepted v0.22–v0.31 + v0.32 BNB Agent Studio normalized integration verification passed.");
 

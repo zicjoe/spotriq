@@ -513,3 +513,7 @@ Supply lifecycle, moderation, observability, incident response, rate limiting, A
 **The foundational handoff checkpoint confirms that Spotriq has veered mainly in roadmap sequence and category emphasis, not in its core truth/safety architecture.**
 
 v0.12 and v0.13 followed the intended plan. v0.14–v0.21 then invested heavily in a sophisticated Rebalancing authority/execution spine before the planned four-reference-agent layer. v0.22 corrects that missing repository supply layer; public/Test Lab acceptance is now complete for all four and canonical ERC-8004 proof is complete for RangeKeeper. The remaining near-term correction is to bind RangeKeeper at service level and repeat ERC-8004 registration/binding for the other three, then build truthful commercial Activation and end-to-end parity for Grid, Yield and Health before another Rebalancing-only detour.
+
+## v0.32 alignment note — BNB Agent Studio
+
+v0.32 closes the earlier foundation gap that said Agent Studio should be a native ecosystem integration while remaining provider-normalized. Spotriq now accepts signed-operator Agent Studio deployment declarations and reconciles them against canonical ERC-8004 ownership, A2A registration and Marketplace Test Lab evidence. Studio-specific metadata remains Operator Supplied and cannot override readiness, payment, PermissionGrant, execution or outcome truth. No CLI custody or Studio wallet-secret handling was introduced.

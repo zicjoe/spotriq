@@ -105,6 +105,9 @@ export interface CapabilityResponse {
   operatorTestLabTriggerEnabled: boolean;
   paidCommercialRailsReconciliationEnabled: boolean;
   paymentSettlementDispatchEnabled: boolean;
+  agentStudioIntegrationEnabled: boolean;
+  agentStudioDeploymentReconciliationEnabled: boolean;
+  agentStudioCliDispatchEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -545,3 +548,25 @@ export interface TransitionOperatorServiceRequest { state: import("@spotriq/doma
 export interface SubmitOperatorEvidenceRequest { serviceId: string; evidenceType: string; value: string; sourceLabel: string; observedAt: string; limitations?: string[]; }
 export interface OperatorEvidenceResponse { evidence: import("@spotriq/domain").OperatorSuppliedEvidenceRecord; }
 export interface OperatorTestLabResponse { tests: import("@spotriq/domain").MarketplaceServiceTestCoverage; readiness: import("@spotriq/domain").ReadinessSnapshot; }
+
+
+// v0.32 BNB Agent Studio normalized integration
+export interface AgentStudioStatusResponse { status: import("@spotriq/domain").AgentStudioIntegrationStatus; }
+export interface ImportAgentStudioDeploymentRequest {
+  chainId: import("@spotriq/domain").AgentRegistryChainId;
+  agentId: string;
+  serviceId: string;
+  projectName: string;
+  studioVersion?: string;
+  deploymentTarget: import("@spotriq/domain").AgentStudioDeploymentTarget;
+  runtimeUrl: string;
+  agentCardUrl: string;
+  protocols: import("@spotriq/domain").AgentStudioProtocol[];
+  walletKind: import("@spotriq/domain").AgentStudioWalletKind;
+  storageProvider: import("@spotriq/domain").AgentStudioStorageProvider;
+  mcpReadOnly: boolean;
+  declaredVerifyState: import("@spotriq/domain").AgentStudioDeclaredVerifyState;
+}
+export interface AgentStudioDeploymentResponse { deployment: import("@spotriq/domain").AgentStudioDeploymentDeclaration; }
+export interface AgentStudioReconciliationResponse { reconciliation: import("@spotriq/domain").AgentStudioDeploymentReconciliation; }
+export interface AgentStudioOperatorStateResponse { state: import("@spotriq/domain").AgentStudioOperatorState; }

@@ -1,7 +1,7 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.31.0**  
-**Release status:** Paid Commercial Rails reconciliation implementation candidate; v0.30 externally accepted; local dependency-aware validation and external v0.31 acceptance pending.  
+**Current repository release:** **v0.32.0**  
+**Release status:** BNB Agent Studio normalized integration implementation candidate; v0.31 externally accepted; local dependency-aware validation and external v0.32 acceptance pending.  
 **State date:** 2026-09-01
 
 ## Authority hierarchy
@@ -44,6 +44,7 @@ AI explains. Deterministic systems decide.
 - **v0.28 ✅** live My Agents + safe switching/revocation + live marketplace profile/compare/Test Lab UX.
 - **v0.29 ✅** persisted Smart Money Plans + compatibility/conflict handling with independent specialist authority/execution.
 - **v0.30 ✅** signed Operator Workspace + canonical ERC-8004 owner-gated supply lifecycle.
+- **v0.31 ✅** paid ERC-8183/x402/B402 reconciliation with payment settlement dispatch disabled.
 
 ## v0.29 accepted truth
 
@@ -71,9 +72,9 @@ New package: `@spotriq/operator-workspace`. Signed EIP-191 challenge/session aut
 
 New gate: `pnpm verify:operator-workspace`.
 
-## Next milestone after v0.30 acceptance
+## Next milestone after v0.31 acceptance
 
-**v0.31 — Paid Commercial Rails Expansion (provider-neutral ERC-8183 / x402 / B402 depth).**
+**v0.32 — Deeper BNB Agent Studio Integration.**
 
 
 ## v0.31 implementation truth
@@ -81,3 +82,12 @@ New gate: `pnpm verify:operator-workspace`.
 `@spotriq/payment-rails` provides x402 and B402 canonical BSC settlement reconciliation while the existing ERC-8183 observer remains independent of ERC-8004 identity. An HTTP/facilitator claim alone is never payment evidence: Spotriq requires a successful on-chain ERC-20 Transfer matching the immutable Quote buyer, pinned payee, token and exact raw amount after Hire acceptance. Payment signing/dispatch remains disabled.
 
 Migration: `0024_paid_commercial_payment_rails.sql`. Acceptance: `pnpm verify:paid-rails`.
+
+
+## v0.32 implementation truth
+
+`@spotriq/agent-studio` normalizes BNB Agent Studio deployment declarations inside the signed Operator Workspace. Import requires an authenticated operator session, an existing operator-managed service and current canonical ERC-8004 ownership. Reconciliation separately checks A2A registration and Marketplace Test Lab evidence.
+
+The integration is intentionally non-custodial and non-bypassable: no `bag` CLI execution, Studio wallet secret ingestion, marketplace readiness override, payment dispatch, PermissionGrant creation or financial execution dispatch.
+
+Migration: `0025_agent_studio_integration.sql`. Acceptance: `pnpm verify:agent-studio`.

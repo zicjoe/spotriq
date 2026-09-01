@@ -639,3 +639,25 @@ Status: `GET /v1/payment-rails/status`
 Acceptance: `pnpm verify:paid-rails`
 
 See `docs/IMPLEMENTATION_REPORT_PAID_COMMERCIAL_RAILS_v0.31.0.md`.
+
+
+## v0.32.0 BNB Agent Studio normalized integration
+
+Spotriq now provides a native, provider-neutral bridge for BNB Agent Studio operators. An authenticated operator may import a Studio deployment declaration for a canonically owned ERC-8004 service, then reconcile it against current on-chain identity/owner state and Spotriq Marketplace Test Lab evidence.
+
+```text
+Signed operator session
+→ canonical ERC-8004 owner claim
+→ Agent Studio deployment declaration
+→ A2A/network/service reconciliation
+→ Marketplace Test Lab reconciliation
+→ normalized Spotriq supply evidence
+```
+
+This does **not** mean Spotriq runs the Studio CLI or receives wallet secrets. Studio metadata is Operator Supplied evidence and cannot override readiness, create payments, PermissionGrants, execution rights or outcomes.
+
+```powershell
+pnpm verify:agent-studio
+```
+
+See `docs/AGENT_STUDIO_INTEGRATION.md` and `docs/IMPLEMENTATION_REPORT_AGENT_STUDIO_v0.32.0.md`.

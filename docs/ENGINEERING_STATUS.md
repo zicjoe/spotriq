@@ -1,12 +1,12 @@
 # Spotriq Engineering Status
 
-**Release candidate:** v0.31.0  
+**Release candidate:** v0.32.0  
 **Date:** 2026-09-01  
-**State:** Paid Commercial Rails reconciliation implemented; v0.30 externally accepted; local dependency-aware validation and external v0.31 acceptance pending.
+**State:** BNB Agent Studio normalized integration implemented; v0.31 externally accepted; local dependency-aware validation and external v0.32 acceptance pending.
 
 ## Accepted baseline
 
-Production acceptance is complete through v0.30.
+Production acceptance is complete through v0.31.
 
 ## v0.29 package
 
@@ -82,3 +82,20 @@ API: `GET /v1/payment-rails/status`; commercial payment reconcile now accepts `t
 Capabilities: `x402B402PaymentAdaptersEnabled = true`, `paidCommercialRailsReconciliationEnabled = true`, `paymentSettlementDispatchEnabled = false`.
 
 Migration: `0024_paid_commercial_payment_rails.sql`. New production gate: `pnpm verify:paid-rails`.
+
+
+## v0.32 Agent Studio integration
+
+New package: `@spotriq/agent-studio`. Signed operators may import Studio deployment declarations for canonically owned services; PostgreSQL persistence uses migration `0025_agent_studio_integration.sql`.
+
+API:
+- `GET /v1/agent-studio/status`
+- `GET /v1/operator/agent-studio/deployments`
+- `POST /v1/operator/agent-studio/deployments`
+- `POST /v1/operator/agent-studio/deployments/:deploymentId/reconcile`
+
+Reconciliation covers canonical identity/owner, BSC network, Spotriq AgentService binding, parsed A2A registration, Marketplace Test Lab, declared Studio deploy verification, read-only MCP, commerce alignment and storage posture.
+
+Capability truth: `agentStudioIntegrationEnabled = true`, `agentStudioDeploymentReconciliationEnabled = true`, `agentStudioCliDispatchEnabled = false`.
+
+New production gate: `pnpm verify:agent-studio`.

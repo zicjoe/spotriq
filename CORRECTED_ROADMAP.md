@@ -1,8 +1,8 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-09-01  
-**Current implementation:** v0.31.0  
-**Current milestone:** Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation
+**Current implementation:** v0.32.0  
+**Current milestone:** Deeper BNB Agent Studio Integration
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
 
@@ -99,7 +99,7 @@ Acceptance: `API build → pnpm check → Railway migration 0023/deploy → v0.2
 
 ## v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation
 
-**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+**Status: COMPLETE / externally accepted.**
 
 Provider-neutral paid reconciliation extends the v0.23 commercial kernel without merging payment into Hire or Activation. ERC-8183 observes canonical job/escrow state. x402/B402 require immutable Quote payment metadata plus a canonical BSC settlement transaction whose ERC-20 Transfer exactly matches buyer, pinned payee, token and raw amount. Browser/facilitator `paid` assertions are insufficient.
 
@@ -109,9 +109,20 @@ Migration: `0024_paid_commercial_payment_rails.sql`.
 
 Acceptance: `API build → pnpm check → Railway migration 0024/deploy → v0.22–v0.30 regressions → verify:paid-rails → record acceptance`.
 
+## v0.32.0 — Deeper BNB Agent Studio Integration
+
+**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+
+Signed operators can normalize Studio deployment declarations for canonically owned ERC-8004 services. Spotriq reconciles identity/owner, A2A registration, network, service binding, Marketplace Test Lab, declared Studio deploy verification, read-only MCP posture, commerce alignment and storage posture.
+
+Studio remains an adapter: `Agent Studio deployment declaration ≠ canonical identity ≠ readiness ≠ payment ≠ PermissionGrant ≠ execution ≠ outcome`. Spotriq does not shell out to `bag`, store Studio wallet secrets, override readiness, or dispatch payments/financial execution.
+
+Migration: `0025_agent_studio_integration.sql`.
+
+Acceptance: `API build → pnpm check → Railway migration 0025/deploy → v0.22–v0.31 regressions → verify:agent-studio → record acceptance`.
+
 ## Later production milestones
 
-- deeper Agent Studio integration;
 - AI explanation only after deterministic truth;
 - Agent Advantage measurement/reporting;
 - observability, failure injection, security and production hardening;

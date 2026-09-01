@@ -3066,3 +3066,100 @@ export interface OperatorWorkspaceSnapshot {
   methodVersion: string;
   limitations: string[];
 }
+
+// ─── v0.32 BNB Agent Studio normalized integration ──────────────────────────
+export type AgentStudioNetwork = "bsc-testnet" | "bsc-mainnet";
+export type AgentStudioDeploymentTarget = "bnb" | "aws" | "azure";
+export type AgentStudioProtocol = "A2A" | "MCP" | "X402" | "ERC8183";
+export type AgentStudioWalletKind = "evm-local" | "twak" | "altana" | "unknown";
+export type AgentStudioStorageProvider = "ipfs" | "local" | "unknown";
+export type AgentStudioDeclaredVerifyState = "PASSED" | "FAILED" | "NOT_RUN";
+export type AgentStudioReconciliationState = "VERIFIED" | "PARTIAL" | "MISMATCH";
+export type AgentStudioCheckState = "PASS" | "WARN" | "FAIL" | "UNKNOWN";
+
+export interface AgentStudioDeploymentDeclaration {
+  deploymentId: string;
+  operatorAddress: string;
+  chainId: AgentRegistryChainId;
+  network: AgentStudioNetwork;
+  agentId: string;
+  serviceId: string;
+  projectName: string;
+  studioVersion?: string;
+  deploymentTarget: AgentStudioDeploymentTarget;
+  runtimeUrl: string;
+  agentCardUrl: string;
+  protocols: AgentStudioProtocol[];
+  walletKind: AgentStudioWalletKind;
+  storageProvider: AgentStudioStorageProvider;
+  mcpReadOnly: boolean;
+  declaredVerifyState: AgentStudioDeclaredVerifyState;
+  source: "operator-claimed";
+  importedAt: string;
+  updatedAt: string;
+  limitations: string[];
+}
+
+export interface AgentStudioReconciliationCheck {
+  code:
+    | "CANONICAL_IDENTITY"
+    | "CANONICAL_OWNER"
+    | "SERVICE_BINDING"
+    | "A2A_REGISTRATION"
+    | "MARKETPLACE_TEST_LAB"
+    | "NETWORK"
+    | "STUDIO_DEPLOY_VERIFY"
+    | "MCP_READ_ONLY"
+    | "COMMERCE_ALIGNMENT"
+    | "STORAGE_READINESS";
+  label: string;
+  state: AgentStudioCheckState;
+  required: boolean;
+  provenance: "marketplace-observed" | "marketplace-derived" | "operator-claimed";
+  detail: string;
+}
+
+export interface AgentStudioDeploymentReconciliation {
+  reconciliationId: string;
+  deploymentId: string;
+  operatorAddress: string;
+  serviceId: string;
+  chainId: AgentRegistryChainId;
+  state: AgentStudioReconciliationState;
+  checks: AgentStudioReconciliationCheck[];
+  canonicalOwnerAddress?: string;
+  marketplaceReadiness?: ReadinessState;
+  marketplaceTestCoverage?: MarketplaceServiceTestCoverageState;
+  observedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface AgentStudioDeploymentView {
+  deployment: AgentStudioDeploymentDeclaration;
+  reconciliation?: AgentStudioDeploymentReconciliation;
+}
+
+export interface AgentStudioOperatorState {
+  operatorAddress: string;
+  deployments: AgentStudioDeploymentView[];
+  generatedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface AgentStudioIntegrationStatus {
+  integration: "BNB Agent Studio";
+  mode: "NORMALIZED_ADAPTER";
+  supportedNetworks: AgentStudioNetwork[];
+  supportedProtocols: AgentStudioProtocol[];
+  supportedDeploymentTargets: AgentStudioDeploymentTarget[];
+  operatorImportRequiresSignedSession: true;
+  operatorImportRequiresCanonicalOwner: true;
+  studioCliDispatchEnabled: false;
+  marketplaceReadinessOverrideEnabled: false;
+  paymentOrExecutionDispatchEnabled: false;
+  checkedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}

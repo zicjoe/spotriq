@@ -1,7 +1,7 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.31.0  
-**Implementation status:** Paid Commercial Rails + ERC-8183/x402/B402 reconciliation implemented; v0.30 externally accepted; dependency-aware local validation and external v0.31 acceptance pending.  
+**Current implementation release:** v0.32.0  
+**Implementation status:** BNB Agent Studio normalized integration implemented; v0.31 externally accepted; dependency-aware local validation and external v0.32 acceptance pending.  
 **Last state update:** 2026-09-01  
 **Repository role:** concise present-state map; current repository remains implementation truth.
 
@@ -32,6 +32,7 @@ AI explains. Deterministic systems decide.
 - **v0.28 ✅** Live buyer My Agents portfolio + persisted switching/revocation + live profile/compare/Test Lab UX.
 - **v0.29 ✅** Smart Money Plans + deterministic compatibility/conflict handling; no shared signer, PermissionGrant, Activation or execution session.
 - **v0.30 ✅** Signed Operator Workspace + canonical ERC-8004 ownership-gated supply lifecycle.
+- **v0.31 ✅** Provider-neutral ERC-8183/x402/B402 paid reconciliation with payment dispatch disabled.
 
 ## Current architecture
 
@@ -39,7 +40,7 @@ AI explains. Deterministic systems decide.
 - `apps/api` — Fastify API.
 - `apps/worker` — worker seam.
 - shared `@spotriq/domain` and `@spotriq/api-contracts`.
-- PostgreSQL migrations `0001`–`0023`.
+- PostgreSQL migrations `0001`–`0025`.
 - deterministic BSC, PancakeSwap, Venus, market-context and Smart Money packages.
 - ERC-8004 discovery, marketplace supply/readiness/Test Lab, and four first-party reference runtimes.
 - `@spotriq/commercial` — Offer/Quote/Hire/Payment/Activation/control/revocation.
@@ -50,6 +51,8 @@ AI explains. Deterministic systems decide.
 - `@spotriq/my-agents` — buyer portfolio aggregation, fail-closed relationship ending and persisted service switching.
 - `@spotriq/smart-money-plans` — finding/service composition + deterministic capital/authority/protocol/readiness/network conflict assessment.
 - **`@spotriq/operator-workspace` — signed operator authentication, canonical owner claims, provider lifecycle/declarations and Operator Supplied evidence.**
+- **`@spotriq/payment-rails` — provider-neutral ERC-8183/x402/B402 reconciliation.**
+- **`@spotriq/agent-studio` — normalized BNB Agent Studio deployment declarations + canonical/runtime reconciliation without CLI custody.**
 
 ## v0.29 — Smart Money Plans + Compatibility/Conflict Handling
 
@@ -154,3 +157,18 @@ New package: `@spotriq/payment-rails`. ERC-8183 remains a read-only on-chain job
 Spotriq does not sign x402/B402 authorizations, call a facilitator to create payment, or broadcast payment settlement in v0.31. `Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome` remains enforced.
 
 Latest migration: `0024_paid_commercial_payment_rails.sql`. New live gate: `pnpm verify:paid-rails`.
+
+
+## v0.32 — BNB Agent Studio normalized integration
+
+Spotriq now treats BNB Agent Studio as a native ecosystem integration path without making marketplace domain state depend on the Studio CLI/SDK representation. Signed operators may import Studio deployment declarations only for ERC-8004 identities/services they canonically own.
+
+Reconciliation checks canonical ERC-8004 identity/owner, BSC network, AgentService binding, parsed A2A registration, Marketplace Test Lab coverage, operator-declared `bag deploy verify` state, read-only MCP posture, commercial protocol alignment, and deployment storage posture.
+
+Studio metadata remains Operator Supplied. It cannot override marketplace readiness, create payment evidence, create PermissionGrants, dispatch financial execution, or create outcomes. Spotriq never shells out to `bag` and never receives Studio wallet secrets.
+
+Migration: `0025_agent_studio_integration.sql`. New live gate: `pnpm verify:agent-studio`.
+
+## Next roadmap milestone after acceptance
+
+**v0.33 — Grounded AI Explanation Layer.** AI may explain only structured deterministic evidence and must never decide financial truth, readiness, compatibility, authority, payment, execution eligibility or outcomes.
