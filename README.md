@@ -25,6 +25,7 @@ packages/
   protocol-pancakeswap/ PancakeSwap V3 + Infinity CL normalized reads
   market-context/ PancakeSwap V3 onchain TWAP context + deterministic Grid regime
   smart-money/    live check orchestration + deterministic findings + persistence adapters
+  smart-money-plans/ persisted finding/service composition + deterministic compatibility/conflict reports
   agent-registry/  ERC-8004 canonical identity + 8004scan indexed discovery
   marketplace-supply/ financial service normalization, Test Lab, matching, trusted runtime evidence
   reference-agents/ first-party four-category deterministic A2A services
@@ -122,6 +123,9 @@ POST http://localhost:3001/v1/checks
 GET  http://localhost:3001/v1/checks/:checkSessionId
 GET  http://localhost:3001/v1/checks/:checkSessionId/findings
 GET  http://localhost:3001/v1/checks/:checkSessionId/findings/:findingId/matches
+POST http://localhost:3001/v1/checks/:checkSessionId/plans
+GET  http://localhost:3001/v1/plans/:planId
+GET  http://localhost:3001/v1/accounts/0xBUYER_ADDRESS/plans
 POST http://localhost:3001/v1/checks/:checkSessionId/findings/:findingId/job-intents
 GET  http://localhost:3001/v1/job-intents/:jobIntentId
 PATCH http://localhost:3001/v1/job-intents/:jobIntentId
@@ -606,3 +610,16 @@ New API resources include:
 - `POST /v1/accounts/:address/my-agents/:activationId/revoke`
 
 Migration `0021_my_agents_switching.sql` persists switch history. Production acceptance command: `pnpm verify:my-agents`.
+
+
+## v0.29.0 Smart Money Plans + Compatibility/Conflict Handling
+
+A live Smart Money Check can now be composed into a persisted buyer-scoped Smart Money Plan. Each member is backed by a specific `FindingServiceMatch` and remains a distinct `AgentService`. Spotriq checks asset/capital overlap, protocol overlap, financial-authority overlap, network mismatch, service readiness, stale findings and accidental multi-role service composition before downstream authority/execution decisions.
+
+`Plan ≠ Super-agent`. Live plans declare independent Activation and authority per service plus `NO_SHARED_EXECUTION`; the UI intentionally exposes no universal **Activate Plan** action.
+
+Verification command:
+
+```powershell
+pnpm verify:smart-money-plans
+```

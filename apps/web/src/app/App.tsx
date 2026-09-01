@@ -17,7 +17,7 @@ import type {
   FindingState, FindingSeverity, ActivationState, PermissionGrantState,
   EvidenceProvenance, NavState, AgentService, FindingServiceMatch, FindingServiceMatchPage, RebalancingMetrics,
   GridMetrics, YieldMetrics, HealthMetrics, Finding, Activation,
-  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution, ExecutionActivityOutcomeBundle, ServiceTask, MarketplaceActivation, ActivationControlProfile, ActivationRuntimeState, ActivationActivityOutcomeBundle, MyAgentsPortfolio, MyAgentPortfolioItem,
+  PermissionGrant, ActivityEvent, CheckSourceProgress, SmartMoneyCheckEvent, DiscoveredAgent, AgentRegistryChainId, MarketplaceServiceRecord, MarketplaceFinancialDiscovery, RebalancingJobIntent, BoundedPermissionRequest, BoundedPermissionGrant, AltanaTestnetProbeObservation, RebalancingExecutionPlan, FinancialExecutionBoundary, ExecutionBoundaryPreflight, BoundaryFinancialSessionObservation, BoundaryFinancialReadiness, BoundaryApprovalPlan, BoundaryApprovalObservation, ControlledRebalancingExecution, ExecutionActivityOutcomeBundle, ServiceTask, MarketplaceActivation, ActivationControlProfile, ActivationRuntimeState, ActivationActivityOutcomeBundle, MyAgentsPortfolio, MyAgentPortfolioItem, SmartMoneyPlan,
 } from "../domain/types";
 import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
@@ -43,6 +43,8 @@ import { commercialRepository } from "../repositories/commercialRepository";
 import { PermissionCheckoutPage } from "../components/PermissionCheckoutPage";
 import { myAgentsRepository } from "../repositories/myAgentsRepository";
 import { LiveAgentProfilePage, LiveComparePage, LiveTryAgentPage } from "../components/LiveMarketplacePages";
+import { LivePlansPage, LivePlanProfilePage } from "../components/LiveSmartMoneyPlans";
+import { smartMoneyPlanRepository } from "../repositories/smartMoneyPlanRepository";
 
 const {
   services: SERVICES,
@@ -1715,6 +1717,8 @@ function CheckResultsPage({ navigate }: { navigate: (r: Route, p?: Partial<NavSt
   const mode = getActiveCheckMode();
   const [snapshot, setSnapshot] = useState<SmartMoneyCheckView>();
   const [error, setError] = useState<string>();
+  const [planBusy, setPlanBusy] = useState(false);
+  const [planError, setPlanError] = useState<string>();
 
   useEffect(() => {
     if (mode === "example") return;
@@ -1744,6 +1748,15 @@ function CheckResultsPage({ navigate }: { navigate: (r: Route, p?: Partial<NavSt
   const findingAction = (finding: Finding) => navigate("explore", { exploreCategory: finding.category, fromFinding: finding.findingId });
   const sources = snapshot.session.sourceProgress ?? [];
   const shortWallet = `${snapshot.session.walletAddress.slice(0, 6)}…${snapshot.session.walletAddress.slice(-4)}`;
+  const buildPlan = async () => {
+    if (!snapshot.findings.length) return;
+    setPlanBusy(true); setPlanError(undefined);
+    try {
+      const plan: SmartMoneyPlan = await smartMoneyPlanRepository.create(snapshot.session.checkSessionId, { buyerAddress: snapshot.session.walletAddress, findingIds: snapshot.findings.map(f => f.findingId), idempotencyKey: `ui-plan:${snapshot.session.checkSessionId}` });
+      navigate("plan-profile", { planId: plan.planId });
+    } catch (cause) { setPlanError(cause instanceof Error ? cause.message : "Spotriq could not build this Smart Money Plan."); }
+    finally { setPlanBusy(false); }
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
@@ -1761,6 +1774,8 @@ function CheckResultsPage({ navigate }: { navigate: (r: Route, p?: Partial<NavSt
           <span className="text-[#4ade80] flex items-center gap-1.5"><Shield className="w-4 h-4" /> {snapshot.portfolio?.venusPositions.length ?? 0} Venus pool positions</span>
         </div>
       </div>
+
+      {snapshot.findings.length > 0 && <section className="mb-8"><Card className="p-5"><div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"><div><div className="text-xs font-mono uppercase text-[#2dd4bf]">Smart Money Plan</div><div className="text-sm text-[#dde3ef] mt-1">Compose these findings into independent specialist roles and check capital, authority, protocol and service conflicts before any execution.</div><div className="text-xs text-[#6b7d99] mt-1">Plan ≠ Super-agent. Each service keeps its own Activation, PermissionGrant and execution boundary.</div></div><Btn variant="teal-outline" disabled={planBusy} onClick={() => void buildPlan()}>{planBusy ? <><RefreshCw className="w-4 h-4 animate-spin" /> Building Plan</> : <><GitCompare className="w-4 h-4" /> Build Smart Money Plan</>}</Btn></div>{planError && <div className="mt-3 rounded-md border border-[#f87171]/20 bg-[#f87171]/5 p-3 text-xs text-[#fca5a5]">{planError}</div>}</Card></section>}
 
       {needsAttention.length > 0 && <section className="mb-8"><SectionHeader label="Needs Attention" /><div className="space-y-4">{needsAttention.map((finding) => <FindingCard key={finding.findingId} finding={finding} onAction={() => findingAction(finding)} />)}</div></section>}
 
@@ -3812,10 +3827,10 @@ export default function App() {
         return <MyAgentsPage navigate={navigate} initialTab={nav.myAgentsTab} />;
 
       case "plans":
-        return <PlansPage navigate={navigate} />;
+        return <LivePlansPage navigate={navigate} />;
 
       case "plan-profile":
-        return <PlanProfilePage planId={nav.planId || "plan-earn-protect"} navigate={navigate} />;
+        return nav.planId?.startsWith("smplan_") ? <LivePlanProfilePage planId={nav.planId} navigate={navigate} /> : <PlanProfilePage planId={nav.planId || "plan-earn-protect"} navigate={navigate} />;
 
       case "outcomes":
       case "activity-page":

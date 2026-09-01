@@ -31,6 +31,7 @@ import { CommercialError, createCommercialEngine, createErc8183PaymentAdapter, M
 import { createPermissionCheckoutEngine, MemoryPermissionCheckoutStore, PermissionCheckoutError, PostgresPermissionCheckoutStore, type PermissionCheckoutEngine } from "@spotriq/permission-checkout";
 import { createFinancialExecutionAdapterEngine, FinancialExecutionAdapterError, MemoryFinancialExecutionAssessmentStore, PostgresFinancialExecutionAssessmentStore, type FinancialExecutionAdapterEngine } from "@spotriq/financial-execution-adapters";
 import { createMyAgentsEngine, MemoryMyAgentsStore, MyAgentsError, PostgresMyAgentsStore, type MyAgentsEngine } from "@spotriq/my-agents";
+import { createSmartMoneyPlanEngine, MemorySmartMoneyPlanStore, PostgresSmartMoneyPlanStore, SmartMoneyPlanError, type SmartMoneyPlanEngine } from "@spotriq/smart-money-plans";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
@@ -53,6 +54,7 @@ import { registerCommercialRoutes } from "./routes/commercial.js";
 import { registerPermissionCheckoutRoutes } from "./routes/permission-checkout.js";
 import { registerFinancialExecutionAdapterRoutes } from "./routes/financial-execution-adapters.js";
 import { registerMyAgentsRoutes } from "./routes/my-agents.js";
+import { registerSmartMoneyPlanRoutes } from "./routes/smart-money-plans.js";
 import { createReferenceAgentCatalog, type ReferenceAgentIdentityBinding, type ReferenceAgentSlug } from "@spotriq/reference-agents";
 
 export interface BuildServerOptions {
@@ -77,6 +79,7 @@ export interface BuildServerOptions {
   permissionCheckout?: PermissionCheckoutEngine;
   financialExecutionAdapters?: FinancialExecutionAdapterEngine;
   myAgents?: MyAgentsEngine;
+  smartMoneyPlans?: SmartMoneyPlanEngine;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -229,6 +232,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const activationActivityOutcomes = options.activationActivityOutcomes ?? createActivationActivityOutcomesEngine({ store: activityOutcomesStore, commercial, tasks: serviceTasks, permissionCheckout, executionAdapters: financialExecutionAdapters });
   const myAgentsStore = sqlDatabase ? new PostgresMyAgentsStore(sqlDatabase) : new MemoryMyAgentsStore();
   const myAgents = options.myAgents ?? createMyAgentsEngine({ store: myAgentsStore, commercial, marketplace: marketplaceSupply, permissionCheckout, activityOutcomes: activationActivityOutcomes });
+  const smartMoneyPlanStore = sqlDatabase ? new PostgresSmartMoneyPlanStore(sqlDatabase) : new MemorySmartMoneyPlanStore();
+  const smartMoneyPlans = options.smartMoneyPlans ?? createSmartMoneyPlanEngine({ store: smartMoneyPlanStore, smartMoney, marketplace: marketplaceSupply, myAgents });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
@@ -249,7 +254,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.28.0",
+      version: "0.29.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -331,6 +336,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       myAgentsPortfolioEnabled: true,
       myAgentsSwitchingEnabled: true,
       liveMarketplaceProfileCompareTryEnabled: true,
+      smartMoneyPlansEnabled: true,
+      planCompatibilityConflictHandlingEnabled: true,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
@@ -370,6 +377,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "When no independently reconciled transaction and defensible measurement window exist, financial outcome is explicitly Could Not Assess. Grid PnL/fills, realised yield and Health protective effects are never inferred from read-only runtime output or guarded calldata preparation.",
         "v0.28 replaces sample My Agents state with a buyer-scoped portfolio aggregated from real commercial Activation, Permission Checkout, runtime/activity and outcome resources. Same-category switching is persisted and idempotent, and relationship ending fails closed when an independently reconciled PermissionGrant would be stranded.",
         "Agent profile, comparison and Try surfaces use live marketplace/Test Lab resources rather than fabricated reviews, fills, PnL or example performance claims.",
+        "v0.29 Smart Money Plans deterministically compose specific findings with compatible specialist services and explicitly surface asset, protocol, authority, readiness and network conflicts. Plans never share a signer, PermissionGrant or execution session.",
         "Paid rails are provider-neutral adapters. ERC-8183 is observed from BSC job/funding state; X402/B402 are represented in the domain but no live adapter is enabled yet, so Spotriq cannot falsely mark those payments verified.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
@@ -399,6 +407,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerActivityOutcomeRoutes(app, activityOutcomes);
   await registerActivationActivityOutcomeRoutes(app, activationActivityOutcomes);
   await registerMyAgentsRoutes(app, myAgents);
+  await registerSmartMoneyPlanRoutes(app, smartMoneyPlans);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {
@@ -451,6 +460,12 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     if (error instanceof JobIntentError) {
       const statusCode = error.code === "JOB_INTENT_NOT_FOUND" ? 404 : error.code === "MATCH_REQUIRED" || error.code === "UNSUPPORTED_FINDING" || error.code === "INVALID_STATE" ? 422 : 400;
       const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: error.retryable, correlationId: request.id, details: config.appEnv === "production" ? undefined : error.details } };
+      return reply.code(statusCode).send(body);
+    }
+
+    if (error instanceof SmartMoneyPlanError) {
+      const statusCode = error.code === "NOT_FOUND" ? 404 : error.code === "IDEMPOTENCY_CONFLICT" ? 409 : error.code === "WRONG_BUYER" ? 422 : 400;
+      const body: ApiErrorBody = { error: { code: error.code, message: error.message, recoverable: true, retryable: false, correlationId: request.id } };
       return reply.code(statusCode).send(body);
     }
 

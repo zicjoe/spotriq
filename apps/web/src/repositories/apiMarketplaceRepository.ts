@@ -4,7 +4,6 @@ import type {
   AgentService,
   Finding,
   PermissionGrant,
-  SmartMoneyPlanTemplate,
 } from "../domain/types";
 import type {
   ApiEnvelope,
@@ -56,7 +55,4 @@ export class ApiMarketplaceRepository implements MarketplaceRepository {
     return apiRequest<ActivityEvent[]>("/v1/activity");
   }
 
-  listPlans() {
-    return apiRequest<SmartMoneyPlanTemplate[]>("/v1/plans");
-  }
 }

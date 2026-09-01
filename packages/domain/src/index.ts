@@ -2830,3 +2830,91 @@ export interface MyAgentsPortfolio {
   methodVersion: string;
   limitations: string[];
 }
+
+// ─── Smart Money Plans + compatibility/conflicts (v0.29) ────────────────────
+export type SmartMoneyPlanState = "REVIEWABLE" | "BLOCKED" | "STALE" | "CANCELLED";
+export type SmartMoneyPlanConflictSeverity = "INFO" | "WARN" | "BLOCK";
+export type SmartMoneyPlanConflictCode =
+  | "MISSING_SERVICE_MATCH"
+  | "SERVICE_READINESS"
+  | "NETWORK_MISMATCH"
+  | "ASSET_OVERLAP"
+  | "PROTOCOL_OVERLAP"
+  | "AUTHORITY_OVERLAP"
+  | "SAME_SERVICE_MULTI_ROLE"
+  | "EXISTING_RELATIONSHIP"
+  | "STALE_FINDING";
+
+export interface SmartMoneyPlanMember {
+  memberId: string;
+  findingId: string;
+  category: ServiceCategory;
+  serviceId: string;
+  serviceName: string;
+  matchId: string;
+  matchRank: number;
+  matchTier: FindingServiceMatchTier;
+  readiness: ReadinessState;
+  activationEligible: boolean;
+  existingActivationId?: string;
+  assetKeys: string[];
+  protocolKeys: string[];
+  authorityState: "NONE" | "REVIEWED_SCOPE" | "GRANT_RECONCILED";
+  roleSummary: string;
+  limitations: string[];
+}
+
+export interface SmartMoneyPlanConflict {
+  conflictId: string;
+  code: SmartMoneyPlanConflictCode;
+  severity: SmartMoneyPlanConflictSeverity;
+  title: string;
+  detail: string;
+  categories: ServiceCategory[];
+  findingIds: string[];
+  serviceIds: string[];
+  assetKeys: string[];
+  protocolKeys: string[];
+  resolution: string;
+  provenance: "marketplace-derived";
+}
+
+export interface SmartMoneyPlanConflictReport {
+  state: "PASS" | "WARN" | "BLOCK";
+  conflicts: SmartMoneyPlanConflict[];
+  blockingCount: number;
+  warningCount: number;
+  infoCount: number;
+  checkedAt: string;
+  methodVersion: string;
+}
+
+export interface SmartMoneyPlan {
+  planId: string;
+  checkSessionId: string;
+  buyerAddress: string;
+  chainId: number;
+  state: SmartMoneyPlanState;
+  idempotencyKey: string;
+  compositionHash: string;
+  findingIds: string[];
+  members: SmartMoneyPlanMember[];
+  conflictReport: SmartMoneyPlanConflictReport;
+  activationMode: "INDEPENDENT_PER_SERVICE";
+  authorityMode: "INDEPENDENT_PER_SERVICE";
+  executionMode: "NO_SHARED_EXECUTION";
+  reviewSummary: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface BuyerSmartMoneyPlans {
+  buyerAddress: string;
+  plans: SmartMoneyPlan[];
+  generatedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}

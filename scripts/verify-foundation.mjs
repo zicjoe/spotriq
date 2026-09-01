@@ -167,6 +167,15 @@ const required = [
   "apps/web/src/components/LiveMarketplacePages.tsx",
   "scripts/verify-my-agents.mjs",
   "docs/IMPLEMENTATION_REPORT_MY_AGENTS_SWITCHING_v0.28.0.md",
+  "packages/smart-money-plans/package.json",
+  "packages/smart-money-plans/src/index.ts",
+  "packages/smart-money-plans/src/index.test.ts",
+  "packages/db/migrations/0022_smart_money_plans.sql",
+  "apps/api/src/routes/smart-money-plans.ts",
+  "apps/web/src/repositories/smartMoneyPlanRepository.ts",
+  "apps/web/src/components/LiveSmartMoneyPlans.tsx",
+  "scripts/verify-smart-money-plans.mjs",
+  "docs/SPOTRIQ_V0.29_SMART_MONEY_PLANS_REPORT.md",
   ".env.example",
   ".gitignore",
 ];
@@ -180,11 +189,11 @@ for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper
   if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
 }
 const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
-if (!projectState.includes("v0.27 ✅") || !projectState.includes("v0.28.0") || !projectState.includes("My Agents + Switching/Revocation + Marketplace UX Completion")) {
-  throw new Error("PROJECT_STATE.md must record externally accepted v0.27 and the current v0.28 My Agents candidate.");
+if (!projectState.includes("v0.28 ✅") || !projectState.includes("v0.29.0") || !projectState.includes("Smart Money Plans + Compatibility/Conflict Handling")) {
+  throw new Error("PROJECT_STATE.md must record externally accepted v0.28 and the current v0.29 Smart Money Plans candidate.");
 }
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
-for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion"]) {
+for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling"]) {
   if (!correctedRoadmap.includes(marker)) throw new Error(`Corrected roadmap is missing ${marker}.`);
 }
 
@@ -867,7 +876,45 @@ for (const marker of ["same-service switch", "BLOCKED", "/my-agents", "/switches
   if (!myAgentsVerifier.includes(marker)) throw new Error(`v0.28 live verifier is missing ${marker}.`);
 }
 if (rootManifest.scripts?.["verify:my-agents"] !== "node scripts/verify-my-agents.mjs") throw new Error("Root package.json must expose pnpm verify:my-agents.");
-if (!apiApp.includes('version: "0.28.0"')) throw new Error("API metadata must report v0.28.0.");
+if (!apiApp.includes('version: "0.29.0"')) throw new Error("API metadata must report v0.29.0 after v0.28 acceptance.");
+
+
+// v0.29 — Smart Money Plans + Compatibility/Conflict Handling.
+const smartMoneyPlans = await readFile(path.join(root, "packages/smart-money-plans/src/index.ts"), "utf8");
+const smartMoneyPlanRoutes = await readFile(path.join(root, "apps/api/src/routes/smart-money-plans.ts"), "utf8");
+const smartMoneyPlanRepo = await readFile(path.join(root, "apps/web/src/repositories/smartMoneyPlanRepository.ts"), "utf8");
+const smartMoneyPlanUi = await readFile(path.join(root, "apps/web/src/components/LiveSmartMoneyPlans.tsx"), "utf8");
+const migration0022 = await readFile(path.join(root, "packages/db/migrations/0022_smart_money_plans.sql"), "utf8");
+const smartMoneyPlanVerifier = await readFile(path.join(root, "scripts/verify-smart-money-plans.mjs"), "utf8");
+const legacyMarketplaceRepo = await readFile(path.join(root, "apps/web/src/repositories/marketplaceRepository.ts"), "utf8");
+const legacyApiMarketplaceRepo = await readFile(path.join(root, "apps/web/src/repositories/apiMarketplaceRepository.ts"), "utf8");
+for (const marker of ["SmartMoneyPlan", "SmartMoneyPlanMember", "SmartMoneyPlanConflict", "SmartMoneyPlanConflictReport", "BuyerSmartMoneyPlans", "NO_SHARED_EXECUTION"]) {
+  if (!domain.includes(marker)) throw new Error(`v0.29 domain model is missing ${marker}.`);
+}
+for (const marker of ["createSmartMoneyPlanEngine", "PostgresSmartMoneyPlanStore", "ASSET_OVERLAP", "AUTHORITY_OVERLAP", "NETWORK_MISMATCH", "SAME_SERVICE_MULTI_ROLE", "INDEPENDENT_PER_SERVICE", "NO_SHARED_EXECUTION", "IDEMPOTENCY_CONFLICT"]) {
+  if (!smartMoneyPlans.includes(marker)) throw new Error(`v0.29 Smart Money Plan engine is missing ${marker}.`);
+}
+for (const marker of ["smart_money_plans", "composition_hash", "idempotency_key", "check_session_id"]) {
+  if (!migration0022.includes(marker)) throw new Error(`v0.29 migration is missing ${marker}.`);
+}
+for (const route of ["/v1/checks/:checkSessionId/plans", "/v1/plans/:planId", "/v1/accounts/:address/plans"]) {
+  if (!smartMoneyPlanRoutes.includes(route)) throw new Error(`Missing v0.29 Smart Money Plan route ${route}.`);
+}
+for (const marker of ["create", "get", "listForBuyer"]) {
+  if (!smartMoneyPlanRepo.includes(marker)) throw new Error(`v0.29 web Smart Money Plan repository is missing ${marker}.`);
+}
+for (const marker of ["Plan ≠ Super-agent", "Independent per service", "No shared execution", "Compatibility & conflicts", "Review service independently"]) {
+  if (!smartMoneyPlanUi.includes(marker)) throw new Error(`v0.29 Smart Money Plan UI is missing ${marker}.`);
+}
+for (const marker of ["smartMoneyPlansEnabled: true", "planCompatibilityConflictHandlingEnabled: true"]) {
+  if (!apiApp.includes(marker)) throw new Error(`API capabilities must expose truthful v0.29 feature ${marker}.`);
+}
+for (const marker of ["NO_SHARED_EXECUTION", "INDEPENDENT_PER_SERVICE", "/plans", "idempotent", "without creating a shared signer"]) {
+  if (!smartMoneyPlanVerifier.includes(marker)) throw new Error(`v0.29 live verifier is missing ${marker}.`);
+}
+if (legacyMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes('apiRequest<SmartMoneyPlanTemplate[]>("/v1/plans")')) throw new Error("Legacy marketplace repositories must not reuse the persisted /v1/plans namespace for mock plan templates.");
+if (rootManifest.scripts?.["verify:smart-money-plans"] !== "node scripts/verify-smart-money-plans.mjs") throw new Error("Root package.json must expose pnpm verify:smart-money-plans.");
+if (!apiApp.includes('version: "0.29.0"')) throw new Error("API metadata must report v0.29.0.");
 
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -881,11 +928,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 29) throw new Error(`v0.28 expects 29 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 30) throw new Error(`v0.29 expects 30 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.28.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.28.0.`);
+  if (manifest.version !== "0.29.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.29.0.`);
 }
 
-console.log("Spotriq foundation + accepted v0.22–v0.27 + v0.28 My Agents + switching/revocation + live marketplace UX verification passed.");
+console.log("Spotriq foundation + accepted v0.22–v0.28 + v0.29 Smart Money Plans + compatibility/conflict handling verification passed.");
 

@@ -12,7 +12,6 @@ import type {
   Finding,
   PermissionGrant,
   ActivityEvent,
-  SmartMoneyPlanTemplate,
 } from "../domain/types";
 
 export interface MarketplaceRepository {
@@ -22,7 +21,6 @@ export interface MarketplaceRepository {
   listActivations(): Promise<Activation[]>;
   listPermissionGrants(): Promise<PermissionGrant[]>;
   listActivity(): Promise<ActivityEvent[]>;
-  listPlans(): Promise<SmartMoneyPlanTemplate[]>;
 }
 
 /**
@@ -46,7 +44,6 @@ export class MockMarketplaceRepository implements MarketplaceRepository {
   async listActivations() { return [...ACTIVATIONS]; }
   async listPermissionGrants() { return [...PERMISSION_GRANTS]; }
   async listActivity() { return [...ACTIVITY_EVENTS]; }
-  async listPlans() { return [...PLAN_TEMPLATES]; }
 }
 
 export const marketplaceRepository: MarketplaceRepository = new MockMarketplaceRepository();

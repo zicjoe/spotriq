@@ -1,60 +1,49 @@
 # Spotriq Engineering Status
 
-**Release candidate:** v0.28.0  
+**Release candidate:** v0.29.0  
 **Date:** 2026-09-01  
-**State:** My Agents + Switching/Revocation + Marketplace UX Completion implemented; v0.27 externally accepted; local dependency-aware validation and external v0.28 acceptance pending.
+**State:** Smart Money Plans + Compatibility/Conflict Handling implemented; v0.28 externally accepted; local dependency-aware validation and external v0.29 acceptance pending.
 
 ## Accepted baseline
 
-Production acceptance is complete through v0.27.
+Production acceptance is complete through v0.28.
 
-v0.27 proved that all four category Activation journeys can persist truthful technical activity/outcome state while absent transaction/performance evidence remains `Could Not Assess`.
+## v0.29 package
 
-## v0.28 package
-
-`@spotriq/my-agents`
+`@spotriq/smart-money-plans`
 
 Responsibilities:
 
-- aggregate buyer Activations into active/history portfolio buckets;
-- attach live AgentService/readiness/control state;
-- attach Permission Checkout / ScopedPermissionRequest state without treating it as commercial state;
-- attach Activation Activity + Outcome when available;
-- calculate same-category replacement candidates;
-- persist idempotent switch records;
-- fail closed when an independent reconciled PermissionGrant would be stranded;
-- activate replacement before revoking the source relationship.
+- create buyer-scoped plans from actual Smart Money Check findings;
+- preserve Finding → FindingServiceMatch → AgentService provenance;
+- prefer a compatible already-active service when available;
+- persist immutable/idempotent plan composition;
+- detect network, readiness, asset/capital, protocol, authority and service-role conflicts;
+- keep all member Activations/PermissionGrants/execution boundaries independent;
+- never dispatch transactions or create a shared signer.
 
 ## Persistence
 
-Migration `0021_my_agents_switching.sql` adds `my_agent_switches` with buyer-scoped idempotency and immutable source/target identity.
-
-Switch history is not a PermissionGrant or financial transaction log.
+Migration `0022_smart_money_plans.sql` adds `smart_money_plans` with buyer-scoped idempotency and a deterministic composition hash.
 
 ## API
 
-- `GET /v1/accounts/:address/my-agents`
-- `GET /v1/accounts/:address/my-agents/switches`
-- `POST /v1/accounts/:address/my-agents/:activationId/switch`
-- `POST /v1/accounts/:address/my-agents/:activationId/revoke`
-
-Fastify exposes explicit My Agents errors, including idempotency conflict and active independent PermissionGrant blockers.
+- `POST /v1/checks/:checkSessionId/plans`
+- `GET /v1/plans/:planId`
+- `GET /v1/accounts/:address/plans`
 
 ## Web
 
-My Agents no longer reads the Figma/sample `ACTIVATIONS`, `PERMISSION_GRANTS` or sample activity data for the active buyer view.
+Live Smart Money Check results expose **Build Smart Money Plan**. The live plan profile displays specialist members, deterministic conflict severity/resolution and independent service review links. It intentionally provides no universal “Activate Plan” action.
 
-The page loads a live wallet portfolio, shows commercial/authority/runtime/outcome separately, offers only eligible same-category switch candidates and uses the safe My Agents revoke endpoint.
-
-Service Profile / Compare / Try now use live marketplace/Test Lab APIs instead of scripted performance/test results.
+The Plans page lists persisted live plans for the buyer wallet rather than the old template catalog.
 
 ## Capability truth
 
-- `myAgentsPortfolioEnabled = true`
-- `myAgentsSwitchingEnabled = true`
-- `liveMarketplaceProfileCompareTryEnabled = true`
+- `smartMoneyPlansEnabled = true`
+- `planCompatibilityConflictHandlingEnabled = true`
 
-These flags do not imply broad paid switching, mainnet execution or automatic PermissionGrant revocation.
+These flags do not imply shared authority, shared execution, financial advice or mainnet readiness.
 
 ## Verification
 
@@ -66,14 +55,14 @@ Local:
 
 Production regressions:
 
-`verify:reference-acceptance → verify:commercial-acceptance → verify:activation-parity → verify:permission-checkout → verify:execution-adapter-parity → verify:activity-outcome-parity`
+`verify:reference-acceptance → verify:commercial-acceptance → verify:activation-parity → verify:permission-checkout → verify:execution-adapter-parity → verify:activity-outcome-parity → verify:my-agents`
 
-New v0.28 gate:
+New v0.29 gate:
 
-`pnpm verify:my-agents`
+`pnpm verify:smart-money-plans`
 
-The v0.28 verifier creates truthful FREE read-only relationships, confirms they appear in the buyer portfolio, persists a same-service switch as BLOCKED, confirms switch history, revokes relationships through the safe My Agents boundary and confirms they move into history.
+The verifier uses a real Smart Money Check with at least one supported finding, persists a plan, proves exact retry idempotency, proves buyer history persistence and asserts `NO_SHARED_EXECUTION` plus independent Activation/authority modes.
 
 ## Next after acceptance
 
-v0.29 — Smart Money Plans + Compatibility/Conflict Handling.
+v0.30 — Operator Supply Lifecycle + Workspace.

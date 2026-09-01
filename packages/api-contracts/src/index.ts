@@ -96,6 +96,8 @@ export interface CapabilityResponse {
   myAgentsPortfolioEnabled: boolean;
   myAgentsSwitchingEnabled: boolean;
   liveMarketplaceProfileCompareTryEnabled: boolean;
+  smartMoneyPlansEnabled: boolean;
+  planCompatibilityConflictHandlingEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -493,3 +495,12 @@ export interface SwitchMyAgentRequest { targetServiceId: string; idempotencyKey:
 export interface MyAgentSwitchResponse { switch: import("@spotriq/domain").MyAgentSwitchRecord; }
 export interface MyAgentSwitchesResponse { switches: import("@spotriq/domain").MyAgentSwitchRecord[]; }
 export interface EndMyAgentRelationshipRequest { buyerAddress: string; }
+
+// v0.29 Smart Money Plans + compatibility/conflicts
+export interface CreateSmartMoneyPlanRequest {
+  buyerAddress: string;
+  findingIds?: string[];
+  idempotencyKey: string;
+}
+export interface SmartMoneyPlanResponse { plan: import("@spotriq/domain").SmartMoneyPlan; }
+export interface BuyerSmartMoneyPlansResponse { state: import("@spotriq/domain").BuyerSmartMoneyPlans; }

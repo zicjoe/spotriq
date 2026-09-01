@@ -1,5 +1,5 @@
 {
-  "name": "@spotriq/reference-agents",
+  "name": "@spotriq/smart-money-plans",
   "private": true,
   "version": "0.29.0",
   "type": "module",
@@ -8,10 +8,9 @@
   },
   "dependencies": {
     "@spotriq/domain": "workspace:*",
-    "@spotriq/evidence": "workspace:*",
-    "@spotriq/protocol-pancakeswap": "workspace:*",
-    "@spotriq/protocol-venus": "workspace:*",
-    "@spotriq/market-context": "workspace:*"
+    "@spotriq/smart-money": "workspace:*",
+    "@spotriq/marketplace-supply": "workspace:*",
+    "@spotriq/my-agents": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

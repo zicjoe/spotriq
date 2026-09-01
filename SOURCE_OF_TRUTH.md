@@ -1,7 +1,7 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.28.0**  
-**Release status:** My Agents + Switching/Revocation + Marketplace UX Completion implementation candidate; v0.27 externally accepted; local dependency-aware validation and external v0.28 acceptance pending.  
+**Current repository release:** **v0.29.0**  
+**Release status:** Smart Money Plans + Compatibility/Conflict Handling implementation candidate; v0.28 externally accepted; local dependency-aware validation and external v0.29 acceptance pending.  
 **State date:** 2026-09-01
 
 ## Authority hierarchy
@@ -19,7 +19,7 @@
 
 Spotriq is a **BSC financial-agent marketplace**, not a generic agent marketplace or super-agent.
 
-`wallet need → deterministic finding → AgentService → evidence/readiness → recommendation → Offer → Quote → Hire → Activation → Permission Checkout where needed → PermissionGrant where real → guarded execution where eligible → Activity → Outcome → Continue / Switch / Revoke`
+`wallet need → deterministic finding → AgentService → evidence/readiness → recommendation → Offer → Quote → Hire → Activation → Permission Checkout where needed → PermissionGrant where real → guarded execution where eligible → Activity → Outcome → Continue / Switch / Revoke / Plan`
 
 Locked invariants include:
 
@@ -29,22 +29,9 @@ Locked invariants include:
 
 `Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome`
 
-`Transaction ≠ Outcome`
+`Plan ≠ Super-agent`
 
 AI explains. Deterministic systems decide.
-
-## Four categories
-
-1. Rebalancing — RangeKeeper.
-2. Grid Trading — GridPilot.
-3. Yield Optimisation — YieldPilot.
-4. Health Factor Monitoring — VenusGuard.
-
-## Network truth
-
-- Marketplace discovery may use BSC Mainnet `56`.
-- Reference identity/authority/execution acceptance uses BSC Testnet `97`.
-- Mainnet financial execution remains prohibited until explicitly approved.
 
 ## Accepted release truth
 
@@ -54,35 +41,28 @@ AI explains. Deterministic systems decide.
 - **v0.25 ✅** four-category Permission Checkout with no fabricated financial authority.
 - **v0.26 ✅** four-category execution adapter/argument guard acceptance without unauthorized dispatch.
 - **v0.27 ✅** four-category Activity + Outcome parity; unsupported financial outcomes remain `Could Not Assess`.
+- **v0.28 ✅** live My Agents + safe switching/revocation + live marketplace profile/compare/Test Lab UX.
 
-## v0.28 implementation truth
+## v0.29 implementation truth
 
-New package: `@spotriq/my-agents`.
+New package: `@spotriq/smart-money-plans`.
 
-My Agents is a buyer-scoped aggregation over existing resources. It does **not** create a universal status that collapses commercial, permission, runtime and outcome truth.
+A Smart Money Plan is a persisted, buyer-scoped review object built from specific live Smart Money findings and deterministic Finding → AgentService matches. It records every member independently and never creates shared commercial, authority or execution state.
 
-Switching rules:
+Compatibility/conflict handling includes asset/capital overlap, protocol overlap, active PermissionGrant overlap, service readiness, network mismatch, stale findings, existing relationships and accidental multi-role service composition.
 
-- source Activation belongs to the buyer and is ACTIVE;
-- target must differ from source;
-- same category is required;
-- current live switch path requires same BSC service chain plus truthful FREE/read-only terms;
-- degraded/offline/suspended targets are blocked;
-- independently reconciled PermissionGrant on the source blocks switching and direct relationship ending;
-- replacement Activation is created first, then old marketplace Activation is revoked;
-- switch records are persisted with buyer-scoped idempotency.
+Only genuine contradictions block. Reviewable overlaps remain warnings or informational facts rather than being hidden or treated as universal risk scores.
 
-UX truth:
+Latest migration: `0022_smart_money_plans.sql`.
 
-- My Agents uses the live buyer API;
-- Agent Profile and Compare consume live MarketplaceService records;
-- Try runs Marketplace Test Lab;
-- sample portfolio returns/reviews are not presented as live buyer or service performance.
+New acceptance: `pnpm verify:smart-money-plans`.
 
-Latest migration: `0021_my_agents_switching.sql`.
+## Network truth
 
-New acceptance: `pnpm verify:my-agents`.
+- Marketplace discovery may use BSC Mainnet `56`.
+- Reference identity/authority/execution acceptance uses BSC Testnet `97`.
+- Mainnet financial execution remains prohibited until explicitly approved.
 
-## Next milestone after v0.28 acceptance
+## Next milestone after v0.29 acceptance
 
-**v0.29 — Smart Money Plans + Compatibility/Conflict Handling.**
+**v0.30 — Operator Supply Lifecycle + Workspace.**

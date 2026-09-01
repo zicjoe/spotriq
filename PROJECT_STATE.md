@@ -1,23 +1,23 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.28.0  
-**Implementation status:** My Agents + Switching/Revocation + Marketplace UX Completion implemented; dependency-aware local validation and external v0.28 acceptance pending.  
+**Current implementation release:** v0.29.0  
+**Implementation status:** Smart Money Plans + Compatibility/Conflict Handling implemented; v0.28 externally accepted; dependency-aware local validation and external v0.29 acceptance pending.  
 **Last state update:** 2026-09-01  
 **Repository role:** concise present-state map; current repository remains implementation truth.
 
 ## Product position
 
-Spotriq is a **BSC financial-agent marketplace**. It helps a wallet understand financial needs, discover/evaluate specialist AgentServices, hire/activate them, review scoped authority, observe runtime/execution state, measure only defensible outcomes, and decide whether to continue, switch or end a relationship.
+Spotriq is a **BSC financial-agent marketplace**. It helps a wallet understand financial needs, discover/evaluate specialist AgentServices, hire/activate them, review scoped authority, observe execution/runtime state, measure only defensible outcomes, and decide whether to continue, switch, revoke or compose independent specialists into a reviewable plan.
 
 Lifecycle:
 
-`Understand → Discover → Match → Evaluate → Hire / Activate → Permission Checkout → PermissionGrant where eligible → Guarded Execution where eligible → Activity → Outcome → Continue / Switch / Revoke`
+`Understand → Discover → Match → Evaluate → Hire / Activate → Permission Checkout → PermissionGrant where eligible → Guarded Execution where eligible → Activity → Outcome → Continue / Switch / Revoke / Plan`
 
 Locked separation:
 
 `Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome`
 
-`Technical observation ≠ financial outcome`
+`Plan ≠ Super-agent`
 
 AI explains. Deterministic systems decide.
 
@@ -29,6 +29,7 @@ AI explains. Deterministic systems decide.
 - **v0.25 ✅** Four-category Permission Checkout; immutable blocked requests for current read-only services; no fake PermissionGrant.
 - **v0.26 ✅** Four-category execution-adapter/argument-guard acceptance without unauthorized dispatch.
 - **v0.27 ✅** Four-category Activation Activity + Outcome parity; missing transaction/performance evidence remains `Could Not Assess`.
+- **v0.28 ✅** Live buyer My Agents portfolio + persisted switching/revocation + live profile/compare/Test Lab UX.
 
 ## Current architecture
 
@@ -36,69 +37,73 @@ AI explains. Deterministic systems decide.
 - `apps/api` — Fastify API.
 - `apps/worker` — worker seam.
 - shared `@spotriq/domain` and `@spotriq/api-contracts`.
-- PostgreSQL migrations `0001`–`0021`.
+- PostgreSQL migrations `0001`–`0022`.
 - deterministic BSC, PancakeSwap, Venus, market-context and Smart Money packages.
 - ERC-8004 discovery, marketplace supply/readiness/Test Lab, and four first-party reference runtimes.
 - `@spotriq/commercial` — Offer/Quote/Hire/Payment/Activation/control/revocation.
 - `@spotriq/service-tasks` — attributed read-only category runtimes.
 - `@spotriq/permission-checkout` — reviewed authority + immutable ScopedPermissionRequest.
 - `@spotriq/financial-execution-adapters` — category preflight/exact argument guards.
-- `@spotriq/activity-outcomes` — controlled Rebalancing execution outcomes + Activation-scoped four-category outcome truth.
-- **`@spotriq/my-agents` — buyer portfolio aggregation, fail-closed relationship ending and persisted service switching.**
+- `@spotriq/activity-outcomes` — controlled Rebalancing outcomes + Activation-scoped four-category outcome truth.
+- `@spotriq/my-agents` — buyer portfolio aggregation, fail-closed relationship ending and persisted service switching.
+- **`@spotriq/smart-money-plans` — finding/service composition + deterministic capital/authority/protocol/readiness/network conflict assessment.**
 
-## v0.28 — My Agents + Switching/Revocation + Marketplace UX Completion
+## v0.29 — Smart Money Plans + Compatibility/Conflict Handling
 
-My Agents is now a real buyer-scoped resource rather than sample portfolio data.
+A live Smart Money Check can now create a persisted buyer-scoped plan from its actual findings. Each finding is deterministically matched to a specialist AgentService; an already-active compatible service is reused preferentially rather than duplicating the relationship.
 
-It aggregates, without merging their meanings:
+A plan member retains:
 
-`MarketplaceActivation`
-`+ PermissionCheckout / ScopedPermissionRequest / PermissionGrant link`
-`+ Activation control`
-`+ runtime Activity + Outcome`
-`+ same-category replacement candidates`
+`Finding → FindingServiceMatch → AgentService → readiness → existing Activation/authority state`
 
-New behavior:
+Plans explicitly assess:
 
-- active and historical relationships are returned for one buyer wallet;
-- exact authority state is visible independently from commercial state;
-- financial outcome remains `Could Not Assess` unless prior outcome evidence supports more;
-- relationship ending is blocked when an independently reconciled PermissionGrant would be stranded;
-- switching is idempotent and persisted;
-- a replacement service must be same-category, same-network and truthfully FREE/read-only in the current live switch path;
-- replacement Activation is established before the source marketplace relationship is revoked;
-- changed-input reuse of a switch idempotency key returns conflict rather than overwriting immutable switch intent.
+- missing compatible service;
+- service readiness;
+- BSC network mismatch;
+- overlapping assets/capital;
+- overlapping protocol scope;
+- independently reconciled financial-authority overlap;
+- one service being assigned multiple specialist roles;
+- already-active relationships;
+- stale finding context.
 
-Marketplace UX completion:
+Conflict severity is deterministic:
 
-- Agent Profile reads live `MarketplaceServiceRecord` and Test Lab evidence;
-- Compare reads live marketplace/readiness/commercial facts and does not invent a winner;
-- Try runs the bounded Marketplace Test Lab rather than scripted portfolio returns;
-- My Agents no longer presents sample costs, returns, fills, reviews or fabricated performance as buyer state.
+- **BLOCK** — genuine contradiction such as no compatible service, wrong network, unavailable service or overlapping independently active financial authority;
+- **WARN** — review-required conditions such as shared capital/assets, TESTNET_ONLY readiness or stale findings;
+- **INFO** — non-blocking facts such as shared protocol scope or reuse of an existing relationship.
+
+A plan always declares:
+
+`activationMode = INDEPENDENT_PER_SERVICE`
+
+`authorityMode = INDEPENDENT_PER_SERVICE`
+
+`executionMode = NO_SHARED_EXECUTION`
+
+There is no live “Activate Plan” shortcut. Member hiring, Permission Checkout and execution remain independent service-specific journeys.
 
 ## Persistence
 
 Latest migration:
 
-`0021_my_agents_switching.sql`
+`0022_smart_money_plans.sql`
 
-It persists switch attempts/history separately from Activations and PermissionGrants.
+Plan idempotency is buyer-scoped. Changed finding composition cannot reuse an existing plan idempotency key.
 
 ## API
 
-- `GET  /v1/accounts/:address/my-agents`
-- `GET  /v1/accounts/:address/my-agents/switches`
-- `POST /v1/accounts/:address/my-agents/:activationId/switch`
-- `POST /v1/accounts/:address/my-agents/:activationId/revoke`
-
-Existing low-level Activation revocation also checks for a reconciled PermissionGrant when the Permission Checkout engine is available.
+- `POST /v1/checks/:checkSessionId/plans`
+- `GET  /v1/plans/:planId`
+- `GET  /v1/accounts/:address/plans`
 
 ## Safety / network truth
 
 - Discovery may use BSC Mainnet `56`.
 - Reference identity/authority/execution acceptance remains BSC Testnet `97`.
 - Mainnet financial execution remains prohibited until explicitly approved.
-- My Agents switching does not revoke or manufacture an independent PermissionGrant.
+- A Smart Money Plan never creates a shared signer, PermissionGrant, Activation, transaction or financial outcome.
 
 ## Verification
 
@@ -114,15 +119,14 @@ Accepted production regression verifiers remain:
 - `pnpm verify:permission-checkout`
 - `pnpm verify:execution-adapter-parity`
 - `pnpm verify:activity-outcome-parity`
+- `pnpm verify:my-agents`
 
-New v0.28 gate:
+New v0.29 gate:
 
-`pnpm verify:my-agents`
+`pnpm verify:smart-money-plans`
 
-Do not call v0.28 externally accepted until local validation, migration `0021`, Railway deployment and the full verifier chain pass.
+Do not call v0.29 externally accepted until local validation, migration `0022`, Railway deployment and the verifier chain pass.
 
 ## Next roadmap milestone after acceptance
 
-**v0.29 — Smart Money Plans + Compatibility/Conflict Handling.**
-
-`Plan ≠ Super-agent`; plan composition must preserve service, capital, authority, protocol and evidence boundaries.
+**v0.30 — Operator Supply Lifecycle + Workspace.**
