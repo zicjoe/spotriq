@@ -238,6 +238,20 @@ export const EVIDENCE_METHODS = {
     description: "Reads ERC-8183 job and payment-token facts from BSC and compares client, provider, budget, token, contract and job state with the immutable Spotriq Quote. Client-supplied paid flags are never trusted.",
     inputMetrics: ["erc8183.getJob", "erc8183.paymentToken", "commercial.quote"],
   },
+  X402_PAYMENT: {
+    methodId: "marketplace.x402-payment-reconciliation",
+    version: "1.0.0",
+    name: "x402 settlement reconciliation",
+    description: "Reconciles an immutable Spotriq Quote against a successful BSC ERC-20 settlement transfer: payer, payee, token, exact amount, chain and timing. Spotriq does not trust browser paid flags or create the payment signature.",
+    inputMetrics: ["commercial.quote", "bsc.transaction_receipt", "erc20.Transfer"],
+  },
+  B402_PAYMENT: {
+    methodId: "marketplace.b402-payment-reconciliation",
+    version: "1.0.0",
+    name: "B402 settlement reconciliation",
+    description: "Reconciles a B402-style BSC payment against canonical ERC-20 settlement logs using the immutable Spotriq Quote. Facilitator claims alone are insufficient.",
+    inputMetrics: ["commercial.quote", "bsc.transaction_receipt", "erc20.Transfer"],
+  },
 } satisfies Record<string, EvidenceMethodDefinition>;
 
 const DEFAULT_FRESHNESS_POLICY: FreshnessPolicy = {

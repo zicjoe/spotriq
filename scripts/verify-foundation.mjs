@@ -185,6 +185,7 @@ const required = [
   "apps/web/src/components/LiveOperatorWorkspace.tsx",
   "scripts/verify-operator-workspace.mjs",
   "docs/IMPLEMENTATION_REPORT_OPERATOR_SUPPLY_LIFECYCLE_v0.30.0.md",
+  "docs/IMPLEMENTATION_REPORT_PAID_COMMERCIAL_RAILS_v0.31.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -198,11 +199,11 @@ for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper
   if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
 }
 const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
-if (!projectState.includes("v0.29 ✅") || !projectState.includes("v0.30.0") || !projectState.includes("Operator Supply Lifecycle + Workspace")) {
-  throw new Error("PROJECT_STATE.md must record externally accepted v0.29 and the current v0.30 Operator Workspace candidate.");
+if (!projectState.includes("v0.30 ✅") || !projectState.includes("v0.31.0") || !projectState.includes("Paid Commercial Rails")) {
+  throw new Error("PROJECT_STATE.md must record externally accepted v0.30 and the current v0.31 paid-rails candidate.");
 }
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
-for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace"]) {
+for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation"]) {
   if (!correctedRoadmap.includes(marker)) throw new Error(`Corrected roadmap is missing ${marker}.`);
 }
 
@@ -885,7 +886,7 @@ for (const marker of ["same-service switch", "BLOCKED", "/my-agents", "/switches
   if (!myAgentsVerifier.includes(marker)) throw new Error(`v0.28 live verifier is missing ${marker}.`);
 }
 if (rootManifest.scripts?.["verify:my-agents"] !== "node scripts/verify-my-agents.mjs") throw new Error("Root package.json must expose pnpm verify:my-agents.");
-if (!apiApp.includes('version: "0.30.0"')) throw new Error("API metadata must report v0.30.0 after v0.29 acceptance.");
+if (!apiApp.includes('version: "0.31.0"')) throw new Error("API metadata must report v0.31.0 after v0.30 acceptance.");
 
 
 // v0.29 — Smart Money Plans + Compatibility/Conflict Handling.
@@ -923,7 +924,7 @@ for (const marker of ["NO_SHARED_EXECUTION", "INDEPENDENT_PER_SERVICE", "/plans"
 }
 if (legacyMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes('apiRequest<SmartMoneyPlanTemplate[]>("/v1/plans")')) throw new Error("Legacy marketplace repositories must not reuse the persisted /v1/plans namespace for mock plan templates.");
 if (rootManifest.scripts?.["verify:smart-money-plans"] !== "node scripts/verify-smart-money-plans.mjs") throw new Error("Root package.json must expose pnpm verify:smart-money-plans.");
-if (!apiApp.includes('version: "0.30.0"')) throw new Error("API metadata must report v0.30.0.");
+if (!apiApp.includes('version: "0.31.0"')) throw new Error("API metadata must report v0.31.0.");
 
 
 
@@ -960,6 +961,23 @@ for (const marker of ["invalid operator signature", "unauthenticated", "does not
 }
 if (rootManifest.scripts?.["verify:operator-workspace"] !== "node scripts/verify-operator-workspace.mjs") throw new Error("Root package.json must expose pnpm verify:operator-workspace.");
 
+// v0.31 — Paid Commercial Rails + ERC-8183/x402/B402 reconciliation.
+const paymentRails = await readFile(path.join(root, "packages/payment-rails/src/index.ts"), "utf8");
+const paymentRailRoutes = await readFile(path.join(root, "apps/api/src/routes/payment-rails.ts"), "utf8");
+const migration0024 = await readFile(path.join(root, "packages/db/migrations/0024_paid_commercial_payment_rails.sql"), "utf8");
+const paidRailsVerifier = await readFile(path.join(root, "scripts/verify-paid-rails.mjs"), "utf8");
+for (const marker of ["createX402PaymentAdapter", "createB402PaymentAdapter", "ONCHAIN_ERC20_SETTLEMENT", "transferMatched", "timingSatisfied", "settlementDispatchEnabled:false"]) {
+  if (!paymentRails.includes(marker)) throw new Error(`v0.31 paid payment rails are missing ${marker}.`);
+}
+for (const marker of ["Http402SettlementObservation", "PaymentRailStatus", "payToAddress", "transactionHash"]) {
+  if (!domain.includes(marker)) throw new Error(`v0.31 domain model is missing ${marker}.`);
+}
+if (!paymentRailRoutes.includes("/v1/payment-rails/status")) throw new Error("Missing v0.31 payment rail status route.");
+for (const marker of ["settlement_tx_hash", "settlement_block_number"]) { if (!migration0024.includes(marker)) throw new Error(`v0.31 migration is missing ${marker}.`); }
+for (const marker of ["x402B402PaymentAdaptersEnabled: true", "paidCommercialRailsReconciliationEnabled: true", "paymentSettlementDispatchEnabled: false"]) { if (!apiApp.includes(marker)) throw new Error(`API capabilities must expose truthful v0.31 feature ${marker}.`); }
+for (const marker of ["ERC8183", "X402", "B402", "settlementDispatchEnabled", "paid commercial rails contract passed"]) { if (!paidRailsVerifier.includes(marker)) throw new Error(`v0.31 live verifier is missing ${marker}.`); }
+if (rootManifest.scripts?.["verify:paid-rails"] !== "node scripts/verify-paid-rails.mjs") throw new Error("Root package.json must expose pnpm verify:paid-rails.");
+
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const output = [];
@@ -972,11 +990,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 31) throw new Error(`v0.30 expects 31 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 32) throw new Error(`v0.31 expects 32 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.30.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.30.0.`);
+  if (manifest.version !== "0.31.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.31.0.`);
 }
 
-console.log("Spotriq foundation + accepted v0.22–v0.29 + v0.30 Operator Supply Lifecycle + Workspace verification passed.");
+console.log("Spotriq foundation + accepted v0.22–v0.30 + v0.31 paid commercial rails reconciliation verification passed.");
 

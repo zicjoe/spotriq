@@ -1,15 +1,16 @@
 {
-  "name": "@spotriq/authority",
+  "name": "@spotriq/payment-rails",
   "private": true,
   "version": "0.31.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./altana": "./src/altana.ts"
+    ".": "./src/index.ts"
   },
   "dependencies": {
     "@spotriq/chain": "workspace:*",
+    "@spotriq/commercial": "workspace:*",
     "@spotriq/domain": "workspace:*",
+    "@spotriq/evidence": "workspace:*",
     "viem": "2.55.11"
   },
   "scripts": {

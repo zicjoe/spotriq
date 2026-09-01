@@ -172,6 +172,8 @@ export interface CommercialOfferTerms {
   payment?: {
     contractAddress?: string;
     providerAddress?: string;
+    endpoint?: string;
+    payToAddress?: string;
   };
   scope: {
     summary: string;
@@ -234,6 +236,7 @@ export interface CommercialHire {
 
 export type CommercialPaymentEvidenceState = "NOT_REQUIRED" | "PENDING" | "VERIFIED" | "MISMATCH" | "FAILED";
 export interface Erc8183PaymentObservation {
+  kind: "ERC8183_JOB";
   chainId: AgentRegistryChainId;
   contractAddress: string;
   jobId: string;
@@ -250,6 +253,37 @@ export interface Erc8183PaymentObservation {
   blockNumber: string;
 }
 
+export interface Http402SettlementObservation {
+  kind: "HTTP402_SETTLEMENT";
+  rail: "X402" | "B402";
+  chainId: AgentRegistryChainId;
+  transactionHash: string;
+  transactionFrom: string;
+  tokenAddress: string;
+  payerAddress: string;
+  payToAddress: string;
+  amountRaw: string;
+  receiptStatus: "SUCCESS" | "REVERTED";
+  blockNumber: string;
+  blockTimestamp: string;
+  transferMatched: boolean;
+  transferLogIndex?: number;
+  timingSatisfied: boolean;
+  endpoint?: string;
+}
+
+export interface PaymentRailStatus {
+  rail: "ERC8183" | "X402" | "B402";
+  reconciliationMode: "ONCHAIN_JOB_ESCROW" | "ONCHAIN_ERC20_SETTLEMENT";
+  state: "AVAILABLE" | "DEGRADED";
+  settlementDispatchEnabled: false;
+  contractAddress?: string;
+  paymentTokenAddress?: string;
+  observedBlockNumber?: string;
+  requirements: string[];
+  limitations: string[];
+}
+
 export interface CommercialPaymentEvidence {
   paymentEvidenceId: string;
   hireId: string;
@@ -263,7 +297,7 @@ export interface CommercialPaymentEvidence {
   currency: string;
   tokenAddress?: string;
   providerRef?: string;
-  observation?: Erc8183PaymentObservation;
+  observation?: Erc8183PaymentObservation | Http402SettlementObservation;
   observedAt: string;
   methodVersion: string;
   provenance: EvidenceProvenance;
@@ -2962,7 +2996,11 @@ export interface OperatorCommercialDeclaration {
   commercialModel: "FREE" | "PER_TASK" | "SUBSCRIPTION" | "PERFORMANCE" | "HYBRID" | "UNDECLARED";
   amount?: string;
   currency?: string;
+  tokenAddress?: string;
+  amountRaw?: string;
+  decimals?: number;
   paymentRail: "FREE" | "ERC8183" | "X402" | "B402" | "UNDECLARED";
+  payment?: { contractAddress?: string; providerAddress?: string; endpoint?: string; payToAddress?: string };
   availability: "AVAILABLE" | "UNAVAILABLE" | "UNDECLARED";
   termsVersion: string;
   note?: string;

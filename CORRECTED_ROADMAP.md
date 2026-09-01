@@ -1,8 +1,8 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-09-01  
-**Current implementation:** v0.30.0  
-**Current milestone:** Operator Supply Lifecycle + Workspace
+**Current implementation:** v0.31.0  
+**Current milestone:** Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
 
@@ -88,7 +88,7 @@ Acceptance:
 
 ## v0.30.0 — Operator Supply Lifecycle + Workspace
 
-**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+**Status: COMPLETE / externally accepted.**
 
 Real provider workflow with signed operator authentication and canonical ERC-8004 ownership gating. Operators can persist service lifecycle/declarations, HTTPS runtime endpoints, commercial/permission declarations, Operator Supplied evidence and trigger Marketplace Test Lab. Operator state may make availability stricter but cannot force marketplace readiness, financial authority, execution or outcomes.
 
@@ -96,9 +96,21 @@ Migration: `0023_operator_supply_lifecycle.sql`.
 
 Acceptance: `API build → pnpm check → Railway migration 0023/deploy → v0.22–v0.29 regressions → verify:operator-workspace → record acceptance`.
 
+
+## v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation
+
+**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+
+Provider-neutral paid reconciliation extends the v0.23 commercial kernel without merging payment into Hire or Activation. ERC-8183 observes canonical job/escrow state. x402/B402 require immutable Quote payment metadata plus a canonical BSC settlement transaction whose ERC-20 Transfer exactly matches buyer, pinned payee, token and raw amount. Browser/facilitator `paid` assertions are insufficient.
+
+Payment settlement signing/broadcast remains disabled. BSC Mainnet payment/financial dispatch remains unapproved.
+
+Migration: `0024_paid_commercial_payment_rails.sql`.
+
+Acceptance: `API build → pnpm check → Railway migration 0024/deploy → v0.22–v0.30 regressions → verify:paid-rails → record acceptance`.
+
 ## Later production milestones
 
-- paid rails expansion, richer ERC-8183 and x402/B402;
 - deeper Agent Studio integration;
 - AI explanation only after deterministic truth;
 - Agent Advantage measurement/reporting;

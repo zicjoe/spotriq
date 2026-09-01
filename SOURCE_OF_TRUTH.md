@@ -1,7 +1,7 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.30.0**  
-**Release status:** Operator Supply Lifecycle + Workspace implementation candidate; v0.29 externally accepted; local dependency-aware validation and external v0.30 acceptance pending.  
+**Current repository release:** **v0.31.0**  
+**Release status:** Paid Commercial Rails reconciliation implementation candidate; v0.30 externally accepted; local dependency-aware validation and external v0.31 acceptance pending.  
 **State date:** 2026-09-01
 
 ## Authority hierarchy
@@ -43,6 +43,7 @@ AI explains. Deterministic systems decide.
 - **v0.27 ✅** four-category Activity + Outcome parity; unsupported financial outcomes remain `Could Not Assess`.
 - **v0.28 ✅** live My Agents + safe switching/revocation + live marketplace profile/compare/Test Lab UX.
 - **v0.29 ✅** persisted Smart Money Plans + compatibility/conflict handling with independent specialist authority/execution.
+- **v0.30 ✅** signed Operator Workspace + canonical ERC-8004 owner-gated supply lifecycle.
 
 ## v0.29 accepted truth
 
@@ -64,7 +65,7 @@ Accepted v0.29 gate: `pnpm verify:smart-money-plans`.
 - Reference identity/authority/execution acceptance uses BSC Testnet `97`.
 - Mainnet financial execution remains prohibited until explicitly approved.
 
-## v0.30 implementation truth
+## v0.30 accepted truth
 
 New package: `@spotriq/operator-workspace`. Signed EIP-191 challenge/session authentication plus canonical ERC-8004 owner verification gates every operator write. Provider lifecycle/declarations and Operator Supplied evidence persist in migration `0023_operator_supply_lifecycle.sql`; Marketplace Test Lab evidence/readiness remain independent and cannot be overwritten by an operator.
 
@@ -73,3 +74,10 @@ New gate: `pnpm verify:operator-workspace`.
 ## Next milestone after v0.30 acceptance
 
 **v0.31 — Paid Commercial Rails Expansion (provider-neutral ERC-8183 / x402 / B402 depth).**
+
+
+## v0.31 implementation truth
+
+`@spotriq/payment-rails` provides x402 and B402 canonical BSC settlement reconciliation while the existing ERC-8183 observer remains independent of ERC-8004 identity. An HTTP/facilitator claim alone is never payment evidence: Spotriq requires a successful on-chain ERC-20 Transfer matching the immutable Quote buyer, pinned payee, token and exact raw amount after Hire acceptance. Payment signing/dispatch remains disabled.
+
+Migration: `0024_paid_commercial_payment_rails.sql`. Acceptance: `pnpm verify:paid-rails`.

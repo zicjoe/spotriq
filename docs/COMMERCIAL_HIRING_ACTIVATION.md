@@ -78,7 +78,7 @@ v0.23 contains a read-only ERC-8183 reconciliation adapter. It observes the conf
 
 The adapter does not make Spotriq itself an ERC-8183 implementation and does not force discrete-job semantics onto long-lived monitoring relationships.
 
-X402/B402 are represented as payment rails but do not yet have live adapters in this release.
+As of v0.31, X402/B402 have live **reconciliation** adapters. Spotriq does not sign or dispatch these payments; it verifies canonical BSC ERC-20 settlement evidence against the immutable Quote.
 
 ## Persistence
 

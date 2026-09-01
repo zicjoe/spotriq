@@ -23,6 +23,12 @@ test("signed session + canonical owner claim is required before declarations",as
   assert.equal(d.lifecycleState,"DRAFT");
   const submitted=await engine.transition(session,d.declarationId,"SUBMITTED");
   assert.equal(submitted.lifecycleState,"SUBMITTED");
+  assert.equal(await engine.resolvePublishedOffer(serviceId),undefined);
+  const active=await engine.transition(session,d.declarationId,"ACTIVE");
+  assert.equal(active.lifecycleState,"ACTIVE");
+  const offer=await engine.resolvePublishedOffer(serviceId);
+  assert.equal(offer?.state,"AVAILABLE");
+  assert.equal(offer?.terms?.paymentRail,"FREE");
 });
 
 test("canonical owner mismatch fails closed",async()=>{

@@ -83,6 +83,9 @@ importers:
       '@spotriq/operator-workspace':
         specifier: workspace:*
         version: link:../../packages/operator-workspace
+      '@spotriq/payment-rails':
+        specifier: workspace:*
+        version: link:../../packages/payment-rails
       '@spotriq/permission-checkout':
         specifier: workspace:*
         version: link:../../packages/permission-checkout
@@ -755,6 +758,34 @@ importers:
       '@spotriq/marketplace-supply':
         specifier: workspace:*
         version: link:../marketplace-supply
+      viem:
+        specifier: 2.55.11
+        version: 2.55.11(typescript@5.7.3)(zod@4.4.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      tsx:
+        specifier: 4.23.1
+        version: 4.23.1
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+
+  packages/payment-rails:
+    dependencies:
+      '@spotriq/chain':
+        specifier: workspace:*
+        version: link:../chain
+      '@spotriq/commercial':
+        specifier: workspace:*
+        version: link:../commercial
+      '@spotriq/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@spotriq/evidence':
+        specifier: workspace:*
+        version: link:../evidence
       viem:
         specifier: 2.55.11
         version: 2.55.11(typescript@5.7.3)(zod@4.4.3)

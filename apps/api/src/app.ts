@@ -28,6 +28,7 @@ import { ControlledExecutionError, createControlledExecutionEngine, MemoryContro
 import { ActivityOutcomesError, createActivityOutcomesEngine, createActivationActivityOutcomesEngine, MemoryActivityOutcomesStore, PostgresActivityOutcomesStore, type ActivityOutcomesEngine, type ActivationActivityOutcomesEngine } from "@spotriq/activity-outcomes";
 import { createServiceTaskEngine, MemoryServiceTaskStore, PostgresServiceTaskStore, ServiceTaskError, type ServiceTaskEngine } from "@spotriq/service-tasks";
 import { CommercialError, createCommercialEngine, createErc8183PaymentAdapter, MemoryCommercialStore, PostgresCommercialStore, type CommercialEngine } from "@spotriq/commercial";
+import { createB402PaymentAdapter, createX402PaymentAdapter } from "@spotriq/payment-rails";
 import { createPermissionCheckoutEngine, MemoryPermissionCheckoutStore, PermissionCheckoutError, PostgresPermissionCheckoutStore, type PermissionCheckoutEngine } from "@spotriq/permission-checkout";
 import { createFinancialExecutionAdapterEngine, FinancialExecutionAdapterError, MemoryFinancialExecutionAssessmentStore, PostgresFinancialExecutionAssessmentStore, type FinancialExecutionAdapterEngine } from "@spotriq/financial-execution-adapters";
 import { createMyAgentsEngine, MemoryMyAgentsStore, MyAgentsError, PostgresMyAgentsStore, type MyAgentsEngine } from "@spotriq/my-agents";
@@ -57,6 +58,7 @@ import { registerFinancialExecutionAdapterRoutes } from "./routes/financial-exec
 import { registerMyAgentsRoutes } from "./routes/my-agents.js";
 import { registerSmartMoneyPlanRoutes } from "./routes/smart-money-plans.js";
 import { registerOperatorWorkspaceRoutes } from "./routes/operator-workspace.js";
+import { registerPaymentRailRoutes } from "./routes/payment-rails.js";
 import { createReferenceAgentCatalog, type ReferenceAgentIdentityBinding, type ReferenceAgentSlug } from "@spotriq/reference-agents";
 
 export interface BuildServerOptions {
@@ -157,13 +159,16 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       maxRedirects: config.marketplaceTestMaxRedirects,
     }),
   });
+  const operatorWorkspaceStore = sqlDatabase ? new PostgresOperatorWorkspaceStore(sqlDatabase) : new MemoryOperatorWorkspaceStore();
+  const operatorWorkspace = options.operatorWorkspace ?? createOperatorWorkspaceEngine({ store: operatorWorkspaceStore, registry: agentRegistry, marketplace: marketplaceSupply });
   const commercialStore = sqlDatabase
     ? new PostgresCommercialStore(sqlDatabase)
     : new MemoryCommercialStore();
   const commercial = options.commercial ?? createCommercialEngine({
     marketplace: marketplaceSupply,
     store: commercialStore,
-    paymentAdapters: [createErc8183PaymentAdapter({ chain })],
+    paymentAdapters: [createErc8183PaymentAdapter({ chain }), createX402PaymentAdapter({ chain }), createB402PaymentAdapter({ chain })],
+    offerOverlay: (serviceId) => operatorWorkspace.resolvePublishedOffer(serviceId),
   });
 
   const smartMoneyStore = sqlDatabase
@@ -237,8 +242,6 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const myAgents = options.myAgents ?? createMyAgentsEngine({ store: myAgentsStore, commercial, marketplace: marketplaceSupply, permissionCheckout, activityOutcomes: activationActivityOutcomes });
   const smartMoneyPlanStore = sqlDatabase ? new PostgresSmartMoneyPlanStore(sqlDatabase) : new MemorySmartMoneyPlanStore();
   const smartMoneyPlans = options.smartMoneyPlans ?? createSmartMoneyPlanEngine({ store: smartMoneyPlanStore, smartMoney, marketplace: marketplaceSupply, myAgents });
-  const operatorWorkspaceStore = sqlDatabase ? new PostgresOperatorWorkspaceStore(sqlDatabase) : new MemoryOperatorWorkspaceStore();
-  const operatorWorkspace = options.operatorWorkspace ?? createOperatorWorkspaceEngine({ store: operatorWorkspaceStore, registry: agentRegistry, marketplace: marketplaceSupply });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
@@ -259,7 +262,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.30.0",
+      version: "0.31.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -323,7 +326,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       commercialHireEnabled: true,
       commercialPaymentReconciliationEnabled: true,
       erc8183PaymentObservationEnabled: true,
-      x402B402PaymentAdaptersEnabled: false,
+      x402B402PaymentAdaptersEnabled: true,
       freeReadOnlyActivationEnabled: true,
       marketplaceActivationEnabled: true,
       fourCategoryActivationTaskParityEnabled: true,
@@ -348,6 +351,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       operatorCanonicalOwnerClaimEnabled: true,
       operatorSupplyLifecycleEnabled: true,
       operatorTestLabTriggerEnabled: true,
+      paidCommercialRailsReconciliationEnabled: true,
+      paymentSettlementDispatchEnabled: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
@@ -407,6 +412,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerAgentRoutes(app, agentRegistry, config.agentDiscoveryChainId);
   await registerMarketplaceRoutes(app, marketplaceSupply, config.agentDiscoveryChainId);
   await registerCommercialRoutes(app, commercial, permissionCheckout);
+  await registerPaymentRailRoutes(app, chain);
   await registerPermissionCheckoutRoutes(app, permissionCheckout);
   await registerFinancialExecutionAdapterRoutes(app, financialExecutionAdapters);
   await registerReferenceAgentRoutes(app, { publicBaseUrl: config.publicApiBaseUrl, pancakeSwap, venus, marketContext, identityBindings: referenceIdentityBindings });

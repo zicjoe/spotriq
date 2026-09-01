@@ -1,12 +1,12 @@
 # Spotriq Engineering Status
 
-**Release candidate:** v0.30.0  
+**Release candidate:** v0.31.0  
 **Date:** 2026-09-01  
-**State:** Operator Supply Lifecycle + Workspace implemented; v0.29 externally accepted; local dependency-aware validation and external v0.30 acceptance pending.
+**State:** Paid Commercial Rails reconciliation implemented; v0.30 externally accepted; local dependency-aware validation and external v0.31 acceptance pending.
 
 ## Accepted baseline
 
-Production acceptance is complete through v0.29.
+Production acceptance is complete through v0.30.
 
 ## v0.29 package
 
@@ -71,3 +71,14 @@ v0.30 — Operator Supply Lifecycle + Workspace.
 ## v0.30 operator package
 
 `@spotriq/operator-workspace` provides replay-resistant signed challenge/session auth, canonical owner claims, lifecycle/declaration persistence, Operator Supplied evidence and owned-service Test Lab triggering. Migration `0023_operator_supply_lifecycle.sql`. Capability flags expose signed auth, canonical owner claim, supply lifecycle and Test Lab trigger independently. New production gate: `pnpm verify:operator-workspace`.
+
+
+## v0.31 paid payment rails
+
+`@spotriq/payment-rails` adds x402/B402 canonical BSC ERC-20 settlement reconciliation. The immutable Quote pins chain, token, raw amount and payee; reconciliation requires a successful post-Hire transaction with an exact matching Transfer log. Existing ERC-8183 observation remains job/escrow based.
+
+API: `GET /v1/payment-rails/status`; commercial payment reconcile now accepts `transactionHash` for x402/B402.
+
+Capabilities: `x402B402PaymentAdaptersEnabled = true`, `paidCommercialRailsReconciliationEnabled = true`, `paymentSettlementDispatchEnabled = false`.
+
+Migration: `0024_paid_commercial_payment_rails.sql`. New production gate: `pnpm verify:paid-rails`.

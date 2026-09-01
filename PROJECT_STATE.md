@@ -1,7 +1,7 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.30.0  
-**Implementation status:** Operator Supply Lifecycle + Workspace implemented; v0.29 externally accepted; dependency-aware local validation and external v0.30 acceptance pending.  
+**Current implementation release:** v0.31.0  
+**Implementation status:** Paid Commercial Rails + ERC-8183/x402/B402 reconciliation implemented; v0.30 externally accepted; dependency-aware local validation and external v0.31 acceptance pending.  
 **Last state update:** 2026-09-01  
 **Repository role:** concise present-state map; current repository remains implementation truth.
 
@@ -31,6 +31,7 @@ AI explains. Deterministic systems decide.
 - **v0.27 ✅** Four-category Activation Activity + Outcome parity; missing transaction/performance evidence remains `Could Not Assess`.
 - **v0.28 ✅** Live buyer My Agents portfolio + persisted switching/revocation + live profile/compare/Test Lab UX.
 - **v0.29 ✅** Smart Money Plans + deterministic compatibility/conflict handling; no shared signer, PermissionGrant, Activation or execution session.
+- **v0.30 ✅** Signed Operator Workspace + canonical ERC-8004 ownership-gated supply lifecycle.
 
 ## Current architecture
 
@@ -144,3 +145,12 @@ Operator declarations remain distinct from Marketplace Observed evidence and can
 Latest migration: `0023_operator_supply_lifecycle.sql`.
 
 New acceptance: `pnpm verify:operator-workspace`.
+
+
+## v0.31 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation
+
+New package: `@spotriq/payment-rails`. ERC-8183 remains a read-only on-chain job/escrow observer. x402 and B402 now reconcile independently observed BSC ERC-20 settlement transactions against the immutable Quote: payer, pinned payee, token, exact raw amount, successful receipt and post-Hire timing must all match.
+
+Spotriq does not sign x402/B402 authorizations, call a facilitator to create payment, or broadcast payment settlement in v0.31. `Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome` remains enforced.
+
+Latest migration: `0024_paid_commercial_payment_rails.sql`. New live gate: `pnpm verify:paid-rails`.

@@ -628,3 +628,14 @@ pnpm verify:smart-money-plans
 ## v0.30.0 Operator Supply Lifecycle + Workspace
 
 Operators now authenticate with a one-time signed wallet challenge, claim only canonically owned ERC-8004 identities, manage persisted service declarations/lifecycle, submit explicitly Operator Supplied evidence and trigger Marketplace Test Lab without being able to overwrite Marketplace Observed evidence or force readiness/financial authority. See `docs/IMPLEMENTATION_REPORT_OPERATOR_SUPPLY_LIFECYCLE_v0.30.0.md`.
+
+
+## v0.31.0 Paid Commercial Rails
+
+Spotriq now has provider-neutral paid reconciliation for ERC-8183, x402 and B402. ERC-8183 remains an on-chain job/escrow observer. x402/B402 settlement is accepted only after canonical BSC receipt/log reconciliation against the immutable Quote buyer, pinned payee, token and exact raw amount. Spotriq does not sign or broadcast payments in this release.
+
+Status: `GET /v1/payment-rails/status`
+
+Acceptance: `pnpm verify:paid-rails`
+
+See `docs/IMPLEMENTATION_REPORT_PAID_COMMERCIAL_RAILS_v0.31.0.md`.

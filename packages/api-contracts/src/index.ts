@@ -103,6 +103,8 @@ export interface CapabilityResponse {
   operatorCanonicalOwnerClaimEnabled: boolean;
   operatorSupplyLifecycleEnabled: boolean;
   operatorTestLabTriggerEnabled: boolean;
+  paidCommercialRailsReconciliationEnabled: boolean;
+  paymentSettlementDispatchEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -306,9 +308,17 @@ export interface CommercialHireResponse { hire: import("@spotriq/domain").Commer
 
 export interface ReconcileCommercialPaymentRequest {
   buyerAddress: string;
-  reference?: { jobId?: string };
+  reference?: { jobId?: string; transactionHash?: string };
 }
 export interface CommercialPaymentResponse { payment: import("@spotriq/domain").CommercialPaymentEvidence; }
+export interface PaymentRailsStatusResponse {
+  chainId: number;
+  network: string;
+  settlementDispatchEnabled: false;
+  rails: import("@spotriq/domain").PaymentRailStatus[];
+  checkedAt: string;
+  limitations: string[];
+}
 
 export interface ActivateCommercialHireRequest {
   buyerAddress: string;

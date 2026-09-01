@@ -65,6 +65,7 @@ export interface CommercialStore {
   getPayment(paymentEvidenceId: string): Promise<CommercialPaymentEvidence | undefined>;
   getLatestPaymentForHire(hireId: string): Promise<CommercialPaymentEvidence | undefined>;
   findPaymentByProviderRef(rail: CommercialPaymentEvidence["rail"], providerRef: string): Promise<CommercialPaymentEvidence | undefined>;
+  findPaymentBySettlementRef(transactionHash:string,logIndex:number):Promise<CommercialPaymentEvidence|undefined>;
   listPayments(buyerAddress: string): Promise<CommercialPaymentEvidence[]>;
   saveActivation(activation: MarketplaceActivation): Promise<void>;
   getActivation(activationId: string): Promise<MarketplaceActivation | undefined>;
@@ -93,6 +94,7 @@ export class MemoryCommercialStore implements CommercialStore {
   async getPayment(id:string):Promise<CommercialPaymentEvidence|undefined>{const v=this.payments.get(id);return v?clone(v):undefined;}
   async getLatestPaymentForHire(hireId:string):Promise<CommercialPaymentEvidence|undefined>{return [...this.payments.values()].filter(v=>v.hireId===hireId).sort((a,b)=>b.observedAt.localeCompare(a.observedAt)).map(clone)[0];}
   async findPaymentByProviderRef(rail:CommercialPaymentEvidence["rail"],providerRef:string):Promise<CommercialPaymentEvidence|undefined>{const v=[...this.payments.values()].find(item=>item.rail===rail&&item.providerRef===providerRef);return v?clone(v):undefined;}
+  async findPaymentBySettlementRef(transactionHash:string,logIndex:number):Promise<CommercialPaymentEvidence|undefined>{const v=[...this.payments.values()].find(item=>item.observation?.kind==="HTTP402_SETTLEMENT"&&item.observation.transactionHash===transactionHash&&item.observation.transferLogIndex===logIndex);return v?clone(v):undefined;}
   async listPayments(buyer:string):Promise<CommercialPaymentEvidence[]>{return this.sorted(this.payments.values(),buyer);}
   async saveActivation(activation:MarketplaceActivation):Promise<void>{this.activations.set(activation.activationId,clone(activation));}
   async getActivation(id:string):Promise<MarketplaceActivation|undefined>{const v=this.activations.get(id);return v?clone(v):undefined;}
@@ -112,10 +114,11 @@ export class PostgresCommercialStore implements CommercialStore {
   async getHire(id:string):Promise<CommercialHire|undefined>{return (await this.database.query<{payload:CommercialHire}>("select payload from commercial_hires where hire_id=$1",[id])).rows[0]?.payload;}
   async findHireByIdempotency(buyer:string,key:string):Promise<CommercialHire|undefined>{return (await this.database.query<{payload:CommercialHire}>("select payload from commercial_hires where buyer_address=$1 and idempotency_key=$2 limit 1",[buyer,key])).rows[0]?.payload;}
   async listHires(buyer:string):Promise<CommercialHire[]>{return (await this.database.query<{payload:CommercialHire}>("select payload from commercial_hires where buyer_address=$1 order by accepted_at desc",[buyer])).rows.map(r=>r.payload);}
-  async savePayment(p:CommercialPaymentEvidence):Promise<void>{await this.database.query(`insert into commercial_payment_evidence (payment_evidence_id,hire_id,service_id,buyer_address,rail,state,provider_ref,payload,observed_at) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9) on conflict (payment_evidence_id) do update set state=excluded.state,provider_ref=excluded.provider_ref,payload=excluded.payload,observed_at=excluded.observed_at`,[p.paymentEvidenceId,p.hireId,p.serviceId,p.buyerAddress,p.rail,p.state,p.providerRef??null,JSON.stringify(p),p.observedAt]);}
+  async savePayment(p:CommercialPaymentEvidence):Promise<void>{const tx=p.observation?.kind==="HTTP402_SETTLEMENT"?p.observation.transactionHash:undefined;const block=p.observation?.kind==="HTTP402_SETTLEMENT"?p.observation.blockNumber:p.observation?.kind==="ERC8183_JOB"?p.observation.blockNumber:undefined;const logIndex=p.observation?.kind==="HTTP402_SETTLEMENT"?p.observation.transferLogIndex:undefined;await this.database.query(`insert into commercial_payment_evidence (payment_evidence_id,hire_id,service_id,buyer_address,rail,state,provider_ref,payload,observed_at,settlement_tx_hash,settlement_block_number,settlement_log_index) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12) on conflict (payment_evidence_id) do update set state=excluded.state,provider_ref=excluded.provider_ref,payload=excluded.payload,observed_at=excluded.observed_at,settlement_tx_hash=excluded.settlement_tx_hash,settlement_block_number=excluded.settlement_block_number,settlement_log_index=excluded.settlement_log_index`,[p.paymentEvidenceId,p.hireId,p.serviceId,p.buyerAddress,p.rail,p.state,p.providerRef??null,JSON.stringify(p),p.observedAt,tx??null,block??null,logIndex??null]);}
   async getPayment(id:string):Promise<CommercialPaymentEvidence|undefined>{return (await this.database.query<{payload:CommercialPaymentEvidence}>("select payload from commercial_payment_evidence where payment_evidence_id=$1",[id])).rows[0]?.payload;}
   async getLatestPaymentForHire(hireId:string):Promise<CommercialPaymentEvidence|undefined>{return (await this.database.query<{payload:CommercialPaymentEvidence}>("select payload from commercial_payment_evidence where hire_id=$1 order by observed_at desc limit 1",[hireId])).rows[0]?.payload;}
   async findPaymentByProviderRef(rail:CommercialPaymentEvidence["rail"],providerRef:string):Promise<CommercialPaymentEvidence|undefined>{return (await this.database.query<{payload:CommercialPaymentEvidence}>("select payload from commercial_payment_evidence where rail=$1 and provider_ref=$2 limit 1",[rail,providerRef])).rows[0]?.payload;}
+  async findPaymentBySettlementRef(transactionHash:string,logIndex:number):Promise<CommercialPaymentEvidence|undefined>{return (await this.database.query<{payload:CommercialPaymentEvidence}>("select payload from commercial_payment_evidence where settlement_tx_hash=$1 and settlement_log_index=$2 limit 1",[transactionHash,logIndex])).rows[0]?.payload;}
   async listPayments(buyer:string):Promise<CommercialPaymentEvidence[]>{return (await this.database.query<{payload:CommercialPaymentEvidence}>("select payload from commercial_payment_evidence where buyer_address=$1 order by observed_at desc",[buyer])).rows.map(r=>r.payload);}
   async saveActivation(a:MarketplaceActivation):Promise<void>{await this.database.query(`insert into activations (activation_id,service_id,state,started_at,updated_at,hire_id,quote_id,buyer_address,buyer_chain_id,activation_kind,commercial_terms_hash,commercial_payload,commercial_method_version) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13) on conflict (activation_id) do update set state=excluded.state,updated_at=excluded.updated_at,commercial_payload=excluded.commercial_payload`,[a.activationId,a.serviceId,a.state,a.activatedAt,a.updatedAt,a.hireId,a.quoteId,a.buyerAddress,a.buyerChainId,a.activationKind,a.termsHash,JSON.stringify(a),a.methodVersion]);}
   async getActivation(id:string):Promise<MarketplaceActivation|undefined>{return (await this.database.query<{commercial_payload:MarketplaceActivation}>("select commercial_payload from activations where activation_id=$1 and commercial_payload is not null",[id])).rows[0]?.commercial_payload;}
@@ -128,7 +131,7 @@ export interface PaymentReconciliationContext {
   hire: CommercialHire;
   quote: CommercialQuote;
   terms: CommercialOfferTerms;
-  reference: { jobId?: string };
+  reference: { jobId?: string; transactionHash?: string };
   now: Date;
 }
 export interface CommercialPaymentAdapter {
@@ -164,12 +167,18 @@ function validateOffer(offer:ServiceOffer):CommercialOfferTerms {
   if(t.paymentRail==="FREE"&&(!numericZero(t.price.amountRaw??t.price.amount)||t.commercialModel!=="FREE")) throw new CommercialError("FREE offers must have a zero price and FREE commercial model.","INVALID_INPUT");
   if(t.commercialModel==="FREE"&&t.paymentRail!=="FREE") throw new CommercialError("FREE commercial terms cannot require a paid payment rail.","INVALID_INPUT");
   if(t.paymentRail==="ERC8183"&&!t.payment?.contractAddress) throw new CommercialError("ERC-8183 Offer terms require a contractAddress.","INVALID_INPUT");
+  if(t.paymentRail==="X402"||t.paymentRail==="B402"){
+    normalizedAddress(t.price.tokenAddress??"","price.tokenAddress");
+    normalizedAddress(t.payment?.payToAddress??t.payment?.providerAddress??"","payment.payToAddress");
+    if(!t.price.amountRaw||!/^\d+$/.test(t.price.amountRaw)||BigInt(t.price.amountRaw)<=0n) throw new CommercialError(`${t.paymentRail} paid Offer requires a positive price.amountRaw.`,"INVALID_INPUT");
+    if(t.payment?.endpoint){const u=new URL(t.payment.endpoint);if(u.protocol!=="https:")throw new CommercialError(`${t.paymentRail} payment endpoint must use HTTPS.`,"INVALID_INPUT");}
+  }
   return structuredClone(t);
 }
 
-function requireCommercialServiceReady(record:MarketplaceServiceRecord, terms:CommercialOfferTerms):void {
-  if(record.service.serviceId!==record.offer.serviceId) throw new CommercialError("Service and Offer identifiers do not reconcile.","WRONG_SERVICE");
-  if(record.offer.state!=="AVAILABLE"||record.offer.terms?.availability!=="AVAILABLE") throw new CommercialError("The commercial Offer is not currently available.","OFFER_STALE");
+function requireCommercialServiceReady(record:MarketplaceServiceRecord, terms:CommercialOfferTerms, offer:ServiceOffer):void {
+  if(record.service.serviceId!==offer.serviceId) throw new CommercialError("Service and Offer identifiers do not reconcile.","WRONG_SERVICE");
+  if(offer.state!=="AVAILABLE"||offer.terms?.availability!=="AVAILABLE") throw new CommercialError("The commercial Offer is not currently available.","OFFER_STALE");
   if(record.readiness.state==="SUSPENDED"||record.readiness.state==="OFFLINE"||record.readiness.state==="DEGRADED") throw new CommercialError(`The service is ${record.readiness.state} and cannot be commercially activated.`,"SERVICE_NOT_READY");
   if(terms.serviceType==="READ_ONLY_SERVICE") {
     if(record.permissionProfile.executionMode!=="READ_ONLY"||terms.scope.walletSigningRequired||terms.scope.financialAuthorityRequired) throw new CommercialError("A read-only commercial activation cannot require or imply wallet signing/financial authority.","SERVICE_NOT_READY");
@@ -210,7 +219,7 @@ export function createErc8183PaymentAdapter(options:{chain:BscChainReader}):Comm
       const budgetMatches=!context.terms.price.amountRaw||BigInt(decoded.budget).toString()===context.terms.price.amountRaw;
       const tokenMatches=!expectedToken||token===expectedToken;
       const fundingSatisfied=(status==="FUNDED"||status==="SUBMITTED"||status==="COMPLETED")&&clientMatches&&providerMatches&&budgetMatches&&tokenMatches;
-      const observation:Erc8183PaymentObservation={chainId:chain.definition.chainId as AgentRegistryChainId,contractAddress,jobId:BigInt(decoded.id).toString(),client,provider,evaluator:normalizedAddress(String(decoded.evaluator),"ERC-8183 evaluator"),description:String(decoded.description),budgetRaw:BigInt(decoded.budget).toString(),paymentToken:token,expiredAtUnix:BigInt(decoded.expiredAt).toString(),status,fundingSatisfied,settlementObserved:status==="COMPLETED",blockNumber:jobCall.blockNumber};
+      const observation:Erc8183PaymentObservation={kind:"ERC8183_JOB",chainId:chain.definition.chainId as AgentRegistryChainId,contractAddress,jobId:BigInt(decoded.id).toString(),client,provider,evaluator:normalizedAddress(String(decoded.evaluator),"ERC-8183 evaluator"),description:String(decoded.description),budgetRaw:BigInt(decoded.budget).toString(),paymentToken:token,expiredAtUnix:BigInt(decoded.expiredAt).toString(),status,fundingSatisfied,settlementObserved:status==="COMPLETED",blockNumber:jobCall.blockNumber};
       const state:CommercialPaymentEvidence["state"]=fundingSatisfied?"VERIFIED":"MISMATCH";
       const observedAt=context.now.toISOString();
       const evidence=createEvidenceEnvelope({subjectType:"commercial_hire",subjectId:context.hire.hireId,metric:"commercial.payment",value:state,provenance:"marketplace-observed",source:DATA_SOURCES.ERC8183,sourceRef:`eip155:${chain.definition.chainId}:${contractAddress}:job:${jobId}`,observedAt,confidence:"high",method:EVIDENCE_METHODS.ERC8183_PAYMENT,methodInputs:[context.quote.termsHash,observation.jobId,observation.blockNumber],limitation:"This observes ERC-8183 job/funding state only. It is not Spotriq permission, activation, execution, or outcome evidence."});
@@ -229,7 +238,7 @@ export interface CommercialEngine {
   createHire(input:{quoteId:string;buyerAddress:string;idempotencyKey:string}):Promise<CommercialHire>;
   getHire(hireId:string):Promise<CommercialHire>;
   getPayment(hireId:string):Promise<CommercialPaymentEvidence>;
-  reconcilePayment(hireId:string,input:{buyerAddress:string;reference:{jobId?:string}}):Promise<CommercialPaymentEvidence>;
+  reconcilePayment(hireId:string,input:{buyerAddress:string;reference:{jobId?:string;transactionHash?:string}}):Promise<CommercialPaymentEvidence>;
   activate(hireId:string,input:{buyerAddress:string;idempotencyKey:string}):Promise<MarketplaceActivation>;
   getActivation(activationId:string):Promise<MarketplaceActivation>;
   getBuyerState(buyerAddress:string):Promise<BuyerCommercialState>;
@@ -238,11 +247,12 @@ export interface CommercialEngine {
   revokeActivation(activationId:string,input:{buyerAddress:string}):Promise<MarketplaceActivation>;
 }
 
-export function createCommercialEngine(options:{marketplace:MarketplaceSupplyReader;store?:CommercialStore;paymentAdapters?:CommercialPaymentAdapter[];now?:()=>Date}):CommercialEngine {
+export function createCommercialEngine(options:{marketplace:MarketplaceSupplyReader;store?:CommercialStore;paymentAdapters?:CommercialPaymentAdapter[];offerOverlay?:(serviceId:string)=>Promise<ServiceOffer|undefined>;now?:()=>Date}):CommercialEngine {
   const marketplace=options.marketplace; const store=options.store??new MemoryCommercialStore(); const now=options.now??(()=>new Date());
   const adapters=new Map((options.paymentAdapters??[]).map(a=>[a.rail,a]));
 
-  async function listOffers(serviceId:string):Promise<ServiceOffer[]>{const record=await marketplace.getService(nonempty(serviceId,"serviceId",1024)); return [structuredClone(record.offer)];}
+  async function resolveOffer(serviceId:string,record?:MarketplaceServiceRecord):Promise<ServiceOffer>{const normalized=nonempty(serviceId,"serviceId",1024);const overlay=await options.offerOverlay?.(normalized);if(overlay)return structuredClone(overlay);const rec=record??await marketplace.getService(normalized);return structuredClone(rec.offer);}
+  async function listOffers(serviceId:string):Promise<ServiceOffer[]>{const record=await marketplace.getService(nonempty(serviceId,"serviceId",1024)); return [await resolveOffer(record.service.serviceId,record)];}
   async function getQuote(id:string):Promise<CommercialQuote>{const q=await store.getQuote(nonempty(id,"quoteId",1024));if(!q)throw new CommercialError("Commercial Quote not found.","QUOTE_NOT_FOUND");return currentQuoteState(q,now());}
   async function getHire(id:string):Promise<CommercialHire>{const h=await store.getHire(nonempty(id,"hireId",1024));if(!h)throw new CommercialError("Commercial Hire not found.","HIRE_NOT_FOUND");return h;}
   async function getActivation(id:string):Promise<MarketplaceActivation>{const a=await store.getActivation(nonempty(id,"activationId",1024));if(!a)throw new CommercialError("Marketplace Activation not found.","ACTIVATION_NOT_FOUND");return a;}
@@ -251,7 +261,7 @@ export function createCommercialEngine(options:{marketplace:MarketplaceSupplyRea
     const buyer=normalizedAddress(input.buyerAddress,"buyerAddress"), buyerChain=chainId(input.buyerChainId), key=nonempty(input.idempotencyKey,"idempotencyKey",160), serviceId=nonempty(input.serviceId,"serviceId",1024);
     const prior=await store.findQuoteByIdempotency(buyer,key);
     if(prior){if(prior.serviceId!==serviceId||prior.buyerChainId!==buyerChain||(input.offerId&&prior.offerId!==input.offerId))throw new CommercialError("This quote idempotency key was already used for different commercial input.","IDEMPOTENCY_CONFLICT");return currentQuoteState(prior,now());}
-    const record=await marketplace.getService(serviceId); const offer=record.offer;
+    const record=await marketplace.getService(serviceId); const offer=await resolveOffer(serviceId,record);
     if(input.offerId&&input.offerId!==offer.offerId)throw new CommercialError("The requested Offer does not belong to this AgentService.","OFFER_NOT_FOUND");
     const terms=validateOffer(offer);
     if(isPaymentRequired(terms)&&buyerChain!==terms.chainId)throw new CommercialError(`Paid Offer settlement requires buyer chain ${terms.chainId}; received ${buyerChain}.`,"NETWORK_MISMATCH");
@@ -297,12 +307,13 @@ export function createCommercialEngine(options:{marketplace:MarketplaceSupplyRea
 
   async function getPayment(hireId:string):Promise<CommercialPaymentEvidence>{const hire=await getHire(hireId); const payment=hire.paymentEvidenceId?await store.getPayment(hire.paymentEvidenceId):await store.getLatestPaymentForHire(hire.hireId); if(payment)return payment; const q=await getQuote(hire.quoteId); return {paymentEvidenceId:deterministicId("payment-pending",hire.hireId),hireId:hire.hireId,serviceId:hire.serviceId,buyerAddress:hire.buyerAddress,requirement:"REQUIRED",state:"PENDING",rail:q.termsSnapshot.paymentRail,chainId:q.termsSnapshot.chainId,amount:q.termsSnapshot.price.amount,currency:q.termsSnapshot.price.currency,tokenAddress:q.termsSnapshot.price.tokenAddress,observedAt:now().toISOString(),methodVersion:COMMERCIAL_KERNEL_METHOD,provenance:"marketplace-derived",evidence:[],limitations:["No independently reconciled payment/funding evidence exists yet."]};}
 
-  async function reconcilePayment(hireId:string,input:{buyerAddress:string;reference:{jobId?:string}}):Promise<CommercialPaymentEvidence>{
+  async function reconcilePayment(hireId:string,input:{buyerAddress:string;reference:{jobId?:string;transactionHash?:string}}):Promise<CommercialPaymentEvidence>{
     const hire=await getHire(hireId),buyer=normalizedAddress(input.buyerAddress,"buyerAddress"); if(hire.buyerAddress!==buyer)throw new CommercialError("Only the Hire buyer can reconcile its payment.","WRONG_BUYER"); const quote=await getQuote(hire.quoteId);
     if(!hire.paymentRequired)return getPayment(hire.hireId);
     const rail=quote.termsSnapshot.paymentRail; if(rail==="FREE")throw new CommercialError("This Hire does not require payment reconciliation.","INVALID_INPUT"); const adapter=adapters.get(rail as "ERC8183"|"X402"|"B402"); if(!adapter)throw new CommercialError(`${rail} is represented by the commercial kernel but no live payment adapter is configured for this deployment.`,"PAYMENT_ADAPTER_UNAVAILABLE");
     const payment=await adapter.reconcile({hire,quote,terms:quote.termsSnapshot,reference:input.reference??{},now:now()});
     if(payment.providerRef){const priorPayment=await store.findPaymentByProviderRef(payment.rail,payment.providerRef);if(priorPayment&&priorPayment.hireId!==hire.hireId)throw new CommercialError("This external payment/funding reference is already reconciled to a different Hire.","PAYMENT_MISMATCH");}
+    if(payment.observation?.kind==="HTTP402_SETTLEMENT"&&payment.observation.transferLogIndex!==undefined){const priorSettlement=await store.findPaymentBySettlementRef(payment.observation.transactionHash,payment.observation.transferLogIndex);if(priorSettlement&&priorSettlement.hireId!==hire.hireId)throw new CommercialError("This on-chain settlement transfer is already reconciled to a different Hire.","PAYMENT_MISMATCH");}
     await store.savePayment(payment);
     const updated:CommercialHire={...hire,paymentEvidenceId:payment.paymentEvidenceId,state:payment.state==="VERIFIED"?(hire.permissionRequired?"AWAITING_PERMISSION":"READY_TO_ACTIVATE"):"AWAITING_PAYMENT",updatedAt:now().toISOString()}; await store.saveHire(updated); return payment;
   }
@@ -312,11 +323,11 @@ export function createCommercialEngine(options:{marketplace:MarketplaceSupplyRea
     if(hire.buyerAddress!==buyer)throw new CommercialError("Only the Hire buyer can activate this service relationship.","WRONG_BUYER");
     const priorByKey=await store.findActivationByIdempotency(buyer,key); if(priorByKey){if(priorByKey.hireId!==hire.hireId)throw new CommercialError("This activation idempotency key was already used for a different Hire.","IDEMPOTENCY_CONFLICT");return priorByKey;}
     const prior=await store.getActivationForHire(hire.hireId); if(prior)return prior;
-    const quote=await getQuote(hire.quoteId),record=await marketplace.getService(hire.serviceId);
-    if(record.offer.offerId!==hire.offerId)throw new CommercialError("The hired Offer is no longer the current Offer for this service.","OFFER_STALE");
-    const currentTerms=validateOffer(record.offer);
+    const quote=await getQuote(hire.quoteId),record=await marketplace.getService(hire.serviceId),currentOffer=await resolveOffer(hire.serviceId,record);
+    if(currentOffer.offerId!==hire.offerId)throw new CommercialError("The hired Offer is no longer the current Offer for this service.","OFFER_STALE");
+    const currentTerms=validateOffer(currentOffer);
     if(termsHash(currentTerms)!==quote.termsHash)throw new CommercialError("The service Offer changed after this Quote was accepted. Request a fresh Quote before activation.","OFFER_STALE");
-    requireCommercialServiceReady(record,quote.termsSnapshot);
+    requireCommercialServiceReady(record,quote.termsSnapshot,currentOffer);
     if(hire.paymentRequired){const p=await store.getLatestPaymentForHire(hire.hireId);if(!p||p.state!=="VERIFIED")throw new CommercialError("Independent payment/funding evidence is required before activation.","PAYMENT_REQUIRED");}
     if(hire.permissionRequired)throw new CommercialError("This Offer requires financial permission/authority. v0.23 never treats commercial Hire or payment as permission; activate it only after a future explicit permission reconciliation path is connected.","PERMISSION_REQUIRED");
     if(quote.termsSnapshot.serviceType!=="READ_ONLY_SERVICE")throw new CommercialError("v0.23 live marketplace activation is limited to read-only service relationships; financial execution remains gated.","PERMISSION_REQUIRED");
