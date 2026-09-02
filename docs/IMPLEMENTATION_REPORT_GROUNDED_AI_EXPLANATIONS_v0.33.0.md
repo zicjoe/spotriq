@@ -7,14 +7,14 @@ v0.33 introduces grounded explanation as a downstream presentation capability af
 ## Implemented
 
 - `@spotriq/grounded-explanations` domain/engine package.
-- deterministic grounding packets for Finding, AgentService, Activation, Smart Money Plan and ScopedPermissionRequest subjects;
+- deterministic grounding packets for Finding, AgentService, Activation, Smart Money Plan and ScopedPermissionRequest subjects, including deterministic match context on Findings and payment reconciliation on Activations;
 - stable fact IDs with provenance, timestamps, method/evidence references and limitations;
 - optional OpenAI Responses provider using strict structured JSON output, `store:false`, no tools and no web search;
-- post-generation citation and unsupported-token validation;
+- post-generation citation, unsupported-token and decision-grade semantic validation;
 - deterministic cited fallback when no provider is configured, a provider fails, or generated claims fail validation;
 - PostgreSQL explanation persistence via migration `0026_grounded_ai_explanations.sql`;
 - public explanation status/grounding/create/read APIs;
-- evidence-grounded UI panels on live services, Smart Money Plans and Smart Money Check findings;
+- evidence-grounded UI panels on live services, Smart Money Plans, Smart Money Check findings, Permission Checkout and My Agents Activation/activity/outcome state;
 - `verify:grounded-explanations` live acceptance contract;
 - explicit capabilities proving AI has no decision or write authority.
 

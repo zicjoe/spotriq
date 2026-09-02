@@ -1,5 +1,5 @@
 {
-  "name": "@spotriq/grounded-explanations",
+  "name": "@spotriq/agent-advantage",
   "version": "0.34.0",
   "private": true,
   "type": "module",
@@ -13,12 +13,7 @@
   },
   "dependencies": {
     "@spotriq/activity-outcomes": "workspace:*",
-    "@spotriq/commercial": "workspace:*",
-    "@spotriq/domain": "workspace:*",
-    "@spotriq/marketplace-supply": "workspace:*",
-    "@spotriq/permission-checkout": "workspace:*",
-    "@spotriq/smart-money": "workspace:*",
-    "@spotriq/smart-money-plans": "workspace:*"
+    "@spotriq/domain": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

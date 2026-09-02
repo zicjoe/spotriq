@@ -10,9 +10,9 @@ AI output never writes back into the resources that produced the grounding packe
 
 Supported subjects are `FINDING`, `SERVICE`, `ACTIVATION`, `SMART_MONEY_PLAN` and `PERMISSION_REQUEST`.
 
-Every packet contains stable fact IDs, provenance, source labels, observation times, method/evidence references and limitations where available. Every generated claim must cite packet fact IDs. Unknown citations or unsupported numeric/address claims cause the provider response to be rejected and replaced by a deterministic cited fallback.
+Every packet contains stable fact IDs, provenance, source labels, observation times, method/evidence references and limitations where available. Finding packets also carry deterministic finding/service match context where available. Activation packets carry commercial payment reconciliation, permission, activity, transaction-observation and outcome truth. Every generated claim must cite packet fact IDs. Unknown citations, unsupported numeric/address claims, or decision-grade language not supported by cited deterministic DECISION facts cause the provider response to be rejected and replaced by a deterministic cited fallback.
 
-The provider receives no arbitrary user prompt, web-search capability, tool callback or write-capable function. External AI is optional; without `OPENAI_API_KEY`, the same API returns deterministic cited explanations.
+The provider receives no arbitrary user prompt, web-search capability, tool callback or write-capable function. The provider receives a cloned grounding packet, so provider-side mutation cannot rewrite the authoritative packet used for validation or persistence. External AI is optional; without `OPENAI_API_KEY`, the same API returns deterministic cited explanations.
 
 ## API
 

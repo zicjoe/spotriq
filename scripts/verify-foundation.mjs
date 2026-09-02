@@ -850,7 +850,7 @@ const activityOutcomes027 = await readFile(path.join(root, "packages/activity-ou
 const migration0020 = await readFile(path.join(root, "packages/db/migrations/0020_four_category_activity_outcomes.sql"), "utf8");
 const activationActivityRepo = await readFile(path.join(root, "apps/web/src/repositories/activationActivityOutcomesRepository.ts"), "utf8");
 const activityOutcomeVerifier = await readFile(path.join(root, "scripts/verify-activity-outcome-parity.mjs"), "utf8");
-for (const marker of ["ActivationActivityEvent", "ActivationOutcomeSnapshot", "ActivationActivityOutcomeBundle", "COULD_NOT_ASSESS", "transactionObserved: false"]) {
+for (const marker of ["ActivationActivityEvent", "ActivationOutcomeSnapshot", "ActivationActivityOutcomeBundle", "COULD_NOT_ASSESS", "transactionObserved: boolean"]) {
   if (!domain.replaceAll(" ", "").includes(marker.replaceAll(" ", ""))) throw new Error(`v0.27 domain model is missing ${marker}.`);
 }
 for (const marker of ["createActivationActivityOutcomesEngine", "replaceActivationActivity", "saveActivationOutcome", "Could Not Assess", "EXECUTION_GUARD_PREPARED"]) {
@@ -905,7 +905,7 @@ for (const marker of ["same-service switch", "BLOCKED", "/my-agents", "/switches
   if (!myAgentsVerifier.includes(marker)) throw new Error(`v0.28 live verifier is missing ${marker}.`);
 }
 if (rootManifest.scripts?.["verify:my-agents"] !== "node scripts/verify-my-agents.mjs") throw new Error("Root package.json must expose pnpm verify:my-agents.");
-if (!apiApp.includes('version: "0.33.0"')) throw new Error("API metadata must report v0.33.0.");
+if (!apiApp.includes('version: "0.34.0"')) throw new Error("API metadata must report v0.34.0.");
 
 
 // v0.29 — Smart Money Plans + Compatibility/Conflict Handling.
@@ -943,7 +943,7 @@ for (const marker of ["NO_SHARED_EXECUTION", "INDEPENDENT_PER_SERVICE", "/plans"
 }
 if (legacyMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes('apiRequest<SmartMoneyPlanTemplate[]>("/v1/plans")')) throw new Error("Legacy marketplace repositories must not reuse the persisted /v1/plans namespace for mock plan templates.");
 if (rootManifest.scripts?.["verify:smart-money-plans"] !== "node scripts/verify-smart-money-plans.mjs") throw new Error("Root package.json must expose pnpm verify:smart-money-plans.");
-if (!apiApp.includes('version: "0.33.0"')) throw new Error("API metadata must report v0.33.0.");
+if (!apiApp.includes('version: "0.34.0"')) throw new Error("API metadata must report v0.34.0.");
 
 
 
@@ -1022,17 +1022,40 @@ const groundedExplanationRepo = await readFile(path.join(root, "apps/web/src/rep
 const groundedExplanationUi = await readFile(path.join(root, "apps/web/src/components/GroundedExplanationPanel.tsx"), "utf8");
 const migration0026 = await readFile(path.join(root, "packages/db/migrations/0026_grounded_ai_explanations.sql"), "utf8");
 const groundedExplanationVerifier = await readFile(path.join(root, "scripts/verify-grounded-explanations.mjs"), "utf8");
+const groundedExplanationTests = await readFile(path.join(root, "packages/grounded-explanations/src/index.test.ts"), "utf8");
+const permissionCheckoutUi = await readFile(path.join(root, "apps/web/src/components/PermissionCheckoutPage.tsx"), "utf8");
 for (const marker of ["GroundedExplanationPacket", "GroundedExplanationFact", "GroundedExplanationRecord", "GroundedExplanationStatus", "DETERMINISTIC_FALLBACK"]) { if (!domain.includes(marker)) throw new Error(`v0.33 domain model is missing ${marker}.`); }
-for (const marker of ["OpenAiResponsesExplanationProvider", "store: false", "json_schema", "deterministicFallback", "validateContent", "unsupportedTokens", "webSearchEnabled: false", "decisionAuthorityEnabled: false"]) { if (!groundedExplanations.includes(marker)) throw new Error(`v0.33 grounded explanation engine is missing ${marker}.`); }
+for (const marker of ["OpenAiResponsesExplanationProvider", "store: false", "json_schema", "deterministicFallback", "validateContent", "unsupportedTokens", "citedDecisionMaterial", "DECISION_GRADE_TERMS", "decisionGradeTerms", "webSearchEnabled: false", "decisionAuthorityEnabled: false"]) { if (!groundedExplanations.includes(marker)) throw new Error(`v0.33 grounded explanation engine is missing ${marker}.`); }
 for (const route of ["/v1/explanations/status", "/v1/explanations/grounding", "/v1/explanations", "/v1/explanations/:explanationId"]) { if (!groundedExplanationRoutes.includes(route)) throw new Error(`Missing v0.33 grounded explanation route ${route}.`); }
 for (const marker of ["grounded_ai_explanations", "grounding_packet_hash", "payload", "subject_type"]) { if (!migration0026.includes(marker)) throw new Error(`v0.33 migration is missing ${marker}.`); }
 for (const marker of ["explain", "grounding", "status"]) { if (!groundedExplanationRepo.includes(marker)) throw new Error(`v0.33 web explanation repository is missing ${marker}.`); }
 for (const marker of ["Grounded explanation", "Show grounding packet", "No web/tools or write-back authority", "DETERMINISTIC FALLBACK"]) { if (!groundedExplanationUi.includes(marker)) throw new Error(`v0.33 grounded explanation UI is missing ${marker}.`); }
+if (!appUi.includes('subjectType="ACTIVATION"') || !permissionCheckoutUi.includes('subjectType="PERMISSION_REQUEST"')) throw new Error("v0.33 contextual explanation surfaces must cover Activation activity/payment/outcome and Permission Checkout state.");
+for (const marker of ["grounding packet preserves finding evidence references", "decision-grade words require cited deterministic DECISION facts", "prompt-injection text remains inert context", "provider failure degrades safely", "Could Not Assess", "transaction occurred", "provider receives a clone", "fabricate a PermissionGrant"]) { if (!groundedExplanationTests.includes(marker)) throw new Error(`v0.33 grounded explanation tests are missing ${marker}.`); }
 for (const marker of ["groundedAiExplanationEnabled: true", "groundedAiStructuredOutputEnabled: true", "groundedAiWebSearchEnabled: false", "groundedAiDecisionAuthorityEnabled: false"]) { if (!apiApp.includes(marker)) throw new Error(`API capabilities must expose truthful v0.33 feature ${marker}.`); }
 for (const marker of ["deterministic grounding packet", "citation validation", "no decision/write authority", "groundedAiWebSearchEnabled"]) { if (!groundedExplanationVerifier.toLowerCase().includes(marker.toLowerCase())) throw new Error(`v0.33 live verifier is missing ${marker}.`); }
 if (groundedExplanationRoutes.includes("prompt")) throw new Error("v0.33 public explanation API must not expose an arbitrary prompt field.");
 if (groundedExplanations.includes('"web_search"') || groundedExplanations.includes("'web_search'")) throw new Error("v0.33 explanation provider must not enable web search tools.");
 if (rootManifest.scripts?.["verify:grounded-explanations"] !== "node scripts/verify-grounded-explanations.mjs") throw new Error("Root package.json must expose pnpm verify:grounded-explanations.");
+
+// v0.34 — Agent Advantage Measurement + Report.
+const agentAdvantage = await readFile(path.join(root, "packages/agent-advantage/src/index.ts"), "utf8");
+const agentAdvantageTests = await readFile(path.join(root, "packages/agent-advantage/src/index.test.ts"), "utf8");
+const agentAdvantageRoutes = await readFile(path.join(root, "apps/api/src/routes/agent-advantage.ts"), "utf8");
+const agentAdvantageRepo = await readFile(path.join(root, "apps/web/src/repositories/agentAdvantageRepository.ts"), "utf8");
+const agentAdvantageUi = await readFile(path.join(root, "apps/web/src/components/AgentAdvantageReportPanel.tsx"), "utf8");
+const migration0027 = await readFile(path.join(root, "packages/db/migrations/0027_agent_advantage_reports.sql"), "utf8");
+const agentAdvantageVerifier = await readFile(path.join(root, "scripts/verify-agent-advantage.mjs"), "utf8");
+for (const marker of ["AgentAdvantageReport", "AgentAdvantageMeasurementWindow", "AgentAdvantageAssessmentState", "BuyerAgentAdvantageState", "PARTIAL_EVIDENCE"]) { if (!domain.includes(marker)) throw new Error(`v0.34 domain model is missing ${marker}.`); }
+for (const marker of ["createAgentAdvantageEngine", "PostgresAgentAdvantageStore", "explicitMeasurementWindowsEnabled:true", "financialAdvantageInferenceEnabled:false", "transactionSuccessImpliesAdvantage:false", "ADVANTAGE_METRICS", "Could Not Assess", "Transaction success is not financial advantage"]) { if (!agentAdvantage.replaceAll(" ","").includes(marker.replaceAll(" ",""))) throw new Error(`v0.34 Agent Advantage engine is missing ${marker}.`); }
+for (const route of ["/v1/agent-advantage/status", "/v1/activations/:activationId/advantage-reports/sync", "/v1/activations/:activationId/advantage-reports/latest", "/v1/activations/:activationId/advantage-reports", "/v1/accounts/:address/advantage-reports"]) { if (!agentAdvantageRoutes.includes(route)) throw new Error(`Missing v0.34 Agent Advantage route ${route}.`); }
+for (const marker of ["agent_advantage_reports", "source_fingerprint", "window_started_at", "window_ended_at", "unique (activation_id, source_fingerprint)"]) { if (!migration0027.includes(marker)) throw new Error(`v0.34 migration is missing ${marker}.`); }
+for (const marker of ["sync", "latest", "history", "forBuyer"]) { if (!agentAdvantageRepo.includes(marker)) throw new Error(`v0.34 web Agent Advantage repository is missing ${marker}.`); }
+for (const marker of ["Agent Advantage", "Service contribution", "Transaction evidence", "Financial outcome", "Could Not Assess", "Measurement window"]) { if (!agentAdvantageUi.includes(marker)) throw new Error(`v0.34 Agent Advantage UI is missing ${marker}.`); }
+for (const marker of ["read-only runtime contribution does not become financial Agent Advantage", "transaction success alone never becomes Agent Advantage", "advantage-shaped metric without evidence", "same source facts are idempotent", "revoked relationship closes its explicit measurement window"]) { if (!agentAdvantageTests.includes(marker)) throw new Error(`v0.34 Agent Advantage tests are missing ${marker}.`); }
+for (const marker of ["agentAdvantageMeasurementEnabled: true", "agentAdvantageReportHistoryEnabled: true", "agentAdvantageFinancialInferenceEnabled: false", "agentAdvantageTransactionSuccessImpliesAdvantage: false"]) { if (!apiApp.includes(marker)) throw new Error(`API capabilities must expose truthful v0.34 feature ${marker}.`); }
+for (const marker of ["explicit window", "Transaction success is not financial advantage", "Could Not Assess", "service contribution, transaction evidence, financial outcome and Agent Advantage remain separate"]) { if (!agentAdvantageVerifier.toLowerCase().includes(marker.toLowerCase())) throw new Error(`v0.34 live verifier is missing ${marker}.`); }
+if (rootManifest.scripts?.["verify:agent-advantage"] !== "node scripts/verify-agent-advantage.mjs") throw new Error("Root package.json must expose pnpm verify:agent-advantage.");
 
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -1046,11 +1069,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 34) throw new Error(`v0.33 expects 34 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 35) throw new Error(`v0.34 expects 35 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.33.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.33.0.`);
+  if (manifest.version !== "0.34.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.34.0.`);
 }
 
-console.log("Spotriq foundation + accepted v0.22–v0.32 + v0.33 Grounded AI Explanation Layer verification passed.");
+console.log("Spotriq foundation + accepted v0.22–v0.33 + v0.34 Agent Advantage Measurement + Report verification passed.");
 

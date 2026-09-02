@@ -1,12 +1,12 @@
 # Spotriq Engineering Status
 
-**Release candidate:** v0.33.0  
-**Date:** 2026-09-01  
-**State:** Grounded AI Explanation Layer implemented; v0.32 externally accepted; local dependency-aware validation and external v0.33 acceptance pending.
+**Release candidate:** v0.34.0  
+**Date:** 2026-09-02  
+**State:** Agent Advantage Measurement + Report implemented; v0.33 externally accepted; local dependency-aware validation and external v0.34 acceptance pending.
 
 ## Accepted baseline
 
-Production acceptance is complete through v0.32.
+Production acceptance is complete through v0.33.
 
 ## v0.29 package
 
@@ -105,8 +105,30 @@ New production gate: `pnpm verify:agent-studio`.
 
 New package: `@spotriq/grounded-explanations`. It constructs deterministic fact packets for SERVICE, FINDING, ACTIVATION, SMART_MONEY_PLAN and PERMISSION_REQUEST subjects, persists generated/fallback explanations via migration `0026_grounded_ai_explanations.sql`, and exposes status/grounding/explanation APIs.
 
-The optional external provider uses structured output only. Provider claims are accepted only when citations resolve to packet fact IDs and numeric/address tokens are grounded by cited facts. Provider failure or validation rejection falls back to deterministic cited copy.
+The optional external provider uses structured output only. Provider claims are accepted only when citations resolve to packet fact IDs, numeric/address tokens are grounded by cited facts, and decision-grade language is supported by cited deterministic DECISION facts. Provider code receives a clone of the grounding packet. Provider failure or validation rejection falls back to deterministic cited copy.
 
 Capability truth: `groundedAiExplanationEnabled = true`, structured output enabled, web search disabled, decision authority disabled.
 
 New production gate: `pnpm verify:grounded-explanations`.
+
+
+## v0.34 Agent Advantage Measurement + Report
+
+New package: `@spotriq/agent-advantage`. It reconciles persisted Activation Activity & Outcomes into explicit-window Agent Advantage reports while preserving four independent dimensions: service contribution, transaction evidence, financial outcome and Agent Advantage.
+
+Persistence: migration `0027_agent_advantage_reports.sql` stores source-fingerprint-idempotent report snapshots and buyer/Activation history.
+
+API:
+- `GET /v1/agent-advantage/status`
+- `POST /v1/activations/:activationId/advantage-reports/sync`
+- `GET /v1/activations/:activationId/advantage-reports/latest`
+- `GET /v1/activations/:activationId/advantage-reports`
+- `GET /v1/accounts/:address/advantage-reports`
+
+Truth boundary: read-only runtime success may establish service contribution only. No transaction means Agent Advantage remains `Could Not Assess`. A transaction or generally measured outcome still cannot upgrade Agent Advantage without a standardized evidence-backed advantage metric.
+
+Web: My Agents relationship/outcome surfaces expose a contextual deterministic Agent Advantage report with explicit window and next evidence step.
+
+Capability truth: `agentAdvantageMeasurementEnabled = true`, `agentAdvantageReportHistoryEnabled = true`, `agentAdvantageFinancialInferenceEnabled = false`, `agentAdvantageTransactionSuccessImpliesAdvantage = false`.
+
+New production gate: `pnpm verify:agent-advantage`.

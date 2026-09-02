@@ -335,6 +335,31 @@ function citedMaterial(packet: GroundedExplanationPacket, ids: string[]): string
   const set = new Set(ids);
   return packet.facts.filter((f) => set.has(f.factId)).map((f) => `${f.label} ${f.value} ${f.limitation ?? ""}`).join(" ").toLowerCase();
 }
+function citedDecisionMaterial(packet: GroundedExplanationPacket, ids: string[]): string {
+  const set = new Set(ids);
+  return packet.facts.filter((f) => set.has(f.factId) && f.kind === "DECISION").map((f) => `${f.label} ${f.value} ${f.limitation ?? ""}`).join(" ").toLowerCase();
+}
+const DECISION_GRADE_TERMS = [
+  "ready", "verified", "paid", "safe", "profitable", "profit", "eligible", "authorized", "authorised",
+  "active", "blocked", "suspended", "revoked", "ended", "passed", "failed", "successful",
+  "permission granted", "grant reconciled", "permissiongrant exists", "permission grant exists", "grant exists",
+  "financial authority granted", "wallet signing authority granted", "execution authorized", "execution authorised", "execution allowed", "can execute", "may execute",
+  "transaction occurred", "transaction observed", "transaction confirmed", "transaction happened", "transaction exists", "transaction succeeded", "funds moved",
+  "payment satisfied", "payment complete", "payment completed", "payment confirmed", "payment settled", "execution eligible", "executed", "executed successfully", "successful transaction", "financial outcome", "healthy",
+] as const;
+const DECISION_ENUM_TOKENS = new Set([
+  "READY", "VERIFIED", "ACTIVE", "BLOCKED", "GRANT_RECONCILED", "COULD_NOT_ASSESS", "PENDING", "NOT_REQUIRED",
+  "MISMATCH", "TESTNET_ONLY", "LIMITED", "DEGRADED", "OFFLINE", "SUSPENDED", "REVOKED", "ENDED",
+]);
+function containsDecisionTerm(value: string, term: string): boolean {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(value);
+}
+function decisionGradeTerms(value: string): string[] {
+  const found = DECISION_GRADE_TERMS.filter((term) => containsDecisionTerm(value, term));
+  const enumLike = (value.match(/\b[A-Z][A-Z0-9_]{2,}\b/g) ?? []).filter((term) => DECISION_ENUM_TOKENS.has(term));
+  return [...new Set([...found, ...enumLike.map((term) => term.toLowerCase())])];
+}
 function validateContent(packet: GroundedExplanationPacket, content: GroundedExplanationContent): GroundedExplanationValidation {
   const known = new Set(packet.facts.map((f) => f.factId));
   const claims = [...content.summary, ...content.caveats, content.nextStep];
@@ -343,8 +368,12 @@ function validateContent(packet: GroundedExplanationPacket, content: GroundedExp
   const unsupportedTokens: string[] = [];
   for (const claim of claims) {
     const material = citedMaterial(packet, claim.factIds);
+    const decisionMaterial = citedDecisionMaterial(packet, claim.factIds);
     for (const token of protectedTokens(claim.text)) {
       if (!material.includes(token.toLowerCase())) unsupportedTokens.push(token);
+    }
+    for (const term of decisionGradeTerms(claim.text)) {
+      if (!containsDecisionTerm(decisionMaterial, term)) unsupportedTokens.push(`decision:${term}`);
     }
   }
   const headlineMaterial = packet.facts.map((f) => `${f.label} ${f.value}`).join(" ").toLowerCase();
@@ -356,7 +385,7 @@ function validateContent(packet: GroundedExplanationPacket, content: GroundedExp
     citedFactIds,
     unknownFactIds,
     unsupportedTokens: cleanUnsupported,
-    detail: state === "PASS" ? "Every generated claim cites known deterministic fact IDs and introduces no unsupported numeric/address token." : "AI output failed deterministic grounding validation and was replaced with the deterministic fallback.",
+    detail: state === "PASS" ? "Every generated claim cites known deterministic fact IDs, decision-grade language is supported by cited DECISION facts, and no unsupported numeric/address token is introduced." : "AI output failed deterministic grounding validation and was replaced with the deterministic fallback.",
   };
 }
 
@@ -406,6 +435,18 @@ export function createGroundedExplanationEngine(options: GroundedExplanationEngi
       finding.keyValues.slice(0, 8).forEach((row, i) => b.add(`key_value_${i}`, "OBSERVATION", row.label, row.value, "marketplace-derived", "Smart Money Check", { observedAt, evidenceIds: finding.evidenceIds, limitation: row.note }));
       if (finding.uncertainties) b.add("uncertainties", "LIMITATION", "Uncertainty", finding.uncertainties, "marketplace-derived", "Smart Money Check", { observedAt });
       b.add("agent_role", "CONTEXT", "What a specialist could help with", finding.whatCouldAgentDo, "marketplace-derived", "Smart Money Check", { observedAt });
+      try {
+        const matches = await options.marketplace.matchFinding(finding, { limit: 3 });
+        for (const match of matches.matches) {
+          b.add(`match_${match.rank}`, "OBSERVATION", `Deterministic match #${match.rank}`, `${match.service.service.name} · ${match.tier}`, "marketplace-derived", "Finding/service compatibility", { observedAt: matches.generatedAt, methodVersion: matches.methodVersion });
+          b.add(`match_${match.rank}_activation`, "DECISION", `${match.service.service.name} activation eligibility`, match.activationEligible, "marketplace-derived", "Finding/service compatibility", { observedAt: matches.generatedAt, methodVersion: matches.methodVersion });
+          match.checks.slice(0, 6).forEach((check, i) => b.add(`match_${match.rank}_check_${i}`, "DECISION", `${match.service.service.name}: ${check.label}`, check.state, "marketplace-derived", "Finding/service compatibility", { observedAt: matches.generatedAt, methodVersion: matches.methodVersion, limitation: check.detail }));
+          match.limitations.slice(0, 3).forEach((value) => b.limit(`${match.service.service.name}: ${value}`));
+        }
+        matches.limitations.slice(0, 3).forEach((value) => b.limit(value));
+      } catch {
+        b.limit("Deterministic finding/service matching context is currently unavailable; the finding explanation remains valid without inventing a match.");
+      }
       b.add("next_step", "NEXT_STEP", "Next review step", finding.primaryAction.label, "marketplace-derived", "Smart Money Check", { observedAt });
       b.limit(snapshot.portfolio?.coverage.notes.join(" "));
     } else if (s.type === "ACTIVATION") {
@@ -418,6 +459,22 @@ export function createGroundedExplanationEngine(options: GroundedExplanationEngi
       b.add("activation_kind", "CONTEXT", "Activation kind", activation.activationKind, "marketplace-observed", "Marketplace Activation", { observedAt: activation.activatedAt });
       b.add("wallet_signing", "DECISION", "Wallet signing authority granted", activation.walletSigningAuthorityGranted, "marketplace-observed", "Marketplace Activation", { observedAt: activation.updatedAt });
       b.add("financial_execution", "DECISION", "Financial execution authority granted", activation.financialExecutionAuthorityGranted, "marketplace-observed", "Marketplace Activation", { observedAt: activation.updatedAt });
+      b.add("payment_required", "DECISION", "Payment required", activation.paymentRequired, "marketplace-observed", "Immutable Hire/Activation terms", { observedAt: activation.updatedAt });
+      b.add("quote_terms_hash", "OBSERVATION", "Immutable Quote terms hash", activation.termsHash, "marketplace-observed", "Commercial Quote", { observedAt: activation.activatedAt });
+      try {
+        const payment = await options.commercial.getPayment(activation.hireId);
+        b.add("payment_state", "DECISION", "Payment reconciliation state", payment.state, payment.provenance, "Commercial payment reconciliation", { observedAt: payment.observedAt, methodVersion: payment.methodVersion, evidenceIds: payment.evidence.map((e) => e.evidenceId) });
+        b.add("payment_requirement", "DECISION", "Payment requirement", payment.requirement, payment.provenance, "Commercial payment reconciliation", { observedAt: payment.observedAt });
+        b.add("payment_terms", "CONTEXT", "Quoted payment terms", `${payment.amount} ${payment.currency} · ${payment.rail} · chain ${payment.chainId}`, payment.provenance, "Immutable Quote/payment evidence", { observedAt: payment.observedAt });
+        if (payment.tokenAddress) b.add("payment_token", "CONTEXT", "Payment token", payment.tokenAddress, payment.provenance, "Immutable Quote/payment evidence", { observedAt: payment.observedAt });
+        if (payment.observation?.kind === "HTTP402_SETTLEMENT") {
+          b.add("payment_transaction", "OBSERVATION", "Observed payment transaction", payment.observation.transactionHash, "marketplace-observed", "Canonical BSC payment reconciliation", { observedAt: payment.observation.blockTimestamp, methodVersion: payment.methodVersion, evidenceIds: payment.evidence.map((e) => e.evidenceId) });
+          b.add("payment_transfer_match", "DECISION", "Payment transfer matched immutable Quote", payment.observation.transferMatched && payment.observation.timingSatisfied && payment.observation.receiptStatus === "SUCCESS", "marketplace-derived", "Canonical BSC payment reconciliation", { observedAt: payment.observation.blockTimestamp, methodVersion: payment.methodVersion });
+        }
+        payment.limitations.slice(0, 5).forEach((value) => b.limit(value));
+      } catch {
+        b.add("payment_unavailable", "LIMITATION", "Payment reconciliation", "Could Not Assess", "marketplace-derived", "Commercial payment reconciliation", { observedAt: activation.updatedAt, limitation: "No payment evidence could be loaded for this Activation." });
+      }
       const checkout = await options.permissionCheckout.getForActivation(activation.activationId);
       if (checkout) {
         b.add("permission_checkout", "DECISION", "Permission Checkout state", checkout.state, "marketplace-derived", "Permission Checkout", { observedAt: checkout.updatedAt, methodVersion: checkout.methodVersion });
@@ -485,7 +542,7 @@ export function createGroundedExplanationEngine(options: GroundedExplanationEngi
     let fallbackReason: string | undefined;
     if (options.provider) {
       try {
-        const ai = await options.provider.generate(packet, style);
+        const ai = await options.provider.generate(structuredClone(packet), style);
         const checked = validateContent(packet, ai);
         if (checked.state === "PASS") {
           content = ai;
@@ -522,7 +579,7 @@ export function createGroundedExplanationEngine(options: GroundedExplanationEngi
       limitations: [
         "AI explains. Deterministic systems decide. This record cannot mutate readiness, compatibility, payment, PermissionGrant, execution eligibility or outcomes.",
         "The model receives only the server-built grounding packet; Spotriq enables no web search or model tool calls for this explanation path.",
-        "Every displayed claim carries deterministic fact IDs. Provider output with unknown citations or unsupported numeric/address tokens is rejected to a deterministic fallback.",
+        "Every displayed claim carries deterministic fact IDs. Provider output with unknown citations, unsupported numeric/address tokens, or decision-grade language unsupported by cited DECISION facts is rejected to a deterministic fallback.",
         ...(fallbackReason ? [`Provider fallback reason: ${truncate(fallbackReason, 500)}`] : []),
       ],
     };

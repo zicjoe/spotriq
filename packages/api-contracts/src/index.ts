@@ -113,6 +113,10 @@ export interface CapabilityResponse {
   groundedAiStructuredOutputEnabled: boolean;
   groundedAiWebSearchEnabled: boolean;
   groundedAiDecisionAuthorityEnabled: boolean;
+  agentAdvantageMeasurementEnabled: boolean;
+  agentAdvantageReportHistoryEnabled: boolean;
+  agentAdvantageFinancialInferenceEnabled: boolean;
+  agentAdvantageTransactionSuccessImpliesAdvantage: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -511,6 +515,22 @@ export interface ActivationOutcomeResponse {
   outcome: import("@spotriq/domain").ActivationOutcomeSnapshot;
 }
 
+
+// v0.34 Agent Advantage Measurement + Report
+export interface AgentAdvantageStatusResponse {
+  status: {
+    state: "AVAILABLE";
+    explicitMeasurementWindowsEnabled: true;
+    persistedReportHistoryEnabled: true;
+    financialAdvantageInferenceEnabled: false;
+    transactionSuccessImpliesAdvantage: false;
+    couldNotAssessPreserved: true;
+    methodVersion: string;
+  };
+}
+export interface AgentAdvantageReportResponse { report: import("@spotriq/domain").AgentAdvantageReport; }
+export interface AgentAdvantageReportsResponse { reports: import("@spotriq/domain").AgentAdvantageReport[]; }
+export interface BuyerAgentAdvantageResponse { state: import("@spotriq/domain").BuyerAgentAdvantageState; }
 
 // v0.28 My Agents + switching
 export interface MyAgentsPortfolioResponse { portfolio: import("@spotriq/domain").MyAgentsPortfolio; }

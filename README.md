@@ -675,3 +675,18 @@ pnpm verify:grounded-explanations
 ```
 
 See `docs/GROUNDED_AI_EXPLANATIONS.md` and `docs/IMPLEMENTATION_REPORT_GROUNDED_AI_EXPLANATIONS_v0.33.0.md`.
+
+
+## v0.34.0 Agent Advantage Measurement + Report
+
+Spotriq now persists deterministic Agent Advantage reports for Activations. Each report has an explicit measurement window and keeps four facts separate: **service contribution**, **transaction evidence**, **financial outcome**, and **Agent Advantage**.
+
+A successful read-only runtime may prove that a specialist delivered an observation, but it does not prove a transaction or financial benefit. A successful transaction still does not prove financial advantage. Missing attribution/history/comparison evidence remains `Could Not Assess`.
+
+```powershell
+pnpm verify:agent-advantage
+```
+
+Migration: `0027_agent_advantage_reports.sql`.
+
+See `docs/AGENT_ADVANTAGE_REPORTS.md` and `docs/IMPLEMENTATION_REPORT_AGENT_ADVANTAGE_v0.34.0.md`.

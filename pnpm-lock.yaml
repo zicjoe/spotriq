@@ -26,6 +26,9 @@ importers:
       '@spotriq/activity-outcomes':
         specifier: workspace:*
         version: link:../../packages/activity-outcomes
+      '@spotriq/agent-advantage':
+        specifier: workspace:*
+        version: link:../../packages/agent-advantage
       '@spotriq/agent-registry':
         specifier: workspace:*
         version: link:../../packages/agent-registry
@@ -356,6 +359,25 @@ importers:
 
   packages/activity-outcomes:
     dependencies:
+      '@spotriq/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      tsx:
+        specifier: 4.23.1
+        version: 4.23.1
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+
+  packages/agent-advantage:
+    dependencies:
+      '@spotriq/activity-outcomes':
+        specifier: workspace:*
+        version: link:../activity-outcomes
       '@spotriq/domain':
         specifier: workspace:*
         version: link:../domain

@@ -2775,7 +2775,7 @@ export interface ActivationOutcomeSnapshot {
   permissionRequestId?: string;
   executionPreflightId?: string;
   executionGuardReportId?: string;
-  transactionObserved: false;
+  transactionObserved: boolean;
   technicalObservation: {
     state: "NOT_OBSERVED" | "OBSERVED" | "FAILED";
     detail: string;
@@ -2802,6 +2802,70 @@ export interface ActivationActivityOutcomeBundle {
   activity: ActivationActivityEvent[];
   outcome: ActivationOutcomeSnapshot;
   syncedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+// ─── Agent Advantage Measurement + Report (v0.34) ───────────────────────────
+export type AgentAdvantageContributionState = "NOT_OBSERVED" | "OBSERVED" | "FAILED";
+export type AgentAdvantageAssessmentState = "COULD_NOT_ASSESS" | "INSUFFICIENT_HISTORY" | "MEASURED";
+export type AgentAdvantageReportState = "COULD_NOT_ASSESS" | "PARTIAL_EVIDENCE" | "MEASURED";
+
+export interface AgentAdvantageMeasurementWindow {
+  startedAt: string;
+  endedAt: string;
+  durationSeconds: number;
+  basis: "ACTIVATION_TO_RECONCILIATION" | "ACTIVATION_TO_REVOCATION";
+}
+
+export interface AgentAdvantageReport {
+  reportId: string;
+  activationId: string;
+  serviceId: string;
+  buyerAddress: string;
+  category: ServiceCategory;
+  relationshipState: MarketplaceActivationState;
+  state: AgentAdvantageReportState;
+  window: AgentAdvantageMeasurementWindow;
+  serviceContribution: {
+    state: AgentAdvantageContributionState;
+    value: "Observed" | "Not observed" | "Failed";
+    detail: string;
+    evidenceIds: string[];
+  };
+  transactionEvidence: {
+    observed: boolean;
+    value: "Transaction observed" | "No transaction observed";
+    detail: string;
+    evidenceIds: string[];
+  };
+  financialOutcome: {
+    state: FinancialOutcomeMeasurementState;
+    value: string;
+    detail: string;
+    evidenceIds: string[];
+  };
+  agentAdvantage: {
+    state: AgentAdvantageAssessmentState;
+    value: "Could Not Assess" | "Insufficient History" | string;
+    detail: string;
+    metricId?: string;
+    evidenceIds: string[];
+  };
+  metrics: ActivationOutcomeMetric[];
+  nextMeasurementStep: string;
+  sourceOutcomeId: string;
+  sourceOutcomeMeasuredAt: string;
+  sourceFingerprint: string;
+  generatedAt: string;
+  methodVersion: string;
+  limitations: string[];
+}
+
+export interface BuyerAgentAdvantageState {
+  buyerAddress: string;
+  reports: AgentAdvantageReport[];
+  generatedAt: string;
   methodVersion: string;
   limitations: string[];
 }

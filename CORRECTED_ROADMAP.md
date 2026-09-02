@@ -1,8 +1,8 @@
 # Spotriq Corrected Roadmap
 
-**Reconciled:** 2026-09-01  
-**Current implementation:** v0.33.0  
-**Current milestone:** Grounded AI Explanation Layer
+**Reconciled:** 2026-09-02  
+**Current implementation:** v0.34.0  
+**Current milestone:** Agent Advantage Measurement + Report
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
 
@@ -124,9 +124,9 @@ Acceptance: `API build → pnpm check → Railway migration 0025/deploy → v0.2
 
 ## v0.33.0 — Grounded AI Explanation Layer
 
-**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+**Status: COMPLETE / externally accepted.**
 
-Deterministic Spotriq resources are converted into bounded grounding packets for Findings, AgentServices, Activations, Smart Money Plans and ScopedPermissionRequests. Optional AI may explain only those facts using structured output; every claim must cite known fact IDs and unsupported claims fall back to deterministic cited text.
+Deterministic Spotriq resources are converted into bounded grounding packets for Findings, AgentServices, Activations, Smart Money Plans and ScopedPermissionRequests. Finding packets include deterministic match context where available; Activation packets include payment, authority, activity, transaction-observation and outcome truth. Optional AI may explain only those facts using structured output; every claim must cite known fact IDs, and decision-grade language must be backed by cited DECISION facts or the response falls back to deterministic cited text.
 
 The explanation provider has no arbitrary user prompt, web/tool access or write-back path. It cannot decide or mutate financial truth, readiness, compatibility, payment, PermissionGrant state, execution eligibility or outcomes.
 
@@ -136,13 +136,24 @@ Acceptance: `API build → pnpm check → Railway migration 0026/deploy → v0.2
 
 ## v0.34.0 — Agent Advantage Measurement + Report
 
-**Status: NEXT after v0.33 acceptance.**
+**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
 
-Measure whether an activated specialist actually helped using defensible activity/outcome evidence and explicit time windows. Unsupported financial-performance claims remain `Could Not Assess`; technical success never becomes financial benefit automatically.
+Persist deterministic Activation-scoped Agent Advantage reports over explicit measurement windows. The report separately states service contribution, transaction evidence, financial outcome and Agent Advantage. Unchanged source facts are fingerprint-idempotent.
+
+Current FREE read-only reference activations may truthfully show service contribution while financial outcome and Agent Advantage remain `Could Not Assess`. Transaction success never becomes financial advantage automatically, and a measured financial outcome still requires a standardized evidence-backed advantage metric before the Agent Advantage field may become `MEASURED`.
+
+Migration: `0027_agent_advantage_reports.sql`.
+
+Acceptance: `API build → pnpm check → Railway migration 0027/deploy → v0.22–v0.33 regressions → verify:agent-advantage → record acceptance`.
+
+## v0.35.0 — Observability + Marketplace/System Health
+
+**Status: NEXT after v0.34 acceptance.**
+
+Add structured operational visibility for API/database, BSC RPC/provider degradation, Marketplace Test Lab, reference/third-party runtimes, payment adapters, Agent Studio, worker/job health and admin-only diagnostics without converting operational health into marketplace trust or financial readiness.
 
 ## Later production milestones
 
-- Agent Advantage measurement/reporting;
-- observability, failure injection, security and production hardening;
+- failure injection, security and production hardening;
 - BSC Mainnet financial readiness only after explicit approval;
 - canonical-front-door/judge portfolio/demo/submission evidence.

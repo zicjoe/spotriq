@@ -1,8 +1,8 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.33.0**  
-**Release status:** Grounded AI Explanation Layer implementation candidate; v0.32 externally accepted; local dependency-aware validation and external v0.33 acceptance pending.  
-**State date:** 2026-09-01
+**Current repository release:** **v0.34.0**  
+**Release status:** Agent Advantage Measurement + Report implementation candidate; v0.33 externally accepted; local dependency-aware validation and external v0.34 acceptance pending.  
+**State date:** 2026-09-02
 
 ## Authority hierarchy
 
@@ -46,6 +46,7 @@ AI explains. Deterministic systems decide.
 - **v0.30 ✅** signed Operator Workspace + canonical ERC-8004 owner-gated supply lifecycle.
 - **v0.31 ✅** paid ERC-8183/x402/B402 reconciliation with payment settlement dispatch disabled.
 - **v0.32 ✅** normalized BNB Agent Studio integration with no CLI/readiness/payment/execution bypass.
+- **v0.33 ✅** grounded AI explanations constrained to deterministic facts/citations with no decision or write authority.
 
 ## v0.29 accepted truth
 
@@ -73,11 +74,6 @@ New package: `@spotriq/operator-workspace`. Signed EIP-191 challenge/session aut
 
 New gate: `pnpm verify:operator-workspace`.
 
-## Next milestone after v0.31 acceptance
-
-**v0.32 — Deeper BNB Agent Studio Integration.**
-
-
 ## v0.31 implementation truth
 
 `@spotriq/payment-rails` provides x402 and B402 canonical BSC settlement reconciliation while the existing ERC-8183 observer remains independent of ERC-8004 identity. An HTTP/facilitator claim alone is never payment evidence: Spotriq requires a successful on-chain ERC-20 Transfer matching the immutable Quote buyer, pinned payee, token and exact raw amount after Hire acceptance. Payment signing/dispatch remains disabled.
@@ -96,12 +92,20 @@ Migration: `0025_agent_studio_integration.sql`. Acceptance: `pnpm verify:agent-s
 
 ## v0.33 implementation truth
 
-`@spotriq/grounded-explanations` builds deterministic fact packets downstream of existing Spotriq resources and optionally asks a structured-output model to explain them. Provider output is post-validated against known fact IDs and unsupported numeric/address tokens; invalid/unavailable provider output becomes a deterministic cited fallback.
+`@spotriq/grounded-explanations` builds deterministic fact packets downstream of existing Spotriq resources and optionally asks a structured-output model to explain them. Provider output is post-validated against known fact IDs, unsupported numeric/address tokens, and decision-grade language that must be supported by cited deterministic DECISION facts; invalid/unavailable provider output becomes a deterministic cited fallback. Provider code receives a cloned packet and cannot rewrite the authoritative grounding input.
 
 The provider has no arbitrary prompt, web/tool access or write-back path. AI cannot change evidence, readiness, compatibility, payment, PermissionGrant, execution eligibility or outcomes.
 
 Migration: `0026_grounded_ai_explanations.sql`. Acceptance: `pnpm verify:grounded-explanations`.
 
-## Next milestone after v0.33 acceptance
+## v0.34 implementation truth
 
-**v0.34 — Agent Advantage Measurement + Report.**
+`@spotriq/agent-advantage` turns the existing Activation Activity & Outcomes bundle into persisted deterministic reports with explicit measurement windows. Reports keep service contribution, transaction evidence, financial outcome and Agent Advantage as separate facts.
+
+Unchanged source facts are fingerprint-idempotent. Runtime success does not imply a transaction; transaction success does not imply financial advantage; a generally measured financial outcome does not become Agent Advantage unless an explicit standardized advantage metric carries evidence references. Missing evidence remains `Could Not Assess`.
+
+Migration: `0027_agent_advantage_reports.sql`. Acceptance: `pnpm verify:agent-advantage`.
+
+## Next milestone after v0.34 acceptance
+
+**v0.35 — Observability + Marketplace/System Health.**
