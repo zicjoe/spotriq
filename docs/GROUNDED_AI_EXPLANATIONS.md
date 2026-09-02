@@ -14,6 +14,8 @@ Every packet contains stable fact IDs, provenance, source labels, observation ti
 
 The provider receives no arbitrary user prompt, web-search capability, tool callback or write-capable function. The provider receives a cloned grounding packet, so provider-side mutation cannot rewrite the authoritative packet used for validation or persistence. External AI is optional; without `OPENAI_API_KEY`, the same API returns deterministic cited explanations.
 
+Live verification validates each grounding packet against its own deterministic content hash. It deliberately does **not** require two separate grounding/explanation HTTP requests to have the same hash, because readiness and evidence timestamps may be recomputed between requests. Citation validation always uses the exact packet persisted with the explanation.
+
 ## API
 
 - `GET /v1/explanations/status`

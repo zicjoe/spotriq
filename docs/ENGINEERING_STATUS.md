@@ -132,3 +132,7 @@ Web: My Agents relationship/outcome surfaces expose a contextual deterministic A
 Capability truth: `agentAdvantageMeasurementEnabled = true`, `agentAdvantageReportHistoryEnabled = true`, `agentAdvantageFinancialInferenceEnabled = false`, `agentAdvantageTransactionSuccessImpliesAdvantage = false`.
 
 New production gate: `pnpm verify:agent-advantage`.
+
+Regression verifier hardening: the accepted v0.29 Smart Money Plans verifier still creates and idempotently re-reads a live plan when the supplied Smart Money Check has supported findings. If current market state produces no supported findings, it may instead verify an already persisted buyer plan from the accepted v0.29 lifecycle; it never fabricates findings merely to keep a regression check green.
+
+Grounded-explanation regression hardening: persisted `grounded-ai.packet@1.0.0` payloads are stored in PostgreSQL `jsonb`, which does not preserve object-key order. The v0.33 production verifier therefore reconstructs the packet builder's accepted schema order before recomputing the SHA-256 content hash; this validates the exact persisted values without changing the accepted packet method or weakening integrity checks.

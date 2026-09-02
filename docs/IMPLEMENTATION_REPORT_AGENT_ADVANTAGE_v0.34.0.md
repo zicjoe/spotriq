@@ -26,3 +26,7 @@ A standardized Agent Advantage metric must carry evidence and be paired with att
 ## Acceptance status
 
 Implementation candidate only until dependency-aware local checks, Railway migration/deploy, accepted regression verifiers through v0.33, and `pnpm verify:agent-advantage` pass against production.
+
+## Acceptance hardening
+
+The inherited v0.33 live verifier now validates the cryptographic self-consistency of both the grounding preview and the exact packet persisted with an explanation. It no longer assumes two separate SERVICE requests share an identical content hash, because marketplace readiness timestamps are intentionally recomputed as live deterministic evidence. This changes verifier correctness only; it does not weaken the grounded-AI contract. The verifier also reconstructs the original `grounded-ai.packet@1.0.0` schema insertion order before hashing a packet read back from PostgreSQL, because `jsonb` preserves values but not JSON object-key order while the accepted v0.33 packet hash used ordinary `JSON.stringify()` insertion order.
