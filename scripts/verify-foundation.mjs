@@ -222,6 +222,14 @@ const required = [
   "scripts/verify-security-hardening.mjs",
   "docs/SECURITY_FAILURE_INJECTION_HARDENING.md",
   "docs/IMPLEMENTATION_REPORT_SECURITY_FAILURE_INJECTION_v0.36.0.md",
+  "packages/production-hardening/package.json",
+  "packages/production-hardening/src/index.ts",
+  "packages/production-hardening/src/index.test.ts",
+  "packages/db/migrations/0030_production_hardening_scale_readiness.sql",
+  "scripts/verify-production-hardening.mjs",
+  "docs/PRODUCTION_HARDENING.md",
+  "docs/runbooks/PRODUCTION_OPERATIONS.md",
+  "docs/IMPLEMENTATION_REPORT_PRODUCTION_HARDENING_v0.37.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -235,11 +243,11 @@ for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper
   if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
 }
 const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
-if (!projectState.includes("v0.35 ✅") || !projectState.includes("v0.36") || !projectState.includes("Security + Failure Injection")) {
-  throw new Error("PROJECT_STATE.md must record externally accepted v0.35 and the current v0.36 Security + Failure Injection candidate.");
+if (!projectState.includes("v0.36 ✅") || !projectState.includes("v0.37") || !projectState.includes("Production Hardening + Scale Readiness")) {
+  throw new Error("PROJECT_STATE.md must record externally accepted v0.36 and the current v0.37 Production Hardening + Scale Readiness candidate.");
 }
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
-for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation", "v0.32.0 — Deeper BNB Agent Studio Integration", "v0.33.0 — Grounded AI Explanation Layer", "v0.34.0 — Agent Advantage Measurement + Report", "v0.35.0 — Observability + Marketplace/System Health", "v0.36.0 — Security + Failure Injection Hardening"]) {
+for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation", "v0.32.0 — Deeper BNB Agent Studio Integration", "v0.33.0 — Grounded AI Explanation Layer", "v0.34.0 — Agent Advantage Measurement + Report", "v0.35.0 — Observability + Marketplace/System Health", "v0.36.0 — Security + Failure Injection Hardening", "v0.37.0 — Production Hardening + Scale Readiness"]) {
   if (!correctedRoadmap.includes(marker)) throw new Error(`Corrected roadmap is missing ${marker}.`);
 }
 
@@ -922,7 +930,7 @@ for (const marker of ["same-service switch", "BLOCKED", "/my-agents", "/switches
   if (!myAgentsVerifier.includes(marker)) throw new Error(`v0.28 live verifier is missing ${marker}.`);
 }
 if (rootManifest.scripts?.["verify:my-agents"] !== "node scripts/verify-my-agents.mjs") throw new Error("Root package.json must expose pnpm verify:my-agents.");
-if (!apiApp.includes('version: "0.36.0"')) throw new Error("API metadata must report v0.36.0.");
+if (!apiApp.includes('version: "0.37.0"')) throw new Error("API metadata must report v0.37.0.");
 
 
 // v0.29 — Smart Money Plans + Compatibility/Conflict Handling.
@@ -960,7 +968,7 @@ for (const marker of ["NO_SHARED_EXECUTION", "INDEPENDENT_PER_SERVICE", "/plans"
 }
 if (legacyMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes('apiRequest<SmartMoneyPlanTemplate[]>("/v1/plans")')) throw new Error("Legacy marketplace repositories must not reuse the persisted /v1/plans namespace for mock plan templates.");
 if (rootManifest.scripts?.["verify:smart-money-plans"] !== "node scripts/verify-smart-money-plans.mjs") throw new Error("Root package.json must expose pnpm verify:smart-money-plans.");
-if (!apiApp.includes('version: "0.36.0"')) throw new Error("API metadata must report v0.36.0.");
+if (!apiApp.includes('version: "0.37.0"')) throw new Error("API metadata must report v0.37.0.");
 
 
 
@@ -1129,6 +1137,29 @@ if (!securityVerifier.includes("versionAtLeast") || !securityVerifier.includes('
 if (rootManifest.scripts?.["verify:security-hardening"] !== "node scripts/verify-security-hardening.mjs") throw new Error("Root package.json must expose pnpm verify:security-hardening.");
 if (securityVerifier.includes('method:"POST"') && !securityVerifier.includes('/v1/admin/failure-injection')) throw new Error("v0.36 verifier must not add a hidden production fault-injection path.");
 
+
+// v0.37 — Production Hardening + Scale Readiness.
+const productionHardening = await readFile(path.join(root, "packages/production-hardening/src/index.ts"), "utf8");
+const productionHardeningTests = await readFile(path.join(root, "packages/production-hardening/src/index.test.ts"), "utf8");
+const migration0030 = await readFile(path.join(root, "packages/db/migrations/0030_production_hardening_scale_readiness.sql"), "utf8");
+const migrateV037 = await readFile(path.join(root, "packages/db/src/migrate.ts"), "utf8");
+const dbV037 = await readFile(path.join(root, "packages/db/src/index.ts"), "utf8");
+const workerV037 = await readFile(path.join(root, "apps/worker/src/index.ts"), "utf8");
+const productionVerifier = await readFile(path.join(root, "scripts/verify-production-hardening.mjs"), "utf8");
+const productionRunbook = await readFile(path.join(root, "docs/runbooks/PRODUCTION_OPERATIONS.md"), "utf8");
+for (const marker of ["PostgresRateLimitStore", "MemoryRateLimitStore", "PostgresDurableWorkQueue", "FOR UPDATE SKIP LOCKED".toLowerCase(), "DEAD_LETTER", "cacheControlFor", "retryDelayMs"]) { const hay=productionHardening.toLowerCase(); if (!hay.includes(marker.toLowerCase())) throw new Error(`v0.37 production-hardening package is missing ${marker}.`); }
+for (const marker of ["production_rate_limit_buckets", "production_work_queue", "DEAD_LETTER", "idx_production_work_queue_claim", "idx_activations_buyer_started_v037"]) if (!migration0030.includes(marker)) throw new Error(`v0.37 migration is missing ${marker}.`);
+for (const marker of ["pg_try_advisory_lock", "checksum_sha256", "Migration drift detected", "pg_advisory_unlock"]) if (!migrateV037.includes(marker)) throw new Error(`v0.37 migration runner hardening is missing ${marker}.`);
+for (const marker of ["statement_timeout", "application_name", "databasePoolMax"]) { const hay=dbV037+apiApp; if (!hay.includes(marker)) throw new Error(`v0.37 database/runtime tuning is missing ${marker}.`); }
+for (const marker of ["CLEANUP_RATE_LIMIT_BUCKETS", "queue.claim", "queue.fail", "API_INLINE", 'version: "0.37.0"']) if (!workerV037.includes(marker)) throw new Error(`v0.37 worker maturity is missing ${marker}.`);
+for (const marker of ["rate limiting fails closed", "durable work enqueue is idempotent", "dead letters", "cache policy never publicly caches authority/commercial state", "client keys are stable hashes", "retry backoff is bounded"]) if (!productionHardeningTests.includes(marker)) throw new Error(`v0.37 production hardening tests are missing ${marker}.`);
+for (const marker of ["productionHardeningEnabled: true", "distributedRateLimitEnabled:", "degradedLocalRateLimitFallbackEnabled:", "boundedRequestBodyEnabled: true", "requestTimeoutGuardEnabled: true", "cachePolicyEnabled: true", "durableWorkQueueEnabled:", "workerFinancialJobDispatchEnabled: false", "migrationAdvisoryLockEnabled: true", "migrationChecksumGuardEnabled: true", "backupRecoveryRunbookEnabled: true"]) if (!apiApp.includes(marker)) throw new Error(`API capabilities must expose truthful v0.37 feature ${marker}.`);
+for (const marker of ["distributed rate limiting", "durable maintenance queue", "workerFinancialJobDispatchEnabled=false", "API_INLINE", "migration resilience"]) if (!productionVerifier.includes(marker)) throw new Error(`v0.37 live verifier is missing ${marker}.`);
+for (const marker of ["pg_dump", "pg_restore", "Rollback", "Queue recovery", "Mainnet policy"]) if (!productionRunbook.includes(marker)) throw new Error(`v0.37 production runbook is missing ${marker}.`);
+if (rootManifest.scripts?.["verify:production-hardening"] !== "node scripts/verify-production-hardening.mjs") throw new Error("Root package.json must expose pnpm verify:production-hardening.");
+if (!apiApp.includes("bodyLimit: config.apiBodyLimitBytes") || !apiApp.includes("requestTimeout: config.apiRequestTimeoutMs") || !apiApp.includes("trustProxy: config.trustProxyHops")) throw new Error("v0.37 Fastify request/trust budgets must be wired at server construction.");
+if (!apiApp.includes("distributed rate limiter unavailable; using process-local degraded limiter")) throw new Error("v0.37 must preserve abuse protection when distributed rate-limit persistence degrades.");
+
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const output = [];
@@ -1141,11 +1172,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 37) throw new Error(`v0.36 expects 37 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 38) throw new Error(`v0.37 expects 38 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.36.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.36.0.`);
+  if (manifest.version !== "0.37.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.37.0.`);
 }
 
-console.log("Spotriq foundation + accepted v0.22–v0.35 + v0.36 Security + Failure Injection Hardening verification passed.");
+console.log("Spotriq foundation + accepted v0.22–v0.36 + v0.37 Production Hardening + Scale Readiness verification passed.");
 

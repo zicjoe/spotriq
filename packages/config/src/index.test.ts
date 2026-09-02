@@ -51,3 +51,22 @@ test("reference-agent ERC-8004 IDs are parsed independently from general discove
 test("reference-agent ERC-8004 IDs must be numeric", () => {
   assert.throws(() => loadServerConfig({ NODE_ENV: "test", SPOTRIQ_ENV: "development", REFERENCE_AGENT_RANGEKEEPER_ID: "range-1" }), /numeric ERC-8004 token ID/i);
 });
+
+test("v0.37 production hardening defaults enable distributed perimeter policy", () => {
+  const config=loadServerConfig({...baseProduction,PUBLIC_API_BASE_URL:"https://api.spotriq.example"});
+  assert.equal(config.rateLimitEnabled,true);
+  assert.equal(config.trustProxyHops,1);
+  assert.equal(config.apiBodyLimitBytes,1_048_576);
+  assert.equal(config.databasePoolMax,15);
+  assert.equal(config.workerLeaseMs,30_000);
+});
+
+test("development keeps rate limiting opt-in and forwarded proxy trust disabled", () => {
+  const config=loadServerConfig({NODE_ENV:"test",SPOTRIQ_ENV:"development"});
+  assert.equal(config.rateLimitEnabled,false);
+  assert.equal(config.trustProxyHops,0);
+});
+
+test("production hardening boolean configuration rejects ambiguous values", () => {
+  assert.throws(()=>loadServerConfig({NODE_ENV:"test",SPOTRIQ_ENV:"development",SPOTRIQ_RATE_LIMIT_ENABLED:"sometimes"}),/SPOTRIQ_RATE_LIMIT_ENABLED/);
+});

@@ -1,7 +1,7 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.36.0**  
-**Release status:** Security + Failure Injection Hardening implementation candidate; v0.35 externally accepted; local dependency-aware validation and external v0.36 acceptance pending.  
+**Current repository release:** **v0.37.0**  
+**Release status:** Production Hardening + Scale Readiness implementation candidate; v0.36 externally accepted; local dependency-aware validation and external v0.37 acceptance pending.  
 **State date:** 2026-09-02
 
 ## Authority hierarchy
@@ -48,6 +48,8 @@ AI explains. Deterministic systems decide.
 - **v0.32 ✅** normalized BNB Agent Studio integration with no CLI/readiness/payment/execution bypass.
 - **v0.33 ✅** grounded AI explanations constrained to deterministic facts/citations with no decision or write authority.
 - **v0.34 ✅** Agent Advantage Measurement + Report with explicit windows and no inferred financial benefit.
+- **v0.35 ✅** Operational observability with redacted/non-authoritative health.
+- **v0.36 ✅** Security + Failure Injection Hardening with fail-closed hostile-input/race/provider boundaries.
 
 ## v0.29 accepted truth
 
@@ -123,6 +125,16 @@ Operator/Agent Studio metadata is bounded before persistence. x402/B402 settleme
 
 Migration: `0029_security_failure_injection_hardening.sql`. Acceptance: `pnpm verify:security-hardening`.
 
-## Next milestone after v0.36 acceptance
+## v0.37 implementation truth
 
-**v0.37 — Production Hardening + Scale Readiness.**
+`@spotriq/production-hardening` adds distributed PostgreSQL rate-limit buckets, a process-local degraded limiter fallback, conservative cache policy and a durable lease/retry/dead-letter maintenance queue. API request/body/connection budgets, trusted proxy hops and database pool/statement limits are configurable.
+
+The migration runner now serializes deploy migrations through an advisory lock and tracks SHA-256 checksums so historical migration drift fails closed. Migration `0030_production_hardening_scale_readiness.sql` adds rate-limit/queue persistence plus targeted indexes. Worker maintenance uses the durable queue, while financial Smart Money execution remains `API_INLINE` and `workerFinancialJobDispatchEnabled=false`.
+
+Operational backup/restore/deploy/rollback procedures are documented under `docs/runbooks/PRODUCTION_OPERATIONS.md`. No BSC Mainnet financial execution is enabled.
+
+Acceptance: `pnpm verify:production-hardening`.
+
+## Next milestone after v0.37 acceptance
+
+**v0.38 — Ecosystem Adoption + Judge/Public Launch Readiness.**

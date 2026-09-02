@@ -25,10 +25,24 @@ export interface ServerConfig {
   appEnv: SpotriqEnvironment;
   apiHost: string;
   apiPort: number;
+  apiBodyLimitBytes: number;
+  apiRequestTimeoutMs: number;
+  apiConnectionTimeoutMs: number;
+  trustProxyHops: number;
+  rateLimitEnabled: boolean;
+  rateLimitWindowMs: number;
+  rateLimitReadMax: number;
+  rateLimitWriteMax: number;
   publicApiBaseUrl: string;
   corsOrigins: string[];
   databaseUrl?: string;
   redisUrl?: string;
+  databasePoolMax: number;
+  databaseIdleTimeoutMs: number;
+  databaseConnectionTimeoutMs: number;
+  databaseStatementTimeoutMs: number;
+  workerPollIntervalMs: number;
+  workerLeaseMs: number;
   bscNetwork: BscNetwork;
   bscRpcPrimary?: string;
   bscRpcSecondary?: string;
@@ -76,6 +90,21 @@ function parsePort(value: string | undefined, fallback: number): number {
   return parsed;
 }
 
+
+function parseBoolean(value: string | undefined, fallback: boolean, label: string): boolean {
+  if (value === undefined || value.trim() === "") return fallback;
+  const normalized=value.trim().toLowerCase();
+  if (["1","true","yes","on"].includes(normalized)) return true;
+  if (["0","false","no","off"].includes(normalized)) return false;
+  throw new Error(`Invalid ${label}: ${value}`);
+}
+
+function parseNonNegativeInt(value: string | undefined, fallback: number, label: string): number {
+  if (!value) return fallback;
+  const parsed=Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`Invalid ${label}: ${value}`);
+  return parsed;
+}
 
 function parsePositiveInt(value: string | undefined, fallback: number, label: string): number {
   if (!value) return fallback;
@@ -139,6 +168,14 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     appEnv,
     apiHost: env.API_HOST?.trim() || "0.0.0.0",
     apiPort,
+    apiBodyLimitBytes: parsePositiveInt(env.SPOTRIQ_API_BODY_LIMIT_BYTES, 1_048_576, "SPOTRIQ_API_BODY_LIMIT_BYTES"),
+    apiRequestTimeoutMs: parsePositiveInt(env.SPOTRIQ_API_REQUEST_TIMEOUT_MS, 30_000, "SPOTRIQ_API_REQUEST_TIMEOUT_MS"),
+    apiConnectionTimeoutMs: parsePositiveInt(env.SPOTRIQ_API_CONNECTION_TIMEOUT_MS, 10_000, "SPOTRIQ_API_CONNECTION_TIMEOUT_MS"),
+    trustProxyHops: parseNonNegativeInt(env.SPOTRIQ_TRUST_PROXY_HOPS, appEnv === "production" ? 1 : 0, "SPOTRIQ_TRUST_PROXY_HOPS"),
+    rateLimitEnabled: parseBoolean(env.SPOTRIQ_RATE_LIMIT_ENABLED, appEnv === "production", "SPOTRIQ_RATE_LIMIT_ENABLED"),
+    rateLimitWindowMs: parsePositiveInt(env.SPOTRIQ_RATE_LIMIT_WINDOW_MS, 60_000, "SPOTRIQ_RATE_LIMIT_WINDOW_MS"),
+    rateLimitReadMax: parsePositiveInt(env.SPOTRIQ_RATE_LIMIT_READ_MAX, 300, "SPOTRIQ_RATE_LIMIT_READ_MAX"),
+    rateLimitWriteMax: parsePositiveInt(env.SPOTRIQ_RATE_LIMIT_WRITE_MAX, 60, "SPOTRIQ_RATE_LIMIT_WRITE_MAX"),
     publicApiBaseUrl: parsePublicApiBaseUrl(env.PUBLIC_API_BASE_URL, apiPort, appEnv),
     corsOrigins: (env.CORS_ORIGINS ?? "http://localhost:5173")
       .split(",")
@@ -146,6 +183,12 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
       .filter(Boolean),
     databaseUrl: optional(env.DATABASE_URL),
     redisUrl: optional(env.REDIS_URL),
+    databasePoolMax: parsePositiveInt(env.SPOTRIQ_DB_POOL_MAX, 15, "SPOTRIQ_DB_POOL_MAX"),
+    databaseIdleTimeoutMs: parsePositiveInt(env.SPOTRIQ_DB_IDLE_TIMEOUT_MS, 30_000, "SPOTRIQ_DB_IDLE_TIMEOUT_MS"),
+    databaseConnectionTimeoutMs: parsePositiveInt(env.SPOTRIQ_DB_CONNECTION_TIMEOUT_MS, 5_000, "SPOTRIQ_DB_CONNECTION_TIMEOUT_MS"),
+    databaseStatementTimeoutMs: parsePositiveInt(env.SPOTRIQ_DB_STATEMENT_TIMEOUT_MS, 20_000, "SPOTRIQ_DB_STATEMENT_TIMEOUT_MS"),
+    workerPollIntervalMs: parsePositiveInt(env.SPOTRIQ_WORKER_POLL_INTERVAL_MS, 2_000, "SPOTRIQ_WORKER_POLL_INTERVAL_MS"),
+    workerLeaseMs: parsePositiveInt(env.SPOTRIQ_WORKER_LEASE_MS, 30_000, "SPOTRIQ_WORKER_LEASE_MS"),
     bscNetwork,
     bscRpcPrimary: optional(env.BSC_RPC_PRIMARY),
     bscRpcSecondary: optional(env.BSC_RPC_SECONDARY),

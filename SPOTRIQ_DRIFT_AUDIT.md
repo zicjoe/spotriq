@@ -532,3 +532,7 @@ v0.35 continues the same doctrine for operations. Platform/runtime/provider heal
 v0.36 advances the foundation's production-hardening obligation without changing Spotriq's authority model. Untrusted operator/runtime/provider data is bounded before use; Marketplace Test Lab adds DNS-pinned public transport and redirect revalidation; BSC provider corruption/divergence is detected; payment and Activation races fail closed through database-backed uniqueness/idempotency claims.
 
 Failure injection remains in deterministic tests/verifiers rather than becoming a production API. Operational degradation still does not equal marketplace unreadiness, financial unsafety or poor outcomes, and the hardening layer cannot create payment, PermissionGrant, execution or outcome truth.
+
+## v0.37 alignment note — Production Hardening + Scale Readiness
+
+v0.37 advances operational scale/readiness without changing product doctrine. Distributed abuse protection, migration serialization/checksums, queue leases/retries/dead-lettering, DB tuning and recovery runbooks remain operational infrastructure only. They do not create AgentService readiness, trust, payment, PermissionGrant, execution or outcome truth. Smart Money financial jobs remain `API_INLINE`, and BSC Mainnet financial execution remains prohibited without explicit approval.

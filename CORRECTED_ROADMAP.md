@@ -1,8 +1,8 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-09-02  
-**Current implementation:** v0.36.0  
-**Current milestone:** Security + Failure Injection Hardening
+**Current implementation:** v0.37.0  
+**Current milestone:** Production Hardening + Scale Readiness
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
 
@@ -160,7 +160,7 @@ Acceptance: `API build → pnpm check → Railway migration 0028/deploy → v0.2
 
 ## v0.36.0 — Security + Failure Injection Hardening
 
-**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+**Status: COMPLETE / externally accepted.**
 
 Harden hostile failure boundaries without creating a production chaos control plane. Shared public-network URL policy, DNS-pinned/revalidated Test Lab requests, bounded Agent Card/provider payloads, BSC JSON-RPC validation/failover/divergence detection, malicious operator/Studio metadata validation, payment replay-race handling and durable Activation idempotency claims preserve fail-closed semantics under adversarial input and partial provider failure.
 
@@ -168,14 +168,23 @@ Migration: `0029_security_failure_injection_hardening.sql`.
 
 Acceptance: `API build → pnpm check → Railway migration 0029/deploy → v0.22–v0.35 regressions → verify:security-hardening → record acceptance`.
 
-## v0.37+ — Production Hardening + Scale Readiness
+## v0.37.0 — Production Hardening + Scale Readiness
 
-**Status: NEXT after v0.36 acceptance.**
+**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
 
-Queue/worker maturity, caching/index review, rate limiting/API abuse protection, operational runbooks, migration resilience, backup/recovery and deployment hardening.
+Adds bounded request/body/connection budgets, trusted-proxy configuration, distributed PostgreSQL rate limiting with local degraded fallback, conservative cache/security headers, DB pool tuning, migration advisory locking/checksum drift detection, targeted indexes, a durable lease/retry/dead-letter maintenance queue, graceful worker drain and production backup/restore/deployment runbooks. Financial Smart Money jobs remain `API_INLINE`; worker financial dispatch remains disabled.
+
+Migration: `0030_production_hardening_scale_readiness.sql`.
+
+Acceptance: `API build → pnpm check → Railway migration 0030/deploy → v0.22–v0.36 regressions → verify:production-hardening → record acceptance`.
+
+## v0.38 — Ecosystem Adoption + Judge/Public Launch Readiness
+
+**Status: NEXT after v0.37 acceptance.**
+
+Polish public README/docs, architecture/adoption evidence, demo playbook, deployment screenshots/proofs and BNB ecosystem adoption package. This milestone does not approve BSC Mainnet financial execution.
 
 ## Later production milestones
 
-- scale/readiness and production operations hardening;
 - BSC Mainnet financial readiness only after explicit approval;
-- canonical-front-door/judge portfolio/demo/submission evidence.
+- further scale work driven by measured production load, not speculative complexity.

@@ -1,0 +1,17 @@
+import process from "node:process";
+const base=(process.env.SPOTRIQ_ACCEPTANCE_BASE_URL||process.env.PUBLIC_API_BASE_URL||"https://spotriq-production.up.railway.app").replace(/\/$/,"");
+async function request(path,init={}){const response=await fetch(`${base}${path}`,{...init,headers:{accept:"application/json",...(init.body?{"content-type":"application/json"}:{}),...(init.headers||{})}});const body=await response.json().catch(()=>undefined);return{response,body};}
+function versionAtLeast(actual,minimum){const parse=v=>{const m=String(v??"").match(/^(\d+)\.(\d+)\.(\d+)/);return m?m.slice(1,4).map(Number):null};const a=parse(actual),b=parse(minimum);if(!a||!b)return false;for(let i=0;i<3;i++){if(a[i]>b[i])return true;if(a[i]<b[i])return false}return true}
+const health=await request("/health");
+if(![200,503].includes(health.response.status)||health.body?.service!=="spotriq-api"||!versionAtLeast(health.body?.version,"0.37.0"))throw new Error(`v0.37 production acceptance requires deployed Spotriq >=0.37.0; live /health reports ${JSON.stringify(health.body)}.`);
+const capsResult=await request("/v1/system/capabilities");if(!capsResult.response.ok)throw new Error(`/v1/system/capabilities returned HTTP ${capsResult.response.status}.`);const caps=capsResult.body?.data;
+for(const key of ["productionHardeningEnabled","distributedRateLimitEnabled","degradedLocalRateLimitFallbackEnabled","boundedRequestBodyEnabled","requestTimeoutGuardEnabled","cachePolicyEnabled","durableWorkQueueEnabled","migrationAdvisoryLockEnabled","migrationChecksumGuardEnabled","backupRecoveryRunbookEnabled"])if(caps?.[key]!==true)throw new Error(`v0.37 capability ${key} must be true in production.`);
+if(caps?.workerFinancialJobDispatchEnabled!==false)throw new Error("v0.37 must not silently move Smart Money/financial jobs to worker dispatch.");
+const meta=await request("/v1/meta");if(!meta.response.ok)throw new Error(`/v1/meta returned HTTP ${meta.response.status}.`);
+for(const [name,expected] of [["x-content-type-options","nosniff"],["x-frame-options","DENY"],["referrer-policy","no-referrer"]])if(meta.response.headers.get(name)!==expected)throw new Error(`v0.37 response hardening header ${name} is missing.`);
+if(!/^public, max-age=15/.test(meta.response.headers.get("cache-control")||""))throw new Error("v0.37 public metadata cache policy is missing.");
+for(const name of ["x-ratelimit-limit","x-ratelimit-remaining","x-ratelimit-reset"])if(!meta.response.headers.get(name))throw new Error(`v0.37 distributed rate-limit header ${name} is missing.`);
+if(caps.paymentSettlementDispatchEnabled!==false||caps.categoryExecutionDispatchEnabled!==false||caps.runtimeFailureInjectionEndpointEnabled!==false)throw new Error("Production hardening must not enable payment/category dispatch or failure-injection controls.");
+console.log(`PASS production perimeter: version=${health.body.version}; distributed rate limiting, bounded requests/timeouts, security/cache headers and degraded limiter fallback are active.`);
+console.log("PASS scale boundary: durable maintenance queue is enabled while workerFinancialJobDispatchEnabled=false; Smart Money financial work remains API_INLINE.");
+console.log("PASS: Spotriq v0.37 Production Hardening + Scale Readiness contract passed: abuse protection, migration resilience, queue leases/retries/dead-lettering, DB tuning and recovery posture are enabled without changing financial authority or mainnet execution policy.");

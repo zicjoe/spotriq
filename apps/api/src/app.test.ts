@@ -9,8 +9,22 @@ const config: ServerConfig = {
   appEnv: "development",
   apiHost: "127.0.0.1",
   apiPort: 3001,
+  apiBodyLimitBytes: 1_048_576,
+  apiRequestTimeoutMs: 30_000,
+  apiConnectionTimeoutMs: 10_000,
+  trustProxyHops: 0,
+  rateLimitEnabled: false,
+  rateLimitWindowMs: 60_000,
+  rateLimitReadMax: 300,
+  rateLimitWriteMax: 60,
   publicApiBaseUrl: "https://api.spotriq.example",
   corsOrigins: ["http://localhost:5173"],
+  databasePoolMax: 15,
+  databaseIdleTimeoutMs: 30_000,
+  databaseConnectionTimeoutMs: 5_000,
+  databaseStatementTimeoutMs: 20_000,
+  workerPollIntervalMs: 2_000,
+  workerLeaseMs: 30_000,
   bscNetwork: "testnet",
   bscRpcTimeoutMs: 7500,
   agentDiscoveryChainId: 56,
@@ -75,6 +89,21 @@ test("GET /v1/meta exposes Spotriq product metadata", async () => {
   const payload = response.json();
   assert.equal(payload.data.brand, "Spotriq");
   assert.equal(payload.data.network, "testnet");
+  await app.close();
+});
+
+test("v0.37 production perimeter applies cache/security headers and bounded rate limits", async () => {
+  const hardened:ServerConfig={...config,rateLimitEnabled:true,rateLimitReadMax:1,rateLimitWriteMax:1};
+  const app=await buildServer({config:hardened,chain:makeChain(),logger:false});
+  const first=await app.inject({method:"GET",url:"/v1/meta"});
+  assert.equal(first.statusCode,200);
+  assert.equal(first.headers["x-content-type-options"],"nosniff");
+  assert.equal(first.headers["x-frame-options"],"DENY");
+  assert.match(String(first.headers["cache-control"]),/^public, max-age=15/);
+  assert.equal(first.headers["x-ratelimit-limit"],"1");
+  const second=await app.inject({method:"GET",url:"/v1/meta"});
+  assert.equal(second.statusCode,429);
+  assert.equal(second.json().error.code,"RATE_LIMITED");
   await app.close();
 });
 

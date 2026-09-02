@@ -3,13 +3,13 @@
 > v0.35 acceptance verifier note: the legacy Railway `/health` route is intentionally a direct `HealthResponse` (200/ok or 503/degraded), while `/v1/system/health` uses the v0.35 API envelope. The verifier preserves both contracts.
 
 
-**Release candidate:** v0.36.0  
+**Release candidate:** v0.37.0  
 **Date:** 2026-09-02  
-**State:** Security + Failure Injection Hardening implemented; v0.35 externally accepted; local dependency-aware validation and external v0.36 acceptance pending.
+**State:** Production Hardening + Scale Readiness implemented; v0.36 externally accepted; local dependency-aware validation and external v0.37 acceptance pending.
 
 ## Accepted baseline
 
-Production acceptance is complete through v0.35.
+Production acceptance is complete through v0.36.
 
 ## v0.29 package
 
@@ -181,9 +181,28 @@ Capability truth includes `securityFailureHardeningEnabled = true`, `ssrfPinnedT
 
 New production gate: `pnpm verify:security-hardening`.
 
-Current status: implementation candidate complete; do not record v0.36 externally accepted until dependency-aware local build/check, Railway migration/deployment, accepted regressions through v0.35 and the new security-hardening verifier pass.
+Current status: **externally accepted**.
 
 Next after acceptance: **v0.37 Production Hardening + Scale Readiness**.
 - v0.36 compile hardening: Agent Studio validated URLs are canonicalized to explicit `string` values at the import call site, and BSC provider block sorting uses a target-compatible copied `.sort(...)` rather than `Array.prototype.toSorted()`.
 - Live acceptance ordering: `verify:security-hardening` targets the deployed API by default and requires Spotriq `>=0.36.0`; deploy v0.36 before running that gate. Historical `verify:observability` now accepts deployed releases `>=0.35.0` so later releases do not invalidate the accepted v0.35 regression contract.
 
+
+
+## v0.37 Production Hardening + Scale Readiness
+
+New package: `@spotriq/production-hardening`.
+
+Production perimeter: bounded request body/request/connection timeouts, trusted proxy-hop configuration, PostgreSQL-coordinated rate limits with process-local degraded fallback, response security headers and conservative cache policy.
+
+Database/deploy: configurable pool/connection/statement timeouts; advisory-locked migration runner; SHA-256 historical migration drift guard; migration `0030_production_hardening_scale_readiness.sql`; targeted buyer/history indexes.
+
+Worker: durable idempotent maintenance queue with atomic `SKIP LOCKED` claim, leases, retry/backoff, dead-letter state and graceful drain. This does **not** move financial Smart Money work to the worker: `workerFinancialJobDispatchEnabled=false` and financial job mode remains `API_INLINE`.
+
+Operations: backup/restore, deploy, rollback, queue-recovery and rate-limit degradation procedures live in `docs/runbooks/PRODUCTION_OPERATIONS.md`.
+
+New production gate: `pnpm verify:production-hardening`.
+
+Current status: implementation candidate complete; do not record v0.37 externally accepted until dependency-aware local build/check, Railway migration/deployment, accepted regressions through v0.36 and the new production-hardening verifier pass.
+
+Next after acceptance: **v0.38 Ecosystem Adoption + Judge/Public Launch Readiness**.

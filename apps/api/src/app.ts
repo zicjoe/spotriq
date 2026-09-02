@@ -38,6 +38,7 @@ import { AgentStudioError, createAgentStudioEngine, MemoryAgentStudioStore, Post
 import { createGroundedExplanationEngine, GroundedExplanationError, MemoryGroundedExplanationStore, OpenAiResponsesExplanationProvider, PostgresGroundedExplanationStore, type GroundedExplanationEngine } from "@spotriq/grounded-explanations";
 import { AgentAdvantageError, createAgentAdvantageEngine, MemoryAgentAdvantageStore, PostgresAgentAdvantageStore, type AgentAdvantageEngine } from "@spotriq/agent-advantage";
 import { createOperationalHealthEngine, MemoryOperationalHealthStore, PostgresOperationalHealthStore, type OperationalHealthEngine } from "@spotriq/observability";
+import { cacheControlFor, MemoryRateLimitStore, PostgresRateLimitStore, stableClientKey } from "@spotriq/production-hardening";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
@@ -110,7 +111,14 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const pancakeSwap = options.pancakeSwap ?? createPancakeSwapAdapter({ chain });
   const venus = options.venus ?? createVenusAdapter({ chain });
   const marketContext = options.marketContext ?? createGridMarketContextEngine({ chain, pancakeSwap });
-  const database = getDatabasePool(config.databaseUrl);
+  const dbPoolOptions = {
+    max: config.databasePoolMax,
+    idleTimeoutMs: config.databaseIdleTimeoutMs,
+    connectionTimeoutMs: config.databaseConnectionTimeoutMs,
+    statementTimeoutMs: config.databaseStatementTimeoutMs,
+    applicationName: "spotriq-api",
+  };
+  const database = getDatabasePool(config.databaseUrl, dbPoolOptions);
   const sqlDatabase = database
     ? {
         query: async <Row = Record<string, unknown>>(text: string, values?: unknown[]) => {
@@ -274,11 +282,11 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const agentAdvantage = options.agentAdvantage ?? createAgentAdvantageEngine({ store: agentAdvantageStore, activityOutcomes: activationActivityOutcomes });
   const observabilityStore = sqlDatabase ? new PostgresOperationalHealthStore(sqlDatabase) : new MemoryOperationalHealthStore();
   const observability = options.observability ?? createOperationalHealthEngine({
-    release: "0.36.0",
+    release: "0.37.0",
     chain,
     marketplace: marketplaceSupply,
     referenceServiceIds: referenceServices.map(record => record.service.serviceId),
-    databaseHealth: () => getDatabaseHealth(config.databaseUrl),
+    databaseHealth: () => getDatabaseHealth(config.databaseUrl, dbPoolOptions),
     paymentRailsStatus: () => readPaymentRailsStatus(chain),
     agentStudioStatus: () => agentStudio.getStatus(),
     localServiceIds: sqlDatabase ? async () => (await sqlDatabase.query<{service_id:string}>("select service_id from agent_services order by updated_at desc limit 100")).rows.map(row => row.service_id) : undefined,
@@ -292,9 +300,44 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
+    bodyLimit: config.apiBodyLimitBytes,
+    requestTimeout: config.apiRequestTimeoutMs,
+    connectionTimeout: config.apiConnectionTimeoutMs,
+    trustProxy: config.trustProxyHops > 0 ? config.trustProxyHops : false,
   });
+  const primaryRateLimitStore = sqlDatabase ? new PostgresRateLimitStore(sqlDatabase) : new MemoryRateLimitStore();
+  const degradedRateLimitStore = new MemoryRateLimitStore();
+  const readRateLimitPolicy = { windowMs: config.rateLimitWindowMs, maxRequests: config.rateLimitReadMax, keyPrefix: "read" };
+  const writeRateLimitPolicy = { windowMs: config.rateLimitWindowMs, maxRequests: config.rateLimitWriteMax, keyPrefix: "write" };
   const requestStartedAt = new Map<string,number>();
-  app.addHook("onRequest", async request => { requestStartedAt.set(request.id, Date.now()); });
+  let rateLimitDegradedLoggedAt = 0;
+  app.addHook("onRequest", async (request, reply) => {
+    requestStartedAt.set(request.id, Date.now());
+    reply.header("X-Content-Type-Options", "nosniff");
+    reply.header("X-Frame-Options", "DENY");
+    reply.header("Referrer-Policy", "no-referrer");
+    reply.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    reply.header("Cache-Control", cacheControlFor(request.method, request.url));
+    if (!config.rateLimitEnabled || request.method === "OPTIONS" || request.url.split("?")[0] === "/health") return;
+    const write = !["GET","HEAD"].includes(request.method);
+    const policy = write ? writeRateLimitPolicy : readRateLimitPolicy;
+    const key = stableClientKey(request.ip);
+    let result;
+    try { result = await primaryRateLimitStore.consume(key, policy); } catch (error) {
+      if (Date.now() - rateLimitDegradedLoggedAt >= 30_000) {
+        rateLimitDegradedLoggedAt = Date.now();
+        request.log.warn({ err:error }, "distributed rate limiter unavailable; using process-local degraded limiter");
+      }
+      result = await degradedRateLimitStore.consume(key, policy);
+    }
+    reply.header("X-RateLimit-Limit", String(result.limit));
+    reply.header("X-RateLimit-Remaining", String(result.remaining));
+    reply.header("X-RateLimit-Reset", result.resetAt);
+    if (!result.allowed) {
+      reply.header("Retry-After", String(Math.max(1, Math.ceil((Date.parse(result.resetAt)-Date.now())/1000))));
+      return reply.code(429).send({error:{code:"RATE_LIMITED",message:"Too many requests. Retry after the current rate-limit window.",recoverable:true,retryable:true,correlationId:request.id}});
+    }
+  });
   app.addHook("onResponse", async (request, reply) => {
     const started = requestStartedAt.get(request.id);
     requestStartedAt.delete(request.id);
@@ -309,14 +352,14 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
 
   app.get("/health", async (_request, reply) => {
     const [database, bsc] = await Promise.all([
-      getDatabaseHealth(config.databaseUrl),
+      getDatabaseHealth(config.databaseUrl, dbPoolOptions),
       chain.getHealth(),
     ]);
     const dependencies = [database, bsc];
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.36.0",
+      version: "0.37.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -432,6 +475,17 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       paymentReplayRaceProtectionEnabled: true,
       activationIdempotencyClaimEnabled: true,
       runtimeFailureInjectionEndpointEnabled: false,
+      productionHardeningEnabled: true,
+      distributedRateLimitEnabled: config.rateLimitEnabled && Boolean(config.databaseUrl),
+      degradedLocalRateLimitFallbackEnabled: config.rateLimitEnabled,
+      boundedRequestBodyEnabled: true,
+      requestTimeoutGuardEnabled: true,
+      cachePolicyEnabled: true,
+      durableWorkQueueEnabled: Boolean(config.databaseUrl),
+      workerFinancialJobDispatchEnabled: false,
+      migrationAdvisoryLockEnabled: true,
+      migrationChecksumGuardEnabled: true,
+      backupRecoveryRunbookEnabled: true,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
@@ -478,6 +532,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "v0.33 adds a grounded explanation layer. The optional OpenAI Responses provider receives only server-built deterministic fact packets, uses structured output without web/tools, and every claim must cite known fact IDs. Invalid provider output falls back to a deterministic cited summary; AI cannot mutate financial truth or decision resources.",
         "v0.34 adds persisted Agent Advantage reports with explicit Activation measurement windows. Service contribution, transaction evidence, financial outcome and Agent Advantage remain separate; transaction success never becomes financial advantage and missing evidence remains Could Not Assess.",
         "v0.35 adds operational observability for API/database, BSC RPC, persisted Marketplace Test Lab/runtime evidence, payment adapters, Agent Studio and worker heartbeat posture. Operational health is explicitly not marketplace readiness, trust, payment, permission, execution or financial-outcome authority; public health is redacted and admin diagnostics fail closed behind a server-side bearer token.",
+        "v0.37 adds production-scale request budgets, bounded body/request timeouts, conservative cache headers, database pool tuning, migration serialization/checksum drift detection, targeted indexes and a durable lease/retry/dead-letter worker queue. Smart Money financial work remains API_INLINE until a separate queue cutover is explicitly accepted.",
         "v0.36 hardens hostile failure boundaries: Test Lab requests pin DNS-validated public addresses and revalidate redirects; provider payloads are bounded/validated; BSC RPC responses are schema/coherence checked with divergence detection; operator/Agent Studio metadata rejects unsafe URL/control-text tricks; payment replay races and Activation idempotency races fail closed. Failure injection remains test/verifier-only and no production chaos endpoint is exposed.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",

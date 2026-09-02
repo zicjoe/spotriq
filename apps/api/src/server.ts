@@ -4,12 +4,27 @@ import { buildServer } from "./app.js";
 
 const config = loadServerConfig();
 const app = await buildServer({ config });
+let shuttingDown=false;
 
 const shutdown = async (signal: string) => {
+  if(shuttingDown)return;
+  shuttingDown=true;
   app.log.info({ signal }, "shutting down Spotriq API");
-  await app.close();
-  await closeDatabase();
-  process.exit(0);
+  const force=setTimeout(()=>{
+    app.log.error({signal},"Spotriq API graceful shutdown exceeded 15s hard limit");
+    process.exit(1);
+  },15_000);
+  force.unref();
+  try{
+    await app.close();
+    await closeDatabase();
+    clearTimeout(force);
+    process.exit(0);
+  }catch(error){
+    clearTimeout(force);
+    app.log.error(error,"Spotriq API shutdown failed");
+    process.exit(1);
+  }
 };
 
 process.once("SIGINT", () => void shutdown("SIGINT"));
@@ -22,6 +37,8 @@ try {
       environment: config.appEnv,
       network: config.bscNetwork,
       databaseConfigured: Boolean(config.databaseUrl),
+      rateLimitEnabled: config.rateLimitEnabled,
+      trustProxyHops: config.trustProxyHops,
     },
     "Spotriq API ready",
   );

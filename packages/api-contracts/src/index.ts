@@ -130,6 +130,17 @@ export interface CapabilityResponse {
   paymentReplayRaceProtectionEnabled: boolean;
   activationIdempotencyClaimEnabled: boolean;
   runtimeFailureInjectionEndpointEnabled: boolean;
+  productionHardeningEnabled: boolean;
+  distributedRateLimitEnabled: boolean;
+  degradedLocalRateLimitFallbackEnabled: boolean;
+  boundedRequestBodyEnabled: boolean;
+  requestTimeoutGuardEnabled: boolean;
+  cachePolicyEnabled: boolean;
+  durableWorkQueueEnabled: boolean;
+  workerFinancialJobDispatchEnabled: boolean;
+  migrationAdvisoryLockEnabled: boolean;
+  migrationChecksumGuardEnabled: boolean;
+  backupRecoveryRunbookEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }

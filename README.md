@@ -719,3 +719,15 @@ pnpm verify:security-hardening
 Failure injection remains test/verifier-only. Security health never becomes marketplace readiness, trust, payment, PermissionGrant, execution or outcome authority.
 
 See `docs/SECURITY_FAILURE_INJECTION_HARDENING.md` and `docs/IMPLEMENTATION_REPORT_SECURITY_FAILURE_INJECTION_v0.36.0.md`.
+
+## v0.37.0 Production Hardening + Scale Readiness
+
+Spotriq v0.37 hardens production operation without widening financial authority. It adds bounded API request/body/connection budgets, trusted proxy-hop handling, PostgreSQL-coordinated read/write rate limits with process-local degraded fallback, conservative cache/security headers, configurable database pool/statement timeouts, advisory-locked/checksummed migrations, targeted indexes, and a durable lease/retry/dead-letter maintenance queue.
+
+Financial Smart Money work remains `API_INLINE`; `workerFinancialJobDispatchEnabled=false`. Production hardening does not approve BSC Mainnet financial execution.
+
+Migration: `0030_production_hardening_scale_readiness.sql`.
+
+Acceptance: `pnpm verify:production-hardening`.
+
+See `docs/PRODUCTION_HARDENING.md`, `docs/runbooks/PRODUCTION_OPERATIONS.md`, and `docs/IMPLEMENTATION_REPORT_PRODUCTION_HARDENING_v0.37.0.md`.
