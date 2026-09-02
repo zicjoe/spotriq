@@ -125,3 +125,7 @@ pnpm verify:observability
 ```
 
 Do not commit the secret.
+
+### Legacy `/health` compatibility
+
+`GET /health` remains a direct `HealthResponse` rather than an `ApiEnvelope`. Its contract-valid status pairs are `HTTP 200` with `status: "ok"` and `HTTP 503` with `status: "degraded"`. The richer v0.35 operational projection remains under `GET /v1/system/health`.

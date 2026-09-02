@@ -4,8 +4,10 @@ const base=(process.env.SPOTRIQ_ACCEPTANCE_BASE_URL||process.env.PUBLIC_API_BASE
 async function request(path,init){const response=await fetch(`${base}${path}`,{...init,headers:{accept:"application/json",...(init?.body?{"content-type":"application/json"}:{}),...(init?.headers||{})}});const body=await response.json().catch(()=>undefined);return{response,body};}
 async function data(path,init){const {response,body}=await request(path,init);if(!response.ok)throw new Error(`${path} returned HTTP ${response.status}: ${JSON.stringify(body)}`);return body?.data;}
 
-const legacy=await data("/health");
-if(legacy?.service!=="spotriq-api"||legacy?.version!=="0.35.0"||!["ok","degraded"].includes(legacy?.status)||!Array.isArray(legacy?.dependencies))throw new Error("Railway /health no longer exposes the compatible API/database/BSC health contract for v0.35.");
+const {response:legacyResponse,body:legacy}=await request("/health");
+if(![200,503].includes(legacyResponse.status))throw new Error(`/health returned unexpected HTTP ${legacyResponse.status}: ${JSON.stringify(legacy)}`);
+if(legacy?.service!=="spotriq-api"||legacy?.version!=="0.35.0"||!["ok","degraded"].includes(legacy?.status)||!Array.isArray(legacy?.dependencies))throw new Error("Railway /health no longer exposes the compatible direct API/database/BSC health contract for v0.35.");
+if((legacy.status==="ok"&&legacyResponse.status!==200)||(legacy.status==="degraded"&&legacyResponse.status!==503))throw new Error(`Railway /health HTTP/status mismatch: HTTP ${legacyResponse.status} with status=${legacy.status}.`);
 
 const health=(await data("/v1/system/health"))?.health;
 if(!health||health.visibility!=="PUBLIC"||health.methodVersion!=="marketplace.operational-health@1.0.0")throw new Error("Public system health did not expose the v0.35 operational snapshot contract.");

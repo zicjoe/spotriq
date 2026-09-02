@@ -1,5 +1,8 @@
 # Spotriq Engineering Status
 
+> v0.35 acceptance verifier note: the legacy Railway `/health` route is intentionally a direct `HealthResponse` (200/ok or 503/degraded), while `/v1/system/health` uses the v0.35 API envelope. The verifier preserves both contracts.
+
+
 **Release candidate:** v0.35.0  
 **Date:** 2026-09-02  
 **State:** Observability + Marketplace/System Health implemented; v0.34 externally accepted; local dependency-aware validation and external v0.35 acceptance pending.

@@ -124,3 +124,7 @@ The user's Windows environment remains the authoritative dependency-aware accept
 **v0.36 — Security + Failure Injection Hardening.**
 
 Focus on upstream outages, RPC divergence, stale/corrupt provider data, malicious operator metadata, payment adversarial/replay cases, DB/idempotency races, malformed Agent Cards, SSRF boundaries and partial-provider failure behavior.
+
+## Acceptance verifier correction — legacy `/health`
+
+The production `/health` endpoint intentionally preserves the pre-v0.35 direct `HealthResponse` payload for Railway/liveness compatibility; it is not wrapped in the normal `{ data, meta }` API envelope. The v0.35 acceptance verifier now reads that endpoint directly and accepts the two contract-valid HTTP/state pairs: `200 + status=ok` and `503 + status=degraded`. This correction changes no production health semantics, authority boundary, migration, or public/admin observability contract.
