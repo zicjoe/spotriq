@@ -1,8 +1,8 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-09-02  
-**Current implementation:** v0.34.0  
-**Current milestone:** Agent Advantage Measurement + Report
+**Current implementation:** v0.35.0  
+**Current milestone:** Observability + Marketplace/System Health
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
 
@@ -136,7 +136,7 @@ Acceptance: `API build → pnpm check → Railway migration 0026/deploy → v0.2
 
 ## v0.34.0 — Agent Advantage Measurement + Report
 
-**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+**Status: COMPLETE / externally accepted.**
 
 Persist deterministic Activation-scoped Agent Advantage reports over explicit measurement windows. The report separately states service contribution, transaction evidence, financial outcome and Agent Advantage. Unchanged source facts are fingerprint-idempotent.
 
@@ -144,13 +144,25 @@ Current FREE read-only reference activations may truthfully show service contrib
 
 Migration: `0027_agent_advantage_reports.sql`.
 
-Acceptance: `API build → pnpm check → Railway migration 0027/deploy → v0.22–v0.33 regressions → verify:agent-advantage → record acceptance`.
+Acceptance: `API build → pnpm check → Railway migration 0027/deploy → v0.22–v0.33 regressions → verify:agent-advantage → record acceptance`. **Passed.**
 
 ## v0.35.0 — Observability + Marketplace/System Health
 
-**Status: NEXT after v0.34 acceptance.**
+**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
 
-Add structured operational visibility for API/database, BSC RPC/provider degradation, Marketplace Test Lab, reference/third-party runtimes, payment adapters, Agent Studio, worker/job health and admin-only diagnostics without converting operational health into marketplace trust or financial readiness.
+Add structured operational visibility for API/database, BSC RPC/provider degradation, Marketplace Test Lab, known AgentService runtime freshness, payment adapters, Agent Studio and worker/job posture without converting operational health into marketplace trust or financial readiness.
+
+Public `GET /v1/system/health` is redacted and non-authoritative. Bearer-protected admin diagnostics/history fail closed when not configured. Runtime status is derived from persisted Test Lab observations rather than arbitrary endpoint probing. Worker heartbeat freshness is operational evidence only and does not prove individual job success.
+
+Migration: `0028_operational_observability.sql`.
+
+Acceptance: `API build → pnpm check → Railway migration 0028/deploy → v0.22–v0.34 regressions → verify:observability → record acceptance`.
+
+## v0.36.0 — Security + Failure Injection Hardening
+
+**Status: NEXT after v0.35 acceptance.**
+
+Exercise upstream outages, RPC divergence, stale/corrupt provider data, malicious operator metadata, payment replay/adversarial cases, DB/idempotency races, malformed Agent Cards, SSRF boundaries and partial-provider failures without weakening fail-closed behavior.
 
 ## Later production milestones
 

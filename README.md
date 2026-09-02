@@ -690,3 +690,17 @@ pnpm verify:agent-advantage
 Migration: `0027_agent_advantage_reports.sql`.
 
 See `docs/AGENT_ADVANTAGE_REPORTS.md` and `docs/IMPLEMENTATION_REPORT_AGENT_ADVANTAGE_v0.34.0.md`.
+
+## v0.35.0 Observability + Marketplace/System Health
+
+Spotriq now exposes a separate operational-health plane for API/database state, BSC RPC/provider degradation, persisted Marketplace Test Lab/runtime freshness, payment-adapter posture, Agent Studio posture and worker heartbeat state.
+
+Operational health is deliberately **not** marketplace readiness, trust, payment, permission, execution eligibility or financial outcome truth. Public `GET /v1/system/health` is redacted; bearer-protected `/v1/admin/observability` diagnostics fail closed when an admin token is not configured. Runtime health is derived from persisted Test Lab evidence rather than probing arbitrary operator URLs when somebody opens the status surface.
+
+```powershell
+pnpm verify:observability
+```
+
+Migration: `0028_operational_observability.sql`.
+
+See `docs/OPERATIONAL_OBSERVABILITY.md` and `docs/IMPLEMENTATION_REPORT_OBSERVABILITY_v0.35.0.md`.

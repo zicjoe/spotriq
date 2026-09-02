@@ -1,7 +1,7 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.34.0**  
-**Release status:** Agent Advantage Measurement + Report implementation candidate; v0.33 externally accepted; local dependency-aware validation and external v0.34 acceptance pending.  
+**Current repository release:** **v0.35.0**  
+**Release status:** Observability + Marketplace/System Health implementation candidate; v0.34 externally accepted; local dependency-aware validation and external v0.35 acceptance pending.  
 **State date:** 2026-09-02
 
 ## Authority hierarchy
@@ -47,6 +47,7 @@ AI explains. Deterministic systems decide.
 - **v0.31 ✅** paid ERC-8183/x402/B402 reconciliation with payment settlement dispatch disabled.
 - **v0.32 ✅** normalized BNB Agent Studio integration with no CLI/readiness/payment/execution bypass.
 - **v0.33 ✅** grounded AI explanations constrained to deterministic facts/citations with no decision or write authority.
+- **v0.34 ✅** Agent Advantage Measurement + Report with explicit windows and no inferred financial benefit.
 
 ## v0.29 accepted truth
 
@@ -106,6 +107,14 @@ Unchanged source facts are fingerprint-idempotent. Runtime success does not impl
 
 Migration: `0027_agent_advantage_reports.sql`. Acceptance: `pnpm verify:agent-advantage`.
 
-## Next milestone after v0.34 acceptance
+## v0.35 implementation truth
 
-**v0.35 — Observability + Marketplace/System Health.**
+`@spotriq/observability` adds a deterministic operational plane covering API/database, BSC RPC/provider posture, Marketplace Test Lab/runtime freshness, payment-rail integration posture, Agent Studio posture and worker heartbeat state. Operational state is explicitly non-authoritative for marketplace readiness, trust, payment, permission, execution and outcomes.
+
+Public API: `GET /v1/system/health`. The public projection is redacted and briefly cached. Admin diagnostics/history use bearer-authenticated `/v1/admin/observability` routes and fail closed when `SPOTRIQ_ADMIN_DIAGNOSTICS_TOKEN` is absent or invalid. Runtime health is derived from persisted Test Lab evidence rather than probing arbitrary operator endpoints during health requests.
+
+Migration: `0028_operational_observability.sql`. Acceptance: `pnpm verify:observability`.
+
+## Next milestone after v0.35 acceptance
+
+**v0.36 — Security + Failure Injection Hardening.**

@@ -48,6 +48,7 @@ import { smartMoneyPlanRepository } from "../repositories/smartMoneyPlanReposito
 import { LiveOperatorWorkspace } from "../components/LiveOperatorWorkspace";
 import { GroundedExplanationPanel } from "../components/GroundedExplanationPanel";
 import { AgentAdvantageReportPanel } from "../components/AgentAdvantageReportPanel";
+import { SystemHealthIndicator } from "../components/SystemHealthIndicator";
 
 const {
   services: SERVICES,
@@ -3593,6 +3594,8 @@ function Footer({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => v
                 {cfg.product.ecosystemNote}
               </span>
             </div>
+
+            <SystemHealthIndicator />
           </div>
 
           {/* Nav columns — desktop 3-col grid */}

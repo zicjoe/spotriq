@@ -1,7 +1,7 @@
 {
   "name": "@spotriq/api",
   "private": true,
-  "version": "0.34.0",
+  "version": "0.35.0",
   "type": "module",
   "dependencies": {
     "@fastify/cors": "11.3.0",
@@ -36,7 +36,8 @@
     "@spotriq/payment-rails": "workspace:*",
     "@spotriq/agent-studio": "workspace:*",
     "@spotriq/grounded-explanations": "workspace:*",
-    "@spotriq/agent-advantage": "workspace:*"
+    "@spotriq/agent-advantage": "workspace:*",
+    "@spotriq/observability": "workspace:*"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",

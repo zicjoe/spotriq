@@ -49,6 +49,11 @@ export interface ServerConfig {
   openAiApiKey?: string;
   groundedExplanationModel: string;
   groundedExplanationTimeoutMs: number;
+  adminDiagnosticsToken?: string;
+  observabilityTestLabTargetAgeSeconds?: number;
+  observabilityTestLabStaleAfterSeconds?: number;
+  observabilityWorkerStaleAfterSeconds?: number;
+  observabilityWorkerUnavailableAfterSeconds?: number;
   referenceAgentIds: {
     rangekeeper?: string;
     gridpilot?: string;
@@ -161,6 +166,11 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     openAiApiKey: optional(env.OPENAI_API_KEY),
     groundedExplanationModel: optional(env.SPOTRIQ_EXPLANATION_MODEL) ?? "gpt-5.6-luna",
     groundedExplanationTimeoutMs: parsePositiveInt(env.SPOTRIQ_EXPLANATION_TIMEOUT_MS, 12000, "SPOTRIQ_EXPLANATION_TIMEOUT_MS"),
+    adminDiagnosticsToken: optional(env.SPOTRIQ_ADMIN_DIAGNOSTICS_TOKEN),
+    observabilityTestLabTargetAgeSeconds: parsePositiveInt(env.SPOTRIQ_OBSERVABILITY_TESTLAB_TARGET_AGE_SECONDS, 21600, "SPOTRIQ_OBSERVABILITY_TESTLAB_TARGET_AGE_SECONDS"),
+    observabilityTestLabStaleAfterSeconds: parsePositiveInt(env.SPOTRIQ_OBSERVABILITY_TESTLAB_STALE_AFTER_SECONDS, 86400, "SPOTRIQ_OBSERVABILITY_TESTLAB_STALE_AFTER_SECONDS"),
+    observabilityWorkerStaleAfterSeconds: parsePositiveInt(env.SPOTRIQ_OBSERVABILITY_WORKER_STALE_AFTER_SECONDS, 90, "SPOTRIQ_OBSERVABILITY_WORKER_STALE_AFTER_SECONDS"),
+    observabilityWorkerUnavailableAfterSeconds: parsePositiveInt(env.SPOTRIQ_OBSERVABILITY_WORKER_UNAVAILABLE_AFTER_SECONDS, 300, "SPOTRIQ_OBSERVABILITY_WORKER_UNAVAILABLE_AFTER_SECONDS"),
     referenceAgentIds: {
       rangekeeper: parseOptionalAgentId(env.REFERENCE_AGENT_RANGEKEEPER_ID, "REFERENCE_AGENT_RANGEKEEPER_ID"),
       gridpilot: parseOptionalAgentId(env.REFERENCE_AGENT_GRIDPILOT_ID, "REFERENCE_AGENT_GRIDPILOT_ID"),

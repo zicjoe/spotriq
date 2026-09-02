@@ -28,7 +28,7 @@ import { ControlledExecutionError, createControlledExecutionEngine, MemoryContro
 import { ActivityOutcomesError, createActivityOutcomesEngine, createActivationActivityOutcomesEngine, MemoryActivityOutcomesStore, PostgresActivityOutcomesStore, type ActivityOutcomesEngine, type ActivationActivityOutcomesEngine } from "@spotriq/activity-outcomes";
 import { createServiceTaskEngine, MemoryServiceTaskStore, PostgresServiceTaskStore, ServiceTaskError, type ServiceTaskEngine } from "@spotriq/service-tasks";
 import { CommercialError, createCommercialEngine, createErc8183PaymentAdapter, MemoryCommercialStore, PostgresCommercialStore, type CommercialEngine } from "@spotriq/commercial";
-import { createB402PaymentAdapter, createX402PaymentAdapter } from "@spotriq/payment-rails";
+import { createB402PaymentAdapter, createX402PaymentAdapter, readPaymentRailsStatus } from "@spotriq/payment-rails";
 import { createPermissionCheckoutEngine, MemoryPermissionCheckoutStore, PermissionCheckoutError, PostgresPermissionCheckoutStore, type PermissionCheckoutEngine } from "@spotriq/permission-checkout";
 import { createFinancialExecutionAdapterEngine, FinancialExecutionAdapterError, MemoryFinancialExecutionAssessmentStore, PostgresFinancialExecutionAssessmentStore, type FinancialExecutionAdapterEngine } from "@spotriq/financial-execution-adapters";
 import { createMyAgentsEngine, MemoryMyAgentsStore, MyAgentsError, PostgresMyAgentsStore, type MyAgentsEngine } from "@spotriq/my-agents";
@@ -37,6 +37,7 @@ import { createOperatorWorkspaceEngine, MemoryOperatorWorkspaceStore, OperatorWo
 import { AgentStudioError, createAgentStudioEngine, MemoryAgentStudioStore, PostgresAgentStudioStore, type AgentStudioEngine } from "@spotriq/agent-studio";
 import { createGroundedExplanationEngine, GroundedExplanationError, MemoryGroundedExplanationStore, OpenAiResponsesExplanationProvider, PostgresGroundedExplanationStore, type GroundedExplanationEngine } from "@spotriq/grounded-explanations";
 import { AgentAdvantageError, createAgentAdvantageEngine, MemoryAgentAdvantageStore, PostgresAgentAdvantageStore, type AgentAdvantageEngine } from "@spotriq/agent-advantage";
+import { createOperationalHealthEngine, MemoryOperationalHealthStore, PostgresOperationalHealthStore, type OperationalHealthEngine } from "@spotriq/observability";
 import { createVenusAdapter, VenusAdapterError, type VenusReader } from "@spotriq/protocol-venus";
 import { ApiInputError } from "./errors.js";
 import { registerChainRoutes } from "./routes/chain.js";
@@ -65,6 +66,7 @@ import { registerPaymentRailRoutes } from "./routes/payment-rails.js";
 import { registerAgentStudioRoutes } from "./routes/agent-studio.js";
 import { registerGroundedExplanationRoutes } from "./routes/grounded-explanations.js";
 import { registerAgentAdvantageRoutes } from "./routes/agent-advantage.js";
+import { registerObservabilityRoutes } from "./routes/observability.js";
 import { createReferenceAgentCatalog, type ReferenceAgentIdentityBinding, type ReferenceAgentSlug } from "@spotriq/reference-agents";
 
 export interface BuildServerOptions {
@@ -94,6 +96,7 @@ export interface BuildServerOptions {
   agentStudio?: AgentStudioEngine;
   groundedExplanations?: GroundedExplanationEngine;
   agentAdvantage?: AgentAdvantageEngine;
+  observability?: OperationalHealthEngine;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
@@ -269,9 +272,33 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   });
   const agentAdvantageStore = sqlDatabase ? new PostgresAgentAdvantageStore(sqlDatabase) : new MemoryAgentAdvantageStore();
   const agentAdvantage = options.agentAdvantage ?? createAgentAdvantageEngine({ store: agentAdvantageStore, activityOutcomes: activationActivityOutcomes });
+  const observabilityStore = sqlDatabase ? new PostgresOperationalHealthStore(sqlDatabase) : new MemoryOperationalHealthStore();
+  const observability = options.observability ?? createOperationalHealthEngine({
+    release: "0.35.0",
+    chain,
+    marketplace: marketplaceSupply,
+    referenceServiceIds: referenceServices.map(record => record.service.serviceId),
+    databaseHealth: () => getDatabaseHealth(config.databaseUrl),
+    paymentRailsStatus: () => readPaymentRailsStatus(chain),
+    agentStudioStatus: () => agentStudio.getStatus(),
+    localServiceIds: sqlDatabase ? async () => (await sqlDatabase.query<{service_id:string}>("select service_id from agent_services order by updated_at desc limit 100")).rows.map(row => row.service_id) : undefined,
+    store: observabilityStore,
+    testLabTargetAgeSeconds: config.observabilityTestLabTargetAgeSeconds,
+    testLabStaleAfterSeconds: config.observabilityTestLabStaleAfterSeconds,
+    workerStaleAfterSeconds: config.observabilityWorkerStaleAfterSeconds,
+    workerUnavailableAfterSeconds: config.observabilityWorkerUnavailableAfterSeconds,
+    jobExecutionMode: "API_INLINE",
+  });
   const app = Fastify({
     logger: options.logger ?? true,
     requestIdHeader: "x-request-id",
+  });
+  const requestStartedAt = new Map<string,number>();
+  app.addHook("onRequest", async request => { requestStartedAt.set(request.id, Date.now()); });
+  app.addHook("onResponse", async (request, reply) => {
+    const started = requestStartedAt.get(request.id);
+    requestStartedAt.delete(request.id);
+    observability.requestMetrics.observe(reply.statusCode, started === undefined ? 0 : Date.now() - started);
   });
 
   await app.register(cors, {
@@ -289,7 +316,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.34.0",
+      version: "0.35.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -392,6 +419,11 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       agentAdvantageReportHistoryEnabled: true,
       agentAdvantageFinancialInferenceEnabled: false,
       agentAdvantageTransactionSuccessImpliesAdvantage: false,
+      operationalObservabilityEnabled: true,
+      publicSystemHealthEnabled: true,
+      adminDiagnosticsConfigured: Boolean(config.adminDiagnosticsToken),
+      operationalHealthMarketplaceReadinessAuthority: false,
+      operationalHealthFinancialReadinessAuthority: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
@@ -437,6 +469,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "v0.32 normalizes BNB Agent Studio deployment declarations for canonically owned operator services, then reconciles A2A registration and Marketplace Test Lab evidence. Spotriq does not run the bag CLI, ingest Studio wallet secrets, override readiness, or dispatch payment/financial execution.",
         "v0.33 adds a grounded explanation layer. The optional OpenAI Responses provider receives only server-built deterministic fact packets, uses structured output without web/tools, and every claim must cite known fact IDs. Invalid provider output falls back to a deterministic cited summary; AI cannot mutate financial truth or decision resources.",
         "v0.34 adds persisted Agent Advantage reports with explicit Activation measurement windows. Service contribution, transaction evidence, financial outcome and Agent Advantage remain separate; transaction success never becomes financial advantage and missing evidence remains Could Not Assess.",
+        "v0.35 adds operational observability for API/database, BSC RPC, persisted Marketplace Test Lab/runtime evidence, payment adapters, Agent Studio and worker heartbeat posture. Operational health is explicitly not marketplace readiness, trust, payment, permission, execution or financial-outcome authority; public health is redacted and admin diagnostics fail closed behind a server-side bearer token.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
       ],
@@ -471,6 +504,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerAgentStudioRoutes(app, agentStudio, operatorWorkspace);
   await registerGroundedExplanationRoutes(app, groundedExplanations);
   await registerAgentAdvantageRoutes(app, agentAdvantage);
+  await registerObservabilityRoutes(app, observability, config.adminDiagnosticsToken);
 
   app.setNotFoundHandler(async (request, reply) => {
     const body: ApiErrorBody = {

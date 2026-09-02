@@ -205,6 +205,16 @@ const required = [
   "scripts/verify-grounded-explanations.mjs",
   "docs/GROUNDED_AI_EXPLANATIONS.md",
   "docs/IMPLEMENTATION_REPORT_GROUNDED_AI_EXPLANATIONS_v0.33.0.md",
+  "packages/observability/package.json",
+  "packages/observability/src/index.ts",
+  "packages/observability/src/index.test.ts",
+  "packages/db/migrations/0028_operational_observability.sql",
+  "apps/api/src/routes/observability.ts",
+  "apps/web/src/repositories/systemHealthRepository.ts",
+  "apps/web/src/components/SystemHealthIndicator.tsx",
+  "scripts/verify-observability.mjs",
+  "docs/OPERATIONAL_OBSERVABILITY.md",
+  "docs/IMPLEMENTATION_REPORT_OBSERVABILITY_v0.35.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -218,11 +228,11 @@ for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper
   if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
 }
 const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
-if (!projectState.includes("v0.32 ✅") || !projectState.includes("v0.33") || !projectState.includes("Grounded AI")) {
-  throw new Error("PROJECT_STATE.md must record externally accepted v0.32 and the current v0.33 Grounded AI candidate.");
+if (!projectState.includes("v0.34 ✅") || !projectState.includes("v0.35") || !projectState.includes("Observability")) {
+  throw new Error("PROJECT_STATE.md must record externally accepted v0.34 and the current v0.35 Observability candidate.");
 }
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
-for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation", "v0.32.0 — Deeper BNB Agent Studio Integration", "v0.33.0 — Grounded AI Explanation Layer"]) {
+for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation", "v0.32.0 — Deeper BNB Agent Studio Integration", "v0.33.0 — Grounded AI Explanation Layer", "v0.34.0 — Agent Advantage Measurement + Report", "v0.35.0 — Observability + Marketplace/System Health"]) {
   if (!correctedRoadmap.includes(marker)) throw new Error(`Corrected roadmap is missing ${marker}.`);
 }
 
@@ -905,7 +915,7 @@ for (const marker of ["same-service switch", "BLOCKED", "/my-agents", "/switches
   if (!myAgentsVerifier.includes(marker)) throw new Error(`v0.28 live verifier is missing ${marker}.`);
 }
 if (rootManifest.scripts?.["verify:my-agents"] !== "node scripts/verify-my-agents.mjs") throw new Error("Root package.json must expose pnpm verify:my-agents.");
-if (!apiApp.includes('version: "0.34.0"')) throw new Error("API metadata must report v0.34.0.");
+if (!apiApp.includes('version: "0.35.0"')) throw new Error("API metadata must report v0.35.0.");
 
 
 // v0.29 — Smart Money Plans + Compatibility/Conflict Handling.
@@ -943,7 +953,7 @@ for (const marker of ["NO_SHARED_EXECUTION", "INDEPENDENT_PER_SERVICE", "/plans"
 }
 if (legacyMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes('apiRequest<SmartMoneyPlanTemplate[]>("/v1/plans")')) throw new Error("Legacy marketplace repositories must not reuse the persisted /v1/plans namespace for mock plan templates.");
 if (rootManifest.scripts?.["verify:smart-money-plans"] !== "node scripts/verify-smart-money-plans.mjs") throw new Error("Root package.json must expose pnpm verify:smart-money-plans.");
-if (!apiApp.includes('version: "0.34.0"')) throw new Error("API metadata must report v0.34.0.");
+if (!apiApp.includes('version: "0.35.0"')) throw new Error("API metadata must report v0.35.0.");
 
 
 
@@ -1057,6 +1067,27 @@ for (const marker of ["agentAdvantageMeasurementEnabled: true", "agentAdvantageR
 for (const marker of ["explicit window", "Transaction success is not financial advantage", "Could Not Assess", "service contribution, transaction evidence, financial outcome and Agent Advantage remain separate"]) { if (!agentAdvantageVerifier.toLowerCase().includes(marker.toLowerCase())) throw new Error(`v0.34 live verifier is missing ${marker}.`); }
 if (rootManifest.scripts?.["verify:agent-advantage"] !== "node scripts/verify-agent-advantage.mjs") throw new Error("Root package.json must expose pnpm verify:agent-advantage.");
 
+// v0.35 — Observability + Marketplace/System Health.
+const observability = await readFile(path.join(root, "packages/observability/src/index.ts"), "utf8");
+const observabilityTests = await readFile(path.join(root, "packages/observability/src/index.test.ts"), "utf8");
+const observabilityRoutes = await readFile(path.join(root, "apps/api/src/routes/observability.ts"), "utf8");
+const systemHealthRepo = await readFile(path.join(root, "apps/web/src/repositories/systemHealthRepository.ts"), "utf8");
+const systemHealthUi = await readFile(path.join(root, "apps/web/src/components/SystemHealthIndicator.tsx"), "utf8");
+const migration0028 = await readFile(path.join(root, "packages/db/migrations/0028_operational_observability.sql"), "utf8");
+const observabilityVerifier = await readFile(path.join(root, "scripts/verify-observability.mjs"), "utf8");
+for (const marker of ["OperationalHealthSnapshot", "PublicOperationalHealthSnapshot", "WorkerOperationalHeartbeat", "OperationalHealthComponent", "operationalOnly"]) { if (!domain.includes(marker)) throw new Error(`v0.35 domain model is missing ${marker}.`); }
+for (const marker of ["OPERATIONAL_HEALTH_METHOD", "PostgresOperationalHealthStore", "RequestMetricsTracker", "publicCurrent", "marketplaceReadinessAuthority:false", "financialReadinessAuthority:false", "paymentAuthority:false", "permissionAuthority:false", "executionAuthority:false", "outcomeAuthority:false", "sanitizeDiagnostic", "publicCacheTtlMs"]) { if (!observability.replaceAll(" ","").includes(marker.replaceAll(" ",""))) throw new Error(`v0.35 observability engine is missing ${marker}.`); }
+for (const route of ["/v1/system/health", "/v1/admin/observability", "/v1/admin/observability/snapshots"]) { if (!observabilityRoutes.includes(route)) throw new Error(`Missing v0.35 observability route ${route}.`); }
+for (const marker of ["ADMIN_DIAGNOSTICS_NOT_CONFIGURED", "ADMIN_DIAGNOSTICS_AUTH_REQUIRED", "timingSafeEqual", "Bearer"]) { if (!observabilityRoutes.includes(marker)) throw new Error(`v0.35 admin diagnostics boundary is missing ${marker}.`); }
+for (const marker of ["operational_health_snapshots", "operational_worker_heartbeats", "platform_state", "marketplace_state", "observed_at"]) { if (!migration0028.includes(marker)) throw new Error(`v0.35 migration is missing ${marker}.`); }
+for (const marker of ["getPublic", "/v1/system/health"]) { if (!systemHealthRepo.includes(marker)) throw new Error(`v0.35 web system-health repository is missing ${marker}.`); }
+for (const marker of ["Platform", "Marketplace", "Operational only", "not an agent trust/readiness score"]) { if (!systemHealthUi.includes(marker)) throw new Error(`v0.35 system-health UI is missing ${marker}.`); }
+for (const marker of ["healthy operational snapshot remains separate from readiness/payment/permission authority", "missing platform dependency configuration degrades aggregate health", "public projection redacts endpoint diagnostics and credentials", "elevated API 5xx rate degrades platform health", "stale Test Lab evidence degrades marketplace/runtime observability", "worker heartbeat persistence has freshness semantics", "sync persists immutable health samples and history"]) { if (!observabilityTests.includes(marker)) throw new Error(`v0.35 observability tests are missing ${marker}.`); }
+for (const marker of ["operationalObservabilityEnabled: true", "publicSystemHealthEnabled: true", "operationalHealthMarketplaceReadinessAuthority: false", "operationalHealthFinancialReadinessAuthority: false"]) { if (!apiApp.includes(marker)) throw new Error(`API capabilities must expose truthful v0.35 feature ${marker}.`); }
+for (const marker of ["structured/redacted", "fail closed", "readiness", "trust", "payment", "permission", "execution", "outcome authority"]) { if (!observabilityVerifier.toLowerCase().includes(marker.toLowerCase())) throw new Error(`v0.35 live verifier is missing ${marker}.`); }
+if (!appUi.includes("SystemHealthIndicator")) throw new Error("v0.35 public web shell must expose the non-authoritative system-health indicator.");
+if (rootManifest.scripts?.["verify:observability"] !== "node scripts/verify-observability.mjs") throw new Error("Root package.json must expose pnpm verify:observability.");
+
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const output = [];
@@ -1069,11 +1100,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 35) throw new Error(`v0.34 expects 35 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 36) throw new Error(`v0.35 expects 36 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.34.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.34.0.`);
+  if (manifest.version !== "0.35.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.35.0.`);
 }
 
-console.log("Spotriq foundation + accepted v0.22–v0.33 + v0.34 Agent Advantage Measurement + Report verification passed.");
+console.log("Spotriq foundation + accepted v0.22–v0.34 + v0.35 Observability + Marketplace/System Health verification passed.");
 

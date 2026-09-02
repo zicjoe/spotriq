@@ -3321,3 +3321,95 @@ export interface GroundedExplanationStatus {
   methodVersion: string;
   limitations: string[];
 }
+
+// ─── v0.35 Operational Observability + Marketplace/System Health ─────────────
+export type OperationalHealthState = "OK" | "DEGRADED" | "UNAVAILABLE" | "NOT_CONFIGURED" | "UNKNOWN";
+export type OperationalHealthScope = "PLATFORM" | "MARKETPLACE" | "INFORMATIONAL";
+export type OperationalHealthComponentCode =
+  | "API"
+  | "DATABASE"
+  | "BSC_RPC"
+  | "MARKETPLACE_TEST_LAB"
+  | "AGENT_RUNTIME"
+  | "PAYMENT_RAILS"
+  | "AGENT_STUDIO"
+  | "WORKER_JOBS";
+
+export interface OperationalFreshness {
+  observedAt?: string;
+  ageSeconds?: number;
+  state: "FRESH" | "AGING" | "STALE" | "UNAVAILABLE";
+  targetAgeSeconds: number;
+  staleAfterSeconds: number;
+}
+
+export interface OperationalHealthComponent {
+  code: OperationalHealthComponentCode;
+  label: string;
+  scope: OperationalHealthScope;
+  state: OperationalHealthState;
+  checkedAt: string;
+  summary: string;
+  latencyMs?: number;
+  freshness?: OperationalFreshness;
+  metrics: Record<string, string | number | boolean | null>;
+  diagnostics?: string[];
+  limitations: string[];
+}
+
+export interface OperationalRequestMetrics {
+  windowStartedAt: string;
+  observedAt: string;
+  requests: number;
+  clientErrors: number;
+  serverErrors: number;
+  serverErrorRate: number;
+  latencyMs: { sampleSize: number; average?: number; p95?: number; max?: number };
+}
+
+export interface WorkerOperationalHeartbeat {
+  workerId: string;
+  service: "spotriq-worker";
+  version: string;
+  environment: SpotriqEnvironment;
+  network: BscNetwork;
+  databaseState: DependencyHealthState;
+  redisConfigured: boolean;
+  jobsEnabled: boolean;
+  jobExecutionMode: "API_INLINE" | "WORKER_QUEUE";
+  processUptimeSeconds: number;
+  observedAt: string;
+  methodVersion: string;
+}
+
+export interface OperationalHealthSnapshot {
+  snapshotId: string;
+  service: "Spotriq";
+  release: string;
+  platformState: "OPERATIONAL" | "DEGRADED" | "UNAVAILABLE";
+  marketplaceState: "OPERATIONAL" | "DEGRADED" | "UNAVAILABLE" | "NOT_CONFIGURED";
+  components: OperationalHealthComponent[];
+  requestMetrics: OperationalRequestMetrics;
+  generatedAt: string;
+  methodVersion: string;
+  operationalOnly: true;
+  marketplaceReadinessAuthority: false;
+  financialReadinessAuthority: false;
+  trustAuthority: false;
+  paymentAuthority: false;
+  permissionAuthority: false;
+  executionAuthority: false;
+  outcomeAuthority: false;
+  limitations: string[];
+}
+
+export interface PublicOperationalHealthSnapshot extends Omit<OperationalHealthSnapshot, "components"> {
+  visibility: "PUBLIC";
+  components: Array<Omit<OperationalHealthComponent, "diagnostics">>;
+}
+
+export interface OperationalHealthHistory {
+  snapshots: OperationalHealthSnapshot[];
+  generatedAt: string;
+  methodVersion: string;
+}

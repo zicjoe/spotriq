@@ -1,21 +1,25 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.34.0  
-**Implementation status:** Agent Advantage Measurement + Report implemented; v0.33 externally accepted; dependency-aware local validation and external v0.34 acceptance pending.  
+**Current implementation release:** v0.35.0  
+**Implementation status:** Observability + Marketplace/System Health implemented as an acceptance candidate; v0.34 is externally accepted; dependency-aware local/Railway/live v0.35 acceptance pending.  
 **Last state update:** 2026-09-02  
 **Repository role:** concise present-state map; current repository remains implementation truth.
 
 ## Product position
 
-Spotriq is a **BSC financial-agent marketplace**. It helps a wallet understand financial needs, discover and evaluate specialist AgentServices, hire/activate them, review scoped authority, observe runtime/execution state, measure only defensible outcomes, and decide whether to continue, switch, revoke or compose independent specialists into a reviewable plan.
+Spotriq is a **BSC financial-agent marketplace**. It helps a wallet understand financial needs, discover and evaluate specialist AgentServices, hire/activate them, review scoped authority, observe runtime/execution state, measure only defensible outcomes, understand those outcomes, and decide whether to continue, switch, revoke or compose independent specialists into a reviewable plan.
 
 Lifecycle:
 
-`Understand → Discover → Match → Evaluate → Offer → Quote → Hire → Payment where required → Activation → Permission Checkout where required → PermissionGrant where real → Guarded Execution where eligible → Activity → Outcome → Explain → Continue / Switch / Revoke / Plan`
+`Understand → Discover → Match → Evaluate → Offer → Quote → Hire → Payment where required → Activation → Permission Checkout where required → PermissionGrant where real → Guarded Execution where eligible → Activity → Outcome → Agent Advantage where measurable → Explain → Continue / Switch / Revoke / Plan`
 
 Locked separations:
 
 `Payment ≠ Permission ≠ Activation ≠ Execution ≠ Outcome`
+
+`Service contribution ≠ Transaction ≠ Financial outcome ≠ Agent Advantage`
+
+`Operational health ≠ marketplace readiness ≠ trust ≠ payment ≠ permission ≠ execution ≠ outcome`
 
 `Plan ≠ Super-agent`
 
@@ -39,14 +43,15 @@ Locked separations:
 - **v0.31 ✅** Provider-neutral ERC-8183/x402/B402 paid reconciliation with payment dispatch disabled.
 - **v0.32 ✅** BNB Agent Studio normalized integration with canonical-owner reconciliation and no CLI/readiness/payment/execution bypass.
 - **v0.33 ✅** Grounded AI Explanation Layer with deterministic grounding packets, citation/decision-grade validation and safe fallback.
+- **v0.34 ✅** Agent Advantage Measurement + Report with explicit windows and preserved `Could Not Assess` truth boundaries.
 
 ## Current architecture
 
 - `apps/web` — React/Vite marketplace UX.
 - `apps/api` — Fastify API.
-- `apps/worker` — worker seam.
+- `apps/worker` — worker seam plus best-effort operational heartbeat.
 - `@spotriq/domain` + `@spotriq/api-contracts` — shared domain/API contracts.
-- PostgreSQL migrations `0001`–`0026`.
+- PostgreSQL migrations `0001`–`0028`.
 - deterministic BSC, PancakeSwap, Venus, market-context and Smart Money packages.
 - ERC-8004 discovery, marketplace supply/readiness/Test Lab, and four first-party reference runtimes.
 - `@spotriq/commercial` — Offer/Quote/Hire/Payment/Activation/control/revocation.
@@ -59,32 +64,50 @@ Locked separations:
 - `@spotriq/operator-workspace` — signed operator authentication, canonical owner claims, supply lifecycle/declarations and Operator Supplied evidence.
 - `@spotriq/payment-rails` — provider-neutral ERC-8183/x402/B402 reconciliation.
 - `@spotriq/agent-studio` — normalized BNB Agent Studio declarations + canonical/runtime reconciliation without CLI custody.
-- `@spotriq/grounded-explanations` — deterministic grounding packets + optional structured model explanation + post-generation grounding validation/fallback, with no decision/write authority.
+- `@spotriq/grounded-explanations` — deterministic grounding packets + optional structured model explanation + post-generation validation/fallback, with no decision/write authority.
+- `@spotriq/agent-advantage` — explicit-window, source-fingerprint-idempotent Agent Advantage reports without financial benefit inference.
+- `@spotriq/observability` — deterministic operational health, redacted public projection, admin diagnostics/history and worker heartbeat persistence with no marketplace/financial decision authority.
 
-## Current v0.34 implementation truth
+## Current v0.35 implementation truth
 
-Spotriq now produces deterministic, persisted **Agent Advantage Reports** downstream of Activation Activity & Outcomes. The report does not introduce a universal performance score and does not infer benefit from runtime or transaction success.
+Spotriq now has a separate **operational observability plane**. It reports infrastructure/integration health without modifying canonical marketplace or financial state.
 
-Each report separates:
+The v0.35 snapshot covers:
 
-- service contribution — whether an accepted Activation-bound structured observation was actually delivered;
-- transaction evidence — whether an independently reconciled Activation-attributable transaction exists;
-- financial outcome — the existing v0.27 measurement state/value;
-- Agent Advantage — a stricter assessment that remains `Could Not Assess` unless a standardized evidence-backed advantage metric exists.
+- API request/error/latency posture;
+- PostgreSQL health;
+- BSC RPC/provider health;
+- Marketplace Test Lab freshness;
+- AgentService runtime operational posture derived from persisted Test Lab evidence;
+- payment-rail adapter posture;
+- Agent Studio integration posture;
+- worker/job heartbeat posture.
 
-Every report has an explicit window from Activation start to the current deterministic reconciliation, or to relationship revocation for revoked Activations. Unchanged source facts reuse the same source fingerprint/report rather than manufacturing history merely because time passed.
+The public endpoint is:
 
-Current FREE read-only reference services can truthfully show `serviceContribution = OBSERVED` while `transactionObserved = false`, `financialOutcome = Could Not Assess`, and `agentAdvantage = Could Not Assess`. That is expected rather than incomplete.
+`GET /v1/system/health`
 
-A transaction plus a generally measured financial outcome still does not become Agent Advantage automatically. The v0.34 engine only exposes `agentAdvantage.state = MEASURED` when the upstream outcome explicitly contains a standardized advantage metric with evidence references.
+It is redacted, briefly cached, and intentionally distinct from the existing lightweight Railway `/health` deployment probe.
+
+Admin-only diagnostics/history are:
+
+- `GET /v1/admin/observability`
+- `POST /v1/admin/observability/snapshots`
+- `GET /v1/admin/observability/snapshots`
+
+They fail closed unless `SPOTRIQ_ADMIN_DIAGNOSTICS_TOKEN` is configured and a valid bearer token is supplied.
+
+Runtime health does not probe arbitrary operator URLs during a health request. It uses bounded persisted Marketplace Test Lab evidence, preventing observability from becoming a parallel SSRF/probing system.
+
+Every operational snapshot explicitly declares that it has **no authority** over marketplace readiness, financial readiness, trust, payment, PermissionGrant state, execution eligibility or outcomes.
 
 Migration:
 
-`0027_agent_advantage_reports.sql`
+`0028_operational_observability.sql`
 
 New live acceptance gate:
 
-`pnpm verify:agent-advantage`
+`pnpm verify:observability`
 
 ## Network truth
 
@@ -98,7 +121,7 @@ Authoritative local gate:
 
 `pnpm --filter @spotriq/api build → pnpm check`
 
-Externally accepted regression verifier chain through v0.33:
+Externally accepted regression verifier chain through v0.34:
 
 - `pnpm verify:reference-acceptance`
 - `pnpm verify:commercial-acceptance`
@@ -112,9 +135,10 @@ Externally accepted regression verifier chain through v0.33:
 - `pnpm verify:paid-rails`
 - `pnpm verify:agent-studio`
 - `pnpm verify:grounded-explanations`
+- `pnpm verify:agent-advantage`
 
-v0.34 must not be recorded externally accepted until dependency-aware local checks, migration/deployment and `pnpm verify:agent-advantage` pass against the deployed API.
+v0.35 must not be recorded externally accepted until dependency-aware local checks, migration/deployment and `pnpm verify:observability` pass against the deployed API.
 
-## Next milestone after v0.34 acceptance
+## Next milestone after v0.35 acceptance
 
-**v0.35 — Observability + Marketplace/System Health.** Add structured runtime/provider/payment/chain/worker health and admin-grade diagnostics without weakening existing domain truth boundaries.
+**v0.36 — Security + Failure Injection Hardening.** Exercise upstream outages, RPC divergence, stale/corrupt provider data, malicious operator metadata, payment replay/adversarial cases, DB/idempotency races, malformed Agent Cards, SSRF boundaries and partial-provider failures while preserving every existing fail-closed truth boundary.

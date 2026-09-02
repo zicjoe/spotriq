@@ -117,6 +117,11 @@ export interface CapabilityResponse {
   agentAdvantageReportHistoryEnabled: boolean;
   agentAdvantageFinancialInferenceEnabled: boolean;
   agentAdvantageTransactionSuccessImpliesAdvantage: boolean;
+  operationalObservabilityEnabled: boolean;
+  publicSystemHealthEnabled: boolean;
+  adminDiagnosticsConfigured: boolean;
+  operationalHealthMarketplaceReadinessAuthority: boolean;
+  operationalHealthFinancialReadinessAuthority: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -609,3 +614,9 @@ export interface CreateGroundedExplanationRequest extends GroundedExplanationSub
 export interface GroundedExplanationStatusResponse { status: import("@spotriq/domain").GroundedExplanationStatus; }
 export interface GroundedExplanationPacketResponse { packet: import("@spotriq/domain").GroundedExplanationPacket; }
 export interface GroundedExplanationResponse { explanation: import("@spotriq/domain").GroundedExplanationRecord; }
+
+
+// v0.35 Observability + Marketplace/System Health
+export interface PublicSystemHealthResponse { health: import("@spotriq/domain").PublicOperationalHealthSnapshot; }
+export interface AdminOperationalHealthResponse { health: import("@spotriq/domain").OperationalHealthSnapshot; }
+export interface AdminOperationalHealthHistoryResponse { history: import("@spotriq/domain").OperationalHealthHistory; }

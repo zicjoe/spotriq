@@ -517,3 +517,11 @@ v0.12 and v0.13 followed the intended plan. v0.14–v0.21 then invested heavily 
 ## v0.32 alignment note — BNB Agent Studio
 
 v0.32 closes the earlier foundation gap that said Agent Studio should be a native ecosystem integration while remaining provider-normalized. Spotriq now accepts signed-operator Agent Studio deployment declarations and reconciles them against canonical ERC-8004 ownership, A2A registration and Marketplace Test Lab evidence. Studio-specific metadata remains Operator Supplied and cannot override readiness, payment, PermissionGrant, execution or outcome truth. No CLI custody or Studio wallet-secret handling was introduced.
+
+## v0.33–v0.35 alignment note — explanation, value measurement and observability
+
+v0.33 implemented the foundation rule **AI explains. Deterministic systems decide.** through bounded grounding packets, citation validation and deterministic fallback rather than delegating decision-grade state to a model.
+
+v0.34 then added Agent Advantage reporting without introducing a universal performance score: service contribution, transaction evidence, financial outcome and Agent Advantage remain separate, and insufficient evidence remains `Could Not Assess`.
+
+v0.35 continues the same doctrine for operations. Platform/runtime/provider health is a new observational plane, not a trust/readiness/financial authority. Public diagnostics are redacted, admin diagnostics fail closed behind an independent server-side secret, and AgentService runtime health is derived from persisted Marketplace Test Lab observations rather than arbitrary health-time endpoint probing. This closes part of the earlier production-hardening obligation without weakening marketplace evidence boundaries.

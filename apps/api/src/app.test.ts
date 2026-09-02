@@ -469,3 +469,42 @@ test("Fastify request parsing errors preserve their client status instead of bec
   assert.equal(response.json().error.code, "FST_ERR_CTP_INVALID_MEDIA_TYPE");
   await app.close();
 });
+
+test("GET /v1/system/health exposes redacted operational health without decision authority", async () => {
+  const app = await buildServer({ config, chain: makeChain(), logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/system/health" });
+  assert.equal(response.statusCode, 200);
+  const health = response.json().data.health;
+  assert.equal(health.visibility, "PUBLIC");
+  assert.equal(health.operationalOnly, true);
+  assert.equal(health.marketplaceReadinessAuthority, false);
+  assert.equal(health.financialReadinessAuthority, false);
+  assert.deepEqual(new Set(health.components.map((item:any)=>item.code)), new Set(["API","DATABASE","BSC_RPC","MARKETPLACE_TEST_LAB","AGENT_RUNTIME","PAYMENT_RAILS","AGENT_STUDIO","WORKER_JOBS"]));
+  assert.ok(health.components.every((item:any)=>item.diagnostics === undefined));
+  await app.close();
+});
+
+test("admin observability fails closed when its independent server secret is not configured", async () => {
+  const app = await buildServer({ config, chain: makeChain(), logger: false });
+  const response = await app.inject({ method: "GET", url: "/v1/admin/observability" });
+  assert.equal(response.statusCode, 503);
+  assert.equal(response.json().error.code, "ADMIN_DIAGNOSTICS_NOT_CONFIGURED");
+  await app.close();
+});
+
+test("admin observability requires bearer auth and can persist health snapshots", async () => {
+  const protectedConfig:ServerConfig={...config,adminDiagnosticsToken:"test-observability-secret"};
+  const app = await buildServer({ config:protectedConfig, chain:makeChain(), logger:false });
+  const denied=await app.inject({method:"GET",url:"/v1/admin/observability",headers:{authorization:"Bearer wrong"}});
+  assert.equal(denied.statusCode,401);
+  const headers={authorization:"Bearer test-observability-secret"};
+  const current=await app.inject({method:"GET",url:"/v1/admin/observability",headers});
+  assert.equal(current.statusCode,200);
+  assert.ok(current.json().data.health.components.some((item:any)=>Array.isArray(item.diagnostics)));
+  const saved=await app.inject({method:"POST",url:"/v1/admin/observability/snapshots",headers});
+  assert.equal(saved.statusCode,201);
+  const history=await app.inject({method:"GET",url:"/v1/admin/observability/snapshots?limit=5",headers});
+  assert.equal(history.statusCode,200);
+  assert.ok(history.json().data.history.snapshots.length>=1);
+  await app.close();
+});

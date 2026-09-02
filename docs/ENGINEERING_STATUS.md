@@ -1,12 +1,12 @@
 # Spotriq Engineering Status
 
-**Release candidate:** v0.34.0  
+**Release candidate:** v0.35.0  
 **Date:** 2026-09-02  
-**State:** Agent Advantage Measurement + Report implemented; v0.33 externally accepted; local dependency-aware validation and external v0.34 acceptance pending.
+**State:** Observability + Marketplace/System Health implemented; v0.34 externally accepted; local dependency-aware validation and external v0.35 acceptance pending.
 
 ## Accepted baseline
 
-Production acceptance is complete through v0.33.
+Production acceptance is complete through v0.34.
 
 ## v0.29 package
 
@@ -136,3 +136,30 @@ New production gate: `pnpm verify:agent-advantage`.
 Regression verifier hardening: the accepted v0.29 Smart Money Plans verifier still creates and idempotently re-reads a live plan when the supplied Smart Money Check has supported findings. If current market state produces no supported findings, it may instead verify an already persisted buyer plan from the accepted v0.29 lifecycle; it never fabricates findings merely to keep a regression check green.
 
 Grounded-explanation regression hardening: persisted `grounded-ai.packet@1.0.0` payloads are stored in PostgreSQL `jsonb`, which does not preserve object-key order. The v0.33 production verifier therefore reconstructs the packet builder's accepted schema order before recomputing the SHA-256 content hash; this validates the exact persisted values without changing the accepted packet method or weakening integrity checks.
+
+
+## v0.35 Observability + Marketplace/System Health
+
+New package: `@spotriq/observability`.
+
+Operational health is explicitly separate from marketplace readiness, trust, payment, permission, execution and outcome truth. Public `GET /v1/system/health` exposes redacted platform/marketplace component health. Bearer-protected `/v1/admin/observability` routes expose diagnostics and explicit persisted snapshot history only when `SPOTRIQ_ADMIN_DIAGNOSTICS_TOKEN` is configured.
+
+The engine covers API request/error/latency posture, PostgreSQL, BSC RPC/provider health, persisted Marketplace Test Lab/runtime freshness, payment-rail posture, Agent Studio posture and worker heartbeat state. It does not probe arbitrary operator endpoints during a health request. Public health reads are briefly cached to reduce upstream amplification.
+
+Persistence: `0028_operational_observability.sql` adds `operational_health_snapshots` and `operational_worker_heartbeats`.
+
+Web: the shell shows a compact platform/marketplace indicator with the explicit label `Operational only — not an agent trust/readiness score.`
+
+Capability truth:
+
+- `operationalObservabilityEnabled = true`
+- `publicSystemHealthEnabled = true`
+- `adminDiagnosticsConfigured` reflects server configuration only
+- `operationalHealthMarketplaceReadinessAuthority = false`
+- `operationalHealthFinancialReadinessAuthority = false`
+
+New production gate: `pnpm verify:observability`.
+
+Current status: implementation candidate complete; do not record v0.35 externally accepted until dependency-aware local build/check, Railway migration/deployment, accepted regressions through v0.34 and the new observability verifier pass.
+
+Next after acceptance: **v0.36 Security + Failure Injection Hardening**.

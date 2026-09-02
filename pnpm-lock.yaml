@@ -89,6 +89,9 @@ importers:
       '@spotriq/my-agents':
         specifier: workspace:*
         version: link:../../packages/my-agents
+      '@spotriq/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@spotriq/operator-workspace':
         specifier: workspace:*
         version: link:../../packages/operator-workspace
@@ -346,6 +349,9 @@ importers:
       '@spotriq/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@spotriq/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
@@ -823,6 +829,25 @@ importers:
       '@spotriq/permission-checkout':
         specifier: workspace:*
         version: link:../permission-checkout
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      tsx:
+        specifier: 4.23.1
+        version: 4.23.1
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+
+  packages/observability:
+    dependencies:
+      '@spotriq/chain':
+        specifier: workspace:*
+        version: link:../chain
+      '@spotriq/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

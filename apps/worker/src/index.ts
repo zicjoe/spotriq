@@ -1,22 +1,43 @@
 import { loadServerConfig } from "@spotriq/config";
-import { closeDatabase, getDatabaseHealth } from "@spotriq/db";
+import { closeDatabase, getDatabaseHealth, getDatabasePool } from "@spotriq/db";
+import { createWorkerHeartbeat, MemoryOperationalHealthStore, PostgresOperationalHealthStore } from "@spotriq/observability";
 
 const config = loadServerConfig();
 let shuttingDown = false;
 let timer: NodeJS.Timeout | undefined;
+const database = getDatabasePool(config.databaseUrl);
+const store = database
+  ? new PostgresOperationalHealthStore({ query: async (text, values) => { const result = await database.query(text, values); return { rows: result.rows, rowCount: result.rowCount }; } })
+  : new MemoryOperationalHealthStore();
+const workerId = process.env.RAILWAY_REPLICA_ID?.trim() || process.env.HOSTNAME?.trim() || `worker:${process.pid}`;
 
 async function heartbeat(): Promise<void> {
-  const database = await getDatabaseHealth(config.databaseUrl);
+  const databaseHealth = await getDatabaseHealth(config.databaseUrl);
+  const value = createWorkerHeartbeat({
+    workerId,
+    version: "0.35.0",
+    environment: config.appEnv,
+    network: config.bscNetwork,
+    databaseState: databaseHealth.state,
+    redisConfigured: Boolean(config.redisUrl),
+    jobsEnabled: false,
+    jobExecutionMode: "API_INLINE",
+    processUptimeSeconds: process.uptime(),
+  });
+  try { await store.saveWorkerHeartbeat(value); } catch (error) {
+    console.error(JSON.stringify({ service:"spotriq-worker",event:"heartbeat_persist_failed",detail:error instanceof Error?error.message:String(error),at:new Date().toISOString() }));
+  }
   console.log(JSON.stringify({
     service: "spotriq-worker",
     event: "heartbeat",
     environment: config.appEnv,
     network: config.bscNetwork,
-    database,
+    database: databaseHealth,
     redisConfigured: Boolean(config.redisUrl),
     jobsEnabled: false,
-    note: "Smart Money Check currently executes through the API process; Redis/BullMQ worker execution is introduced when queue infrastructure becomes necessary.",
-    at: new Date().toISOString(),
+    jobExecutionMode: "API_INLINE",
+    workerId,
+    at: value.observedAt,
   }));
 }
 
@@ -34,7 +55,3 @@ process.once("SIGTERM", () => void shutdown("SIGTERM"));
 
 await heartbeat();
 timer = setInterval(() => void heartbeat(), 30_000);
-
-// The referenced heartbeat interval intentionally keeps the worker alive until SIGINT/SIGTERM.
-// Do not unref this timer: doing so would let Node exit, while an unresolved top-level await
-// produces an unsettled-await warning under current Node releases.
