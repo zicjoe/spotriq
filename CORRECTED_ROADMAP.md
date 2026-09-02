@@ -1,8 +1,8 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-09-02  
-**Current implementation:** v0.37.0  
-**Current milestone:** Production Hardening + Scale Readiness
+**Current implementation:** v0.38.0  
+**Current milestone:** Ecosystem Adoption + Judge/Public Launch Readiness
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
 
@@ -170,7 +170,7 @@ Acceptance: `API build → pnpm check → Railway migration 0029/deploy → v0.2
 
 ## v0.37.0 — Production Hardening + Scale Readiness
 
-**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+**Status: COMPLETE / externally accepted.**
 
 Adds bounded request/body/connection budgets, trusted-proxy configuration, distributed PostgreSQL rate limiting with local degraded fallback, conservative cache/security headers, DB pool tuning, migration advisory locking/checksum drift detection, targeted indexes, a durable lease/retry/dead-letter maintenance queue, graceful worker drain and production backup/restore/deployment runbooks. Financial Smart Money jobs remain `API_INLINE`; worker financial dispatch remains disabled.
 
@@ -178,11 +178,15 @@ Migration: `0030_production_hardening_scale_readiness.sql`.
 
 Acceptance: `API build → pnpm check → Railway migration 0030/deploy → v0.22–v0.36 regressions → verify:production-hardening → record acceptance`.
 
-## v0.38 — Ecosystem Adoption + Judge/Public Launch Readiness
+## v0.38.0 — Ecosystem Adoption + Judge/Public Launch Readiness
 
-**Status: NEXT after v0.37 acceptance.**
+**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
 
-Polish public README/docs, architecture/adoption evidence, demo playbook, deployment screenshots/proofs and BNB ecosystem adoption package. This milestone does not approve BSC Mainnet financial execution.
+Public launch package now includes a machine-readable adoption manifest, visible BNB integration/trust-boundary web surface, polished architecture/security/adoption documentation, a judge demo playbook, explicit screenshot/submission checklists, live-evidence capture tooling and a production acceptance verifier. External screenshots/video/URLs remain explicit follow-up artifacts instead of fabricated proof.
+
+No database migration is required. BSC Mainnet financial execution remains unapproved.
+
+Acceptance: `API build → pnpm check → deploy v0.38 → v0.22–v0.37 regressions → verify:adoption-readiness → capture public launch evidence → record acceptance`.
 
 ## Later production milestones
 

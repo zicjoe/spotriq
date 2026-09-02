@@ -141,6 +141,10 @@ export interface CapabilityResponse {
   migrationAdvisoryLockEnabled: boolean;
   migrationChecksumGuardEnabled: boolean;
   backupRecoveryRunbookEnabled: boolean;
+  publicAdoptionManifestEnabled: boolean;
+  publicLaunchDocumentationEnabled: boolean;
+  publicEvidenceCaptureEnabled: boolean;
+  bscMainnetFinancialExecutionApproved: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }

@@ -1,7 +1,7 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.37.0**  
-**Release status:** Production Hardening + Scale Readiness implementation candidate; v0.36 externally accepted; local dependency-aware validation and external v0.37 acceptance pending.  
+**Current repository release:** **v0.38.0**  
+**Release status:** Ecosystem Adoption + Judge/Public Launch Readiness implementation candidate; v0.37 externally accepted; local dependency-aware validation and external v0.38 acceptance pending.  
 **State date:** 2026-09-02
 
 ## Authority hierarchy
@@ -50,6 +50,7 @@ AI explains. Deterministic systems decide.
 - **v0.34 ✅** Agent Advantage Measurement + Report with explicit windows and no inferred financial benefit.
 - **v0.35 ✅** Operational observability with redacted/non-authoritative health.
 - **v0.36 ✅** Security + Failure Injection Hardening with fail-closed hostile-input/race/provider boundaries.
+- **v0.37 ✅** Production Hardening + Scale Readiness with abuse controls, migration resilience and durable maintenance queueing.
 
 ## v0.29 accepted truth
 
@@ -135,6 +136,14 @@ Operational backup/restore/deploy/rollback procedures are documented under `docs
 
 Acceptance: `pnpm verify:production-hardening`.
 
-## Next milestone after v0.37 acceptance
+## v0.38 implementation truth
 
-**v0.38 — Ecosystem Adoption + Judge/Public Launch Readiness.**
+`@spotriq/adoption-readiness` builds the deterministic public adoption manifest exposed at `GET /v1/public/adoption`. The public manifest states product position, BSC Mainnet discovery vs BSC Testnet transactional policy, BNB/protocol integration roles, locked truth boundaries, proof endpoints and unresolved external launch artifacts.
+
+The web product includes a public `Why Spotriq` BNB integration surface. `docs/public/` contains architecture/trust, BNB integration, demo, evidence, security, screenshot and submission packages. `pnpm capture:public-launch-evidence` records timestamped deployed public evidence without fabricating screenshots/video.
+
+No schema migration is required. `bscMainnetFinancialExecutionApproved=false`; payment/category/worker financial dispatch boundaries remain disabled as before. Acceptance: `pnpm verify:adoption-readiness`.
+
+## Post-v0.38 roadmap
+
+Further engineering should be driven by measured adoption/production evidence or an explicitly approved BSC Mainnet financial-readiness program. Mainnet execution is not implicitly authorized by public-launch readiness.

@@ -3,13 +3,13 @@
 > v0.35 acceptance verifier note: the legacy Railway `/health` route is intentionally a direct `HealthResponse` (200/ok or 503/degraded), while `/v1/system/health` uses the v0.35 API envelope. The verifier preserves both contracts.
 
 
-**Release candidate:** v0.37.0  
+**Release candidate:** v0.38.0  
 **Date:** 2026-09-02  
-**State:** Production Hardening + Scale Readiness implemented; v0.36 externally accepted; local dependency-aware validation and external v0.37 acceptance pending.
+**State:** Ecosystem Adoption + Judge/Public Launch Readiness implemented; v0.37 externally accepted; local dependency-aware validation and external v0.38 acceptance pending.
 
 ## Accepted baseline
 
-Production acceptance is complete through v0.36.
+Production acceptance is complete through v0.37.
 
 ## v0.29 package
 
@@ -203,6 +203,16 @@ Operations: backup/restore, deploy, rollback, queue-recovery and rate-limit degr
 
 New production gate: `pnpm verify:production-hardening`.
 
-Current status: implementation candidate complete; do not record v0.37 externally accepted until dependency-aware local build/check, Railway migration/deployment, accepted regressions through v0.36 and the new production-hardening verifier pass.
+Current status: **externally accepted**.
 
-Next after acceptance: **v0.38 Ecosystem Adoption + Judge/Public Launch Readiness**.
+## v0.38 Ecosystem Adoption + Judge/Public Launch Readiness
+
+New package: `@spotriq/adoption-readiness`. It builds the deterministic public adoption manifest and powers `GET /v1/public/adoption` plus the web `Why Spotriq` surface.
+
+Public launch package: `docs/public/` architecture/trust, BNB integration, demo, evidence, security, screenshot and submission material. Root `SECURITY.md` adds responsible disclosure guidance.
+
+Tooling: `pnpm capture:public-launch-evidence` records timestamped deployed proof and `pnpm verify:adoption-readiness` validates the live >=0.38.0 product/integration/network contract.
+
+No new migration is required; `0030_production_hardening_scale_readiness.sql` remains latest. BSC Mainnet financial execution remains unapproved.
+
+Current status: implementation candidate complete; do not record v0.38 externally accepted until dependency-aware build/check, deployment, accepted regressions through v0.37 and the adoption-readiness verifier pass.

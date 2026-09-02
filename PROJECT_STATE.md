@@ -1,7 +1,7 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.37.0  
-**Implementation status:** Production Hardening + Scale Readiness implemented as an acceptance candidate; v0.36 is externally accepted; dependency-aware local/Railway/live v0.37 acceptance pending.  
+**Current implementation release:** v0.38.0  
+**Implementation status:** Ecosystem Adoption + Judge/Public Launch Readiness implemented as an acceptance candidate; v0.37 is externally accepted; dependency-aware local/Railway/live v0.38 acceptance pending.  
 **Last state update:** 2026-09-02  
 **Repository role:** concise present-state map; current repository remains implementation truth.
 
@@ -18,6 +18,8 @@ Locked separations remain:
 `Operational health ≠ marketplace readiness ≠ trust ≠ payment ≠ permission ≠ execution ≠ outcome`
 
 `Production scalability ≠ financial authority ≠ mainnet execution approval`
+
+`Agent Studio deployment ≠ canonical identity ≠ readiness ≠ payment ≠ permission ≠ execution ≠ outcome`
 
 `Plan ≠ Super-agent`
 
@@ -40,50 +42,37 @@ Locked separations remain:
 - **v0.34 ✅** Agent Advantage Measurement + Report.
 - **v0.35 ✅** Observability + Marketplace/System Health.
 - **v0.36 ✅** Security + Failure Injection Hardening.
+- **v0.37 ✅** Production Hardening + Scale Readiness.
 
 ## Current architecture
 
-- `apps/web` — React/Vite marketplace UX.
-- `apps/api` — Fastify API.
-- `apps/worker` — operational worker/maintenance queue consumer with graceful lease/drain behavior.
-- PostgreSQL migrations `0001`–`0030`.
-- Existing deterministic BSC/DeFi/marketplace/commercial/permission/execution/outcome/operator/AI/observability/security packages remain intact.
-- `@spotriq/production-hardening` — distributed rate-limit buckets, durable lease/retry/dead-letter queue primitives, conservative cache policy and production retry helpers.
+- `apps/web` — React/Vite marketplace UX plus public BNB/adoption explanation surface.
+- `apps/api` — Fastify API including `GET /v1/public/adoption`.
+- `apps/worker` — operational maintenance queue consumer; financial Smart Money jobs remain `API_INLINE`.
+- PostgreSQL migrations `0001`–`0030`; v0.38 requires no schema migration.
+- Existing deterministic BSC/DeFi/marketplace/commercial/permission/execution/outcome/operator/AI/observability/security/production packages remain intact.
+- `@spotriq/adoption-readiness` — deterministic public adoption manifest and launch-package truth.
 
-## Current v0.37 implementation truth
+## Current v0.38 implementation truth
 
-v0.37 hardens the production control plane without changing financial decision truth:
+v0.38 packages the accepted product for ecosystem/judge/public scrutiny without inventing proof:
 
-- bounded Fastify request body, request timeout and connection timeout;
-- trusted-proxy hop configuration rather than unrestricted forwarded-IP trust;
-- distributed PostgreSQL read/write rate-limit buckets in production;
-- process-local emergency limiter when the distributed bucket store degrades;
-- conservative response caching/security headers with commercial/permission/buyer/write state kept private/no-store;
-- configurable PostgreSQL pool, connection, idle and statement timeouts;
-- serialized migration execution with a PostgreSQL advisory lock;
-- SHA-256 historical migration checksum tracking/drift rejection;
-- targeted indexes for common buyer/history paths;
-- durable maintenance work queue with idempotent enqueue, `SKIP LOCKED` leases, bounded retries, lease recovery and dead-letter state;
-- worker maintenance processing and graceful in-flight drain;
-- backup/restore/deploy/rollback operations runbook.
+- machine-readable `GET /v1/public/adoption` manifest;
+- visible web `Why Spotriq` / BNB integration surface;
+- polished public architecture and trust-boundary documentation;
+- BNB ecosystem integration brief covering BSC, ERC-8004, BNB Agent Studio, ERC-8183, x402/B402, PancakeSwap and Venus;
+- judge/ecosystem demo playbook;
+- adoption evidence guide and production screenshot checklist;
+- security/operations public brief plus root `SECURITY.md`;
+- submission checklist that keeps external URLs/video/screenshots explicit rather than fabricated;
+- `pnpm capture:public-launch-evidence` to archive timestamped live public API proof after deployment;
+- `pnpm verify:adoption-readiness` live acceptance gate.
 
-Migration:
+Network truth remains:
 
-`0030_production_hardening_scale_readiness.sql`
-
-New acceptance gate:
-
-`pnpm verify:production-hardening`
-
-Financial Smart Money work remains:
-
-`API_INLINE`
-
-and:
-
-`workerFinancialJobDispatchEnabled = false`
-
-No BSC Mainnet financial execution has been approved.
+- BSC Mainnet `56` may be used for real ERC-8004 discovery;
+- BSC Testnet `97` remains transactional/authority/reference-agent development;
+- `bscMainnetFinancialExecutionApproved = false`.
 
 ## Current validation state
 
@@ -91,10 +80,10 @@ Authoritative local gate:
 
 `pnpm --filter @spotriq/api build → pnpm check`
 
-Externally accepted regression verifier chain through v0.36 remains required before the v0.37 gate.
+Externally accepted regression verifier chain through v0.37 remains required before the v0.38 gate.
 
-v0.37 must not be recorded externally accepted until local checks, migration/deployment, prior regressions and `pnpm verify:production-hardening` pass against the deployed API.
+v0.38 must not be recorded externally accepted until local checks, deployment, prior regressions and `pnpm verify:adoption-readiness` pass against the deployed API.
 
-## Next milestone after v0.37 acceptance
+## Next milestone after v0.38 acceptance
 
-**v0.38 — Ecosystem Adoption + Judge/Public Launch Readiness.** Prepare polished public documentation, architecture/adoption evidence, demo playbook, production screenshots/evidence and BNB ecosystem adoption materials without silently enabling BSC Mainnet financial execution.
+The core roadmap through production/adoption readiness is complete. Any next engineering milestone should be driven by **measured production/adoption feedback** or by a separately approved **BSC Mainnet financial-readiness** program. Mainnet financial execution must not be enabled implicitly.

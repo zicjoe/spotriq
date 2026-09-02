@@ -536,3 +536,7 @@ Failure injection remains in deterministic tests/verifiers rather than becoming 
 ## v0.37 alignment note — Production Hardening + Scale Readiness
 
 v0.37 advances operational scale/readiness without changing product doctrine. Distributed abuse protection, migration serialization/checksums, queue leases/retries/dead-lettering, DB tuning and recovery runbooks remain operational infrastructure only. They do not create AgentService readiness, trust, payment, PermissionGrant, execution or outcome truth. Smart Money financial jobs remain `API_INLINE`, and BSC Mainnet financial execution remains prohibited without explicit approval.
+
+## v0.38 alignment note — Ecosystem Adoption + Judge/Public Launch Readiness
+
+v0.38 improves public inspectability without changing product doctrine. The adoption manifest, launch documentation, demo playbook and evidence-capture tooling expose existing truth boundaries rather than creating a new readiness/trust score. External screenshots/video remain external proof and are not fabricated in the repository. BSC Mainnet financial execution remains prohibited without explicit approval.

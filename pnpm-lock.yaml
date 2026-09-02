@@ -26,6 +26,9 @@ importers:
       '@spotriq/activity-outcomes':
         specifier: workspace:*
         version: link:../../packages/activity-outcomes
+      '@spotriq/adoption-readiness':
+        specifier: workspace:*
+        version: link:../../packages/adoption-readiness
       '@spotriq/agent-advantage':
         specifier: workspace:*
         version: link:../../packages/agent-advantage
@@ -234,6 +237,9 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: 1.1.8
         version: 1.1.8(@types/react-dom@18.3.5(@types/react@18.3.18))(@types/react@18.3.18)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@spotriq/adoption-readiness':
+        specifier: workspace:*
+        version: link:../../packages/adoption-readiness
       '@spotriq/api-contracts':
         specifier: workspace:*
         version: link:../../packages/api-contracts
@@ -374,6 +380,18 @@ importers:
       '@spotriq/domain':
         specifier: workspace:*
         version: link:../domain
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      tsx:
+        specifier: 4.23.1
+        version: 4.23.1
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+
+  packages/adoption-readiness:
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

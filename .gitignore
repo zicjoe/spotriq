@@ -28,3 +28,6 @@ Thumbs.db
 # local runtime artifacts
 .tmp/
 tmp/
+
+# generated public launch evidence
+artifacts/*.json

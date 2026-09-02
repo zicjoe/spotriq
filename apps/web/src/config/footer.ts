@@ -24,6 +24,7 @@ export const FOOTER_CONFIG = {
       { label: "Health Factor Monitoring", route: "explore" as Route, category: "health" as ExploreCategory },
     ],
     resources: [
+      { label: "Architecture & BNB", route: "launch" as Route },
       { label: "How Evidence Works", route: null },
       { label: "Marketplace Tests", route: null },
       { label: "Agent Authority", route: "my-agents" as Route, tab: "authority" as const },

@@ -49,6 +49,7 @@ import { LiveOperatorWorkspace } from "../components/LiveOperatorWorkspace";
 import { GroundedExplanationPanel } from "../components/GroundedExplanationPanel";
 import { AgentAdvantageReportPanel } from "../components/AgentAdvantageReportPanel";
 import { SystemHealthIndicator } from "../components/SystemHealthIndicator";
+import { LaunchReadinessPage } from "../components/LaunchReadinessPage";
 
 const {
   services: SERVICES,
@@ -503,6 +504,7 @@ function GlobalNav({ nav, navigate, activeAgents }: {
     { label: "Explore", route: "explore" },
     { label: "Smart Money Check", route: "check" },
     { label: "My Agents", route: "my-agents" },
+    { label: "Why Spotriq", route: "launch" },
   ];
 
   return (
@@ -3745,6 +3747,9 @@ export default function App() {
 
       case "operator":
         return <OperatorWorkspacePage navigate={navigate} />;
+
+      case "launch":
+        return <LaunchReadinessPage navigate={navigate} />;
 
       default:
         return <HomePage navigate={navigate} hasActivations={false} />;

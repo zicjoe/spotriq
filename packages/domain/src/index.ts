@@ -1,7 +1,7 @@
 export type Route =
   | "home" | "explore" | "check" | "agent" | "compare"
   | "try" | "checkout" | "my-agents" | "plans" | "plan-profile"
-  | "outcomes" | "authority" | "activity-page" | "operator";
+  | "outcomes" | "authority" | "activity-page" | "operator" | "launch";
 
 export type CheckPhase = "start" | "scan" | "results";
 export type ExploreCategory = "all" | "rebalancing" | "grid" | "yield" | "health";
