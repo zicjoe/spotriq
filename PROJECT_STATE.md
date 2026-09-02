@@ -1,7 +1,7 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.35.0  
-**Implementation status:** Observability + Marketplace/System Health implemented as an acceptance candidate; v0.34 is externally accepted; dependency-aware local/Railway/live v0.35 acceptance pending.  
+**Current implementation release:** v0.36.0  
+**Implementation status:** Security + Failure Injection Hardening implemented as an acceptance candidate; v0.35 is externally accepted; dependency-aware local/Railway/live v0.36 acceptance pending.  
 **Last state update:** 2026-09-02  
 **Repository role:** concise present-state map; current repository remains implementation truth.
 
@@ -44,6 +44,7 @@ Locked separations:
 - **v0.32 ✅** BNB Agent Studio normalized integration with canonical-owner reconciliation and no CLI/readiness/payment/execution bypass.
 - **v0.33 ✅** Grounded AI Explanation Layer with deterministic grounding packets, citation/decision-grade validation and safe fallback.
 - **v0.34 ✅** Agent Advantage Measurement + Report with explicit windows and preserved `Could Not Assess` truth boundaries.
+- **v0.35 ✅** Observability + Marketplace/System Health with redacted public health, fail-closed admin diagnostics and non-authoritative operational state.
 
 ## Current architecture
 
@@ -51,7 +52,7 @@ Locked separations:
 - `apps/api` — Fastify API.
 - `apps/worker` — worker seam plus best-effort operational heartbeat.
 - `@spotriq/domain` + `@spotriq/api-contracts` — shared domain/API contracts.
-- PostgreSQL migrations `0001`–`0028`.
+- PostgreSQL migrations `0001`–`0029`.
 - deterministic BSC, PancakeSwap, Venus, market-context and Smart Money packages.
 - ERC-8004 discovery, marketplace supply/readiness/Test Lab, and four first-party reference runtimes.
 - `@spotriq/commercial` — Offer/Quote/Hire/Payment/Activation/control/revocation.
@@ -67,47 +68,35 @@ Locked separations:
 - `@spotriq/grounded-explanations` — deterministic grounding packets + optional structured model explanation + post-generation validation/fallback, with no decision/write authority.
 - `@spotriq/agent-advantage` — explicit-window, source-fingerprint-idempotent Agent Advantage reports without financial benefit inference.
 - `@spotriq/observability` — deterministic operational health, redacted public projection, admin diagnostics/history and worker heartbeat persistence with no marketplace/financial decision authority.
+- `@spotriq/security-hardening` — shared hostile-input/SSRF/provider-response hardening used by Test Lab, BSC provider, commercial, Operator Workspace and Agent Studio boundaries.
 
-## Current v0.35 implementation truth
+## Current v0.36 implementation truth
 
-Spotriq now has a separate **operational observability plane**. It reports infrastructure/integration health without modifying canonical marketplace or financial state.
+Spotriq now has explicit hostile-input and failure-boundary hardening while keeping failure injection itself out of the production control plane.
 
-The v0.35 snapshot covers:
+The v0.36 defenses include:
 
-- API request/error/latency posture;
-- PostgreSQL health;
-- BSC RPC/provider health;
-- Marketplace Test Lab freshness;
-- AgentService runtime operational posture derived from persisted Test Lab evidence;
-- payment-rail adapter posture;
-- Agent Studio integration posture;
-- worker/job heartbeat posture.
-
-The public endpoint is:
-
-`GET /v1/system/health`
-
-It is redacted, briefly cached, and intentionally distinct from the existing lightweight Railway `/health` deployment probe.
-
-Admin-only diagnostics/history are:
-
-- `GET /v1/admin/observability`
-- `POST /v1/admin/observability/snapshots`
-- `GET /v1/admin/observability/snapshots`
-
-They fail closed unless `SPOTRIQ_ADMIN_DIAGNOSTICS_TOKEN` is configured and a valid bearer token is supplied.
-
-Runtime health does not probe arbitrary operator URLs during a health request. It uses bounded persisted Marketplace Test Lab evidence, preventing observability from becoming a parallel SSRF/probing system.
-
-Every operational snapshot explicitly declares that it has **no authority** over marketplace readiness, financial readiness, trust, payment, PermissionGrant state, execution eligibility or outcomes.
+- shared external-URL/public-network policy for runtime/payment/operator metadata;
+- DNS resolution validation + pinned Test Lab transport and redirect revalidation;
+- bounded Agent Card/MCP/provider JSON structures and response bytes;
+- untrusted operator/Agent Studio text normalization and bidi/control-character rejection;
+- bounded/validated JSON-RPC envelopes, IDs and method-specific evidence;
+- secondary RPC failover after corrupt provider responses;
+- BSC provider block-divergence detection surfaced as operational degradation only;
+- stronger x402/B402 transaction/receipt/log/timestamp coherence;
+- database-enforced concurrent payment replay handling mapped to domain errors;
+- durable Activation idempotency claims across concurrent requests;
+- explicit absence of a production failure-injection endpoint.
 
 Migration:
 
-`0028_operational_observability.sql`
+`0029_security_failure_injection_hardening.sql`
 
 New live acceptance gate:
 
-`pnpm verify:observability`
+`pnpm verify:security-hardening`
+
+Security hardening does not create marketplace readiness, trust, payment, PermissionGrant, execution or outcome authority.
 
 ## Network truth
 
@@ -121,7 +110,7 @@ Authoritative local gate:
 
 `pnpm --filter @spotriq/api build → pnpm check`
 
-Externally accepted regression verifier chain through v0.34:
+Externally accepted regression verifier chain through v0.35:
 
 - `pnpm verify:reference-acceptance`
 - `pnpm verify:commercial-acceptance`
@@ -136,9 +125,10 @@ Externally accepted regression verifier chain through v0.34:
 - `pnpm verify:agent-studio`
 - `pnpm verify:grounded-explanations`
 - `pnpm verify:agent-advantage`
+- `pnpm verify:observability`
 
-v0.35 must not be recorded externally accepted until dependency-aware local checks, migration/deployment and `pnpm verify:observability` pass against the deployed API.
+v0.36 must not be recorded externally accepted until dependency-aware local checks, migration/deployment and `pnpm verify:security-hardening` pass against the deployed API.
 
-## Next milestone after v0.35 acceptance
+## Next milestone after v0.36 acceptance
 
-**v0.36 — Security + Failure Injection Hardening.** Exercise upstream outages, RPC divergence, stale/corrupt provider data, malicious operator metadata, payment replay/adversarial cases, DB/idempotency races, malformed Agent Cards, SSRF boundaries and partial-provider failures while preserving every existing fail-closed truth boundary.
+**v0.37 — Production Hardening + Scale Readiness.** Mature queue/worker operation, caching/indexes, rate limiting/API abuse protection, operational runbooks, migration resilience, backup/recovery and deployment hardening without approving BSC Mainnet financial execution.

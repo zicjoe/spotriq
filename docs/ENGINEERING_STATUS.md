@@ -3,13 +3,13 @@
 > v0.35 acceptance verifier note: the legacy Railway `/health` route is intentionally a direct `HealthResponse` (200/ok or 503/degraded), while `/v1/system/health` uses the v0.35 API envelope. The verifier preserves both contracts.
 
 
-**Release candidate:** v0.35.0  
+**Release candidate:** v0.36.0  
 **Date:** 2026-09-02  
-**State:** Observability + Marketplace/System Health implemented; v0.34 externally accepted; local dependency-aware validation and external v0.35 acceptance pending.
+**State:** Security + Failure Injection Hardening implemented; v0.35 externally accepted; local dependency-aware validation and external v0.36 acceptance pending.
 
 ## Accepted baseline
 
-Production acceptance is complete through v0.34.
+Production acceptance is complete through v0.35.
 
 ## v0.29 package
 
@@ -163,6 +163,27 @@ Capability truth:
 
 New production gate: `pnpm verify:observability`.
 
-Current status: implementation candidate complete; do not record v0.35 externally accepted until dependency-aware local build/check, Railway migration/deployment, accepted regressions through v0.34 and the new observability verifier pass.
+Current status: **externally accepted**. The legacy `/health` direct-response compatibility note remains relevant to v0.35 regression verification.
 
-Next after acceptance: **v0.36 Security + Failure Injection Hardening**.
+## v0.36 Security + Failure Injection Hardening
+
+New package: `@spotriq/security-hardening`.
+
+The shared boundary validates public external URLs, rejects unsafe control/bidi text, enforces bounded structured JSON, and classifies database uniqueness races. Marketplace Test Lab resolves hosts, rejects any non-public answer, pins the validated address into the production HTTP(S) connection and revalidates every redirect. Agent Card/MCP responses are bounded before interpretation.
+
+The BSC adapter validates JSON-RPC body size, envelope/version/ID/error/result coherence and method-specific transaction/receipt evidence. Invalid primary responses can fail over to a secondary. Material provider block divergence appears as operational `DEGRADED` state only; it never upgrades or downgrades marketplace/financial truth by itself.
+
+Operator Workspace and Agent Studio declarations now normalize untrusted text/arrays/enums and reuse the external-URL policy before persistence. x402/B402 settlement requires coherent transaction/receipt block evidence, an exact ERC-20 transfer with `logIndex`, and sane Hire-relative timing. PostgreSQL uniqueness conflicts during concurrent replay become fail-closed `PAYMENT_MISMATCH` domain errors.
+
+Persistence: `0029_security_failure_injection_hardening.sql` adds durable Activation idempotency claims, closing the race between idempotency pre-check and Activation persistence.
+
+Capability truth includes `securityFailureHardeningEnabled = true`, `ssrfPinnedTransportEnabled = true`, `rpcResponseValidationEnabled = true`, `rpcDivergenceDetectionEnabled = true`, `paymentReplayRaceProtectionEnabled = true`, `activationIdempotencyClaimEnabled = true`, while `runtimeFailureInjectionEndpointEnabled = false`.
+
+New production gate: `pnpm verify:security-hardening`.
+
+Current status: implementation candidate complete; do not record v0.36 externally accepted until dependency-aware local build/check, Railway migration/deployment, accepted regressions through v0.35 and the new security-hardening verifier pass.
+
+Next after acceptance: **v0.37 Production Hardening + Scale Readiness**.
+- v0.36 compile hardening: Agent Studio validated URLs are canonicalized to explicit `string` values at the import call site, and BSC provider block sorting uses a target-compatible copied `.sort(...)` rather than `Array.prototype.toSorted()`.
+- Live acceptance ordering: `verify:security-hardening` targets the deployed API by default and requires Spotriq `>=0.36.0`; deploy v0.36 before running that gate. Historical `verify:observability` now accepts deployed releases `>=0.35.0` so later releases do not invalidate the accepted v0.35 regression contract.
+

@@ -1,7 +1,7 @@
 {
   "name": "spotriq",
   "private": true,
-  "version": "0.35.0",
+  "version": "0.36.0",
   "packageManager": "pnpm@10.14.0",
   "type": "module",
   "scripts": {
@@ -29,7 +29,8 @@
     "verify:agent-studio": "node scripts/verify-agent-studio.mjs",
     "verify:grounded-explanations": "node scripts/verify-grounded-explanations.mjs",
     "verify:agent-advantage": "node scripts/verify-agent-advantage.mjs",
-    "verify:observability": "node scripts/verify-observability.mjs"
+    "verify:observability": "node scripts/verify-observability.mjs",
+    "verify:security-hardening": "node scripts/verify-security-hardening.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

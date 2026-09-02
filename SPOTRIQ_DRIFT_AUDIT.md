@@ -525,3 +525,10 @@ v0.33 implemented the foundation rule **AI explains. Deterministic systems decid
 v0.34 then added Agent Advantage reporting without introducing a universal performance score: service contribution, transaction evidence, financial outcome and Agent Advantage remain separate, and insufficient evidence remains `Could Not Assess`.
 
 v0.35 continues the same doctrine for operations. Platform/runtime/provider health is a new observational plane, not a trust/readiness/financial authority. Public diagnostics are redacted, admin diagnostics fail closed behind an independent server-side secret, and AgentService runtime health is derived from persisted Marketplace Test Lab observations rather than arbitrary health-time endpoint probing. This closes part of the earlier production-hardening obligation without weakening marketplace evidence boundaries.
+
+
+## v0.36 alignment note — hostile failure boundaries
+
+v0.36 advances the foundation's production-hardening obligation without changing Spotriq's authority model. Untrusted operator/runtime/provider data is bounded before use; Marketplace Test Lab adds DNS-pinned public transport and redirect revalidation; BSC provider corruption/divergence is detected; payment and Activation races fail closed through database-backed uniqueness/idempotency claims.
+
+Failure injection remains in deterministic tests/verifiers rather than becoming a production API. Operational degradation still does not equal marketplace unreadiness, financial unsafety or poor outcomes, and the hardening layer cannot create payment, PermissionGrant, execution or outcome truth.

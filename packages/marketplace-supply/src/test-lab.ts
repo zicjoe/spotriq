@@ -1,6 +1,9 @@
 import { lookup } from "node:dns/promises";
 import { randomUUID } from "node:crypto";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
+import { Readable } from "node:stream";
 import type {
   AgentService,
   EvidenceEnvelope,
@@ -12,6 +15,7 @@ import type {
   ServiceRuntimeEndpoint,
 } from "@spotriq/domain";
 import { createEvidenceEnvelope, DATA_SOURCES, EVIDENCE_METHODS } from "@spotriq/evidence";
+import { assertStructuredJsonBudget, isPublicNetworkAddress, normalizeUntrustedText, validateExternalHttpUrl } from "@spotriq/security-hardening";
 
 export const MARKETPLACE_TEST_LAB_METHOD = "marketplace.test-lab@1.0.0";
 export const MCP_MODERN_PROTOCOL_VERSION = "2026-07-28";
@@ -60,46 +64,8 @@ function truncate(value: string, max = 280): string {
   return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 }
 
-function isPrivateIpv4(address: string): boolean {
-  const parts = address.split(".").map((part) => Number(part));
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return true;
-  const [a, b, c] = parts as [number, number, number, number];
-  return (
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 0 && c === 0) ||
-    (a === 192 && b === 0 && c === 2) ||
-    (a === 192 && b === 88 && c === 99) ||
-    (a === 192 && b === 168) ||
-    (a === 198 && (b === 18 || b === 19)) ||
-    (a === 198 && b === 51 && c === 100) ||
-    (a === 203 && b === 0 && c === 113) ||
-    a >= 224
-  );
-}
-
-function isPrivateIpv6(address: string): boolean {
-  const normalized = address.toLowerCase().split("%")[0]!;
-  if (normalized === "::" || normalized === "::1") return true;
-  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
-  if (/^fe[89ab]/.test(normalized)) return true;
-  if (normalized.startsWith("2001:db8:")) return true;
-  if (normalized.startsWith("::ffff:")) {
-    const mapped = normalized.slice("::ffff:".length);
-    return isIP(mapped) === 4 ? isPrivateIpv4(mapped) : true;
-  }
-  return false;
-}
-
 export function isPublicRuntimeAddress(address: string): boolean {
-  const family = isIP(address);
-  if (family === 4) return !isPrivateIpv4(address);
-  if (family === 6) return !isPrivateIpv6(address);
-  return false;
+  return isPublicNetworkAddress(address);
 }
 
 async function defaultResolver(hostname: string): Promise<string[]> {
@@ -109,56 +75,83 @@ async function defaultResolver(hostname: string): Promise<string[]> {
 }
 
 function validateRuntimeUrlShape(raw: string, allowInsecureHttp: boolean): URL {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    throw new Error("Runtime endpoint is not a valid absolute URL.");
-  }
-  if (url.username || url.password) throw new Error("Runtime endpoint URLs must not embed credentials.");
-  if (url.protocol !== "https:" && !(allowInsecureHttp && url.protocol === "http:")) {
-    throw new Error("Runtime endpoint must use HTTPS.");
-  }
-  const hostname = url.hostname.toLowerCase();
-  if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
-    throw new Error("Runtime endpoint host is not eligible for remote marketplace testing.");
-  }
-  if (["metadata.google.internal", "metadata.aws.internal"].includes(hostname)) {
-    throw new Error("Runtime endpoint host is reserved for infrastructure metadata.");
-  }
-  return url;
+  return validateExternalHttpUrl(raw, { label: "Runtime endpoint", allowInsecureHttp });
 }
 
 async function assertPublicResolution(url: URL, resolver: (hostname: string) => Promise<string[]>): Promise<string[]> {
-  const addresses = await resolver(url.hostname);
+  const resolutionHost = url.hostname.replace(/^\[|\]$/g, "");
+  const addresses = await resolver(resolutionHost);
   if (addresses.length === 0) throw new Error("Runtime endpoint host did not resolve to an IP address.");
   const blocked = addresses.filter((address) => !isPublicRuntimeAddress(address));
   if (blocked.length > 0) throw new Error(`Runtime endpoint resolves to a blocked/non-public address (${blocked[0]}).`);
   return addresses;
 }
 
+async function pinnedNodeFetch(url: URL, init: RequestInit, validatedAddresses: string[]): Promise<Response> {
+  const pinnedAddress = validatedAddresses[0];
+  if (!pinnedAddress) throw new Error("Runtime endpoint has no validated public address to pin.");
+  const family = isIP(pinnedAddress);
+  if (family !== 4 && family !== 6) throw new Error("Runtime endpoint resolved to an invalid address family.");
+  const headers = Object.fromEntries(new Headers(init.headers).entries());
+  const requestImpl = url.protocol === "https:" ? httpsRequest : httpRequest;
+  const body = init.body;
+  if (body !== undefined && body !== null && typeof body !== "string" && !(body instanceof Uint8Array)) {
+    throw new Error("Marketplace Test Lab only sends bounded string or byte request bodies.");
+  }
+
+  return new Promise<Response>((resolve, reject) => {
+    const request = requestImpl(url, {
+      method: init.method ?? "GET",
+      headers,
+      signal: init.signal ?? undefined,
+      ...(url.protocol === "https:" && isIP(url.hostname.replace(/^\[|\]$/g, "")) === 0 ? { servername: url.hostname } : {}),
+      lookup: ((_hostname: string, lookupOptions: unknown, callback: (...args: unknown[]) => void) => {
+        const options = (lookupOptions && typeof lookupOptions === "object" ? lookupOptions : {}) as { all?: boolean };
+        if (options.all) callback(null, [{ address: pinnedAddress, family }]);
+        else callback(null, pinnedAddress, family);
+      }) as never,
+    }, (response) => {
+      const responseHeaders = new Headers();
+      for (const [name, value] of Object.entries(response.headers)) {
+        if (Array.isArray(value)) for (const item of value) responseHeaders.append(name, item);
+        else if (value !== undefined) responseHeaders.set(name, String(value));
+      }
+      const status = response.statusCode ?? 502;
+      const noBody = (init.method ?? "GET").toUpperCase() === "HEAD" || status === 204 || status === 205 || status === 304;
+      const stream = noBody ? null : (Readable.toWeb(response) as ReadableStream<Uint8Array>);
+      resolve(new Response(stream, { status, statusText: response.statusMessage, headers: responseHeaders }));
+    });
+    request.once("error", reject);
+    if (typeof body === "string" || body instanceof Uint8Array) request.write(body);
+    request.end();
+  });
+}
+
 export async function boundedFetch(
   rawUrl: string,
   init: RequestInit,
   options: Required<Pick<MarketplaceTestLabOptions, "timeoutMs" | "maxResponseBytes" | "maxRedirects" | "allowInsecureHttp">> & {
-    fetcher: typeof fetch;
+    fetcher?: typeof fetch;
     resolver: (hostname: string) => Promise<string[]>;
   },
 ): Promise<SafeHttpResult> {
   let current = validateRuntimeUrlShape(rawUrl, options.allowInsecureHttp);
   const started = Date.now();
   for (let redirect = 0; redirect <= options.maxRedirects; redirect += 1) {
-    await assertPublicResolution(current, options.resolver);
-    const response = await options.fetcher(current, {
+    const validatedAddresses = await assertPublicResolution(current, options.resolver);
+    const requestInit: RequestInit = {
       ...init,
       redirect: "manual",
       signal: AbortSignal.timeout(options.timeoutMs),
       headers: {
-        "User-Agent": "Spotriq-Marketplace-Test-Lab/0.25.0",
+        "User-Agent": "Spotriq-Marketplace-Test-Lab/0.36.0",
         Accept: "application/json, application/a2a+json;q=0.9",
         ...(init.headers ?? {}),
       },
-    });
+    };
+    const response = options.fetcher
+      ? await options.fetcher(current, requestInit)
+      : await pinnedNodeFetch(current, requestInit, validatedAddresses);
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
       if (!location) throw new Error(`Runtime endpoint returned redirect ${response.status} without Location.`);
@@ -210,7 +203,14 @@ function testResult(input: Omit<MarketplaceServiceTestResult, "testId"> & { runI
 
 function parseJson(text: string): unknown {
   if (!text.trim()) throw new Error("Runtime returned an empty response body.");
-  try { return JSON.parse(text); } catch { throw new Error("Runtime response was not valid JSON."); }
+  try {
+    const parsed: unknown = JSON.parse(text);
+    assertStructuredJsonBudget(parsed, { maxDepth: 12, maxNodes: 4096, maxArrayLength: 256, maxObjectKeys: 128, maxStringLength: 16_384 });
+    return parsed;
+  } catch (error) {
+    if (error instanceof Error && error.name === "SecurityBoundaryError") throw error;
+    throw new Error("Runtime response was not valid bounded JSON.");
+  }
 }
 
 function categoryMatch(category: ServiceCategory, values: string[]): { matched: boolean; terms: string[] } {
@@ -249,35 +249,65 @@ export function a2aCardUrl(endpoint: string, allowInsecureHttp: boolean): string
   return new URL("/.well-known/agent-card.json", parsed.origin).toString();
 }
 
-function stringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+function strictObjectArray(value: unknown, label: string, maxItems: number): Record<string, unknown>[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > maxItems || value.some((item) => !item || typeof item !== "object" || Array.isArray(item))) {
+    throw new Error(`${label} must be an array of at most ${maxItems} objects.`);
+  }
+  return value as Record<string, unknown>[];
 }
 
-function objectArray(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item)) : [];
+function boundedOptionalText(value: unknown, label: string, maxLength: number): string {
+  if (value === undefined || value === null || value === "") return "";
+  return normalizeUntrustedText(value, label, maxLength);
+}
+
+function boundedStringArray(value: unknown, label: string, maxItems: number, maxLength: number): string[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > maxItems || value.some((item) => typeof item !== "string")) {
+    throw new Error(`${label} must be an array of at most ${maxItems} strings.`);
+  }
+  return value.map((item, index) => normalizeUntrustedText(item, `${label}[${index}]`, maxLength));
 }
 
 function a2aCapabilityText(card: Record<string, unknown>): string[] {
-  const values = [normalizeText(card.name), normalizeText(card.description)];
-  for (const skill of objectArray(card.skills)) {
-    values.push(normalizeText(skill.name), normalizeText(skill.description), ...stringArray(skill.tags));
+  const values = [
+    normalizeUntrustedText(card.name, "A2A Agent Card name", 160),
+    boundedOptionalText(card.description, "A2A Agent Card description", 4000),
+  ];
+  for (const [index, skill] of strictObjectArray(card.skills, "A2A Agent Card skills", 64).entries()) {
+    values.push(
+      boundedOptionalText(skill.name, `A2A skill ${index} name`, 160),
+      boundedOptionalText(skill.description, `A2A skill ${index} description`, 2000),
+      ...boundedStringArray(skill.tags, `A2A skill ${index} tags`, 32, 160),
+    );
   }
   return values.filter(Boolean);
 }
 
-function validateA2aCard(card: unknown): { protocolVersion?: string; capabilityText: string[] } {
+function validateA2aCard(card: unknown, allowInsecureHttp: boolean): { protocolVersion?: string; capabilityText: string[] } {
   if (!card || typeof card !== "object" || Array.isArray(card)) throw new Error("A2A Agent Card is not a JSON object.");
   const item = card as Record<string, unknown>;
-  if (!normalizeText(item.name)) throw new Error("A2A Agent Card is missing a name.");
-  const interfaces = objectArray(item.supportedInterfaces);
-  const modernInterface = interfaces.find((candidate) => normalizeText(candidate.url) && normalizeText(candidate.protocolBinding) && normalizeText(candidate.protocolVersion));
-  const legacyUrl = normalizeText(item.url);
-  const legacyVersion = normalizeText(item.protocolVersion);
+  normalizeUntrustedText(item.name, "A2A Agent Card name", 160);
+  boundedOptionalText(item.description, "A2A Agent Card description", 4000);
+
+  const interfaces = strictObjectArray(item.supportedInterfaces, "A2A supportedInterfaces", 16);
+  const modernInterface = interfaces.find((candidate, index) => {
+    const rawUrl = boundedOptionalText(candidate.url, `A2A interface ${index} URL`, 2048);
+    const binding = boundedOptionalText(candidate.protocolBinding, `A2A interface ${index} protocolBinding`, 80);
+    const version = boundedOptionalText(candidate.protocolVersion, `A2A interface ${index} protocolVersion`, 80);
+    if (!rawUrl || !binding || !version) return false;
+    validateExternalHttpUrl(rawUrl, { label: `A2A interface ${index} URL`, allowInsecureHttp });
+    return true;
+  });
+  const legacyUrl = boundedOptionalText(item.url, "A2A legacy URL", 2048);
+  const legacyVersion = boundedOptionalText(item.protocolVersion, "A2A legacy protocolVersion", 80);
+  if (legacyUrl) validateExternalHttpUrl(legacyUrl, { label: "A2A legacy URL", allowInsecureHttp });
   if (!modernInterface && !(legacyUrl && legacyVersion)) {
     throw new Error("A2A Agent Card does not declare a valid supported interface/protocol version.");
   }
   return {
-    protocolVersion: modernInterface ? normalizeText(modernInterface.protocolVersion) : legacyVersion,
+    protocolVersion: modernInterface ? boundedOptionalText(modernInterface.protocolVersion, "A2A protocolVersion", 80) : legacyVersion,
     capabilityText: a2aCapabilityText(item),
   };
 }
@@ -311,7 +341,7 @@ async function probeA2a(
       return { tests, evidence };
     }
     const parsed = parseJson(result.bodyText);
-    const card = validateA2aCard(parsed);
+    const card = validateA2aCard(parsed, options.allowInsecureHttp);
     const contractEvidence = observedEvidence({
       serviceId: record.service.serviceId,
       metric: "service.protocol_contract",
@@ -347,9 +377,12 @@ function jsonRpcResult(bodyText: string): Record<string, unknown> {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("MCP response is not a JSON-RPC object.");
   const envelope = parsed as Record<string, unknown>;
   if (envelope.jsonrpc !== "2.0") throw new Error("MCP response does not declare JSON-RPC 2.0.");
-  if (envelope.error) {
+  if (envelope.error !== undefined && envelope.error !== null) {
+    if (typeof envelope.error !== "object" || Array.isArray(envelope.error)) throw new Error("MCP returned a malformed JSON-RPC error object.");
     const err = envelope.error as Record<string, unknown>;
-    throw new Error(`MCP returned JSON-RPC error ${normalizeText(err.message) || normalizeText(err.code) || "unknown"}.`);
+    const message = boundedOptionalText(err.message, "MCP error message", 1000);
+    const code = typeof err.code === "number" || typeof err.code === "string" ? String(err.code) : "unknown";
+    throw new Error(`MCP returned JSON-RPC error ${message || code}.`);
   }
   if (!envelope.result || typeof envelope.result !== "object" || Array.isArray(envelope.result)) throw new Error("MCP response does not contain an object result.");
   return envelope.result as Record<string, unknown>;
@@ -357,8 +390,12 @@ function jsonRpcResult(bodyText: string): Record<string, unknown> {
 
 function mcpToolText(result: Record<string, unknown>): string[] {
   const values: string[] = [];
-  for (const tool of objectArray(result.tools)) {
-    values.push(normalizeText(tool.name), normalizeText(tool.title), normalizeText(tool.description));
+  for (const [index, tool] of strictObjectArray(result.tools, "MCP tools", 128).entries()) {
+    values.push(
+      boundedOptionalText(tool.name, `MCP tool ${index} name`, 160),
+      boundedOptionalText(tool.title, `MCP tool ${index} title`, 160),
+      boundedOptionalText(tool.description, `MCP tool ${index} description`, 2000),
+    );
   }
   return values.filter(Boolean);
 }
@@ -557,7 +594,7 @@ export function coverageFromRun(run: MarketplaceServiceTestRun): MarketplaceServ
 }
 
 export function createMarketplaceTestLab(options: MarketplaceTestLabOptions = {}): MarketplaceTestLab {
-  const fetcher = options.fetcher ?? fetch;
+  const fetcher = options.fetcher;
   const resolver = options.resolver ?? defaultResolver;
   const timeoutMs = options.timeoutMs ?? 5_000;
   const maxResponseBytes = options.maxResponseBytes ?? 256_000;
@@ -612,7 +649,7 @@ export function createMarketplaceTestLab(options: MarketplaceTestLabOptions = {}
         evidence,
         limitations: [
           "Marketplace Test Lab performs bounded contract-level observations only; it does not move funds, sign transactions, call financial tools, or establish profitability.",
-          "Endpoint DNS is validated before each HTTP hop and redirects are revalidated. Production network egress controls should still enforce the same deny policy to mitigate DNS rebinding/TOCTOU risk.",
+          "Endpoint DNS is validated before every HTTP hop and redirects are revalidated. The production default transport pins each request to the validated public address to close the application-level DNS rebinding/TOCTOU gap; infrastructure egress controls remain defense in depth.",
           "A category-capability PASS means Spotriq observed relevant machine-readable skill/tool metadata, not that the financial strategy was executed successfully.",
         ],
       };

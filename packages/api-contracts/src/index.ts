@@ -122,6 +122,14 @@ export interface CapabilityResponse {
   adminDiagnosticsConfigured: boolean;
   operationalHealthMarketplaceReadinessAuthority: boolean;
   operationalHealthFinancialReadinessAuthority: boolean;
+  securityFailureHardeningEnabled: boolean;
+  ssrfPinnedTransportEnabled: boolean;
+  maliciousMetadataValidationEnabled: boolean;
+  rpcResponseValidationEnabled: boolean;
+  rpcDivergenceDetectionEnabled: boolean;
+  paymentReplayRaceProtectionEnabled: boolean;
+  activationIdempotencyClaimEnabled: boolean;
+  runtimeFailureInjectionEndpointEnabled: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
 }
@@ -132,10 +140,12 @@ export interface ChainStatusResponse {
   rpcMode: "configured" | "official_public_fallback";
   latestBlockNumber?: string;
   activeRpcUrl?: string;
+  blockDivergence?: { state: "consistent" | "divergent" | "insufficient"; minBlockNumber?: string; maxBlockNumber?: string; spreadBlocks?: string; toleranceBlocks: number };
   endpoints: Array<{
     url: string;
     role: "primary" | "secondary";
-    state: "ok" | "unavailable" | "chain_mismatch" | "unchecked";
+    state: "ok" | "unavailable" | "chain_mismatch" | "invalid_response" | "unchecked";
+    blockNumber?: string;
     latencyMs?: number;
     detail?: string;
   }>;

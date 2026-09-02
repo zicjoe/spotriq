@@ -1,8 +1,8 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-09-02  
-**Current implementation:** v0.35.0  
-**Current milestone:** Observability + Marketplace/System Health
+**Current implementation:** v0.36.0  
+**Current milestone:** Security + Failure Injection Hardening
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
 
@@ -148,7 +148,7 @@ Acceptance: `API build → pnpm check → Railway migration 0027/deploy → v0.2
 
 ## v0.35.0 — Observability + Marketplace/System Health
 
-**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
+**Status: COMPLETE / externally accepted.**
 
 Add structured operational visibility for API/database, BSC RPC/provider degradation, Marketplace Test Lab, known AgentService runtime freshness, payment adapters, Agent Studio and worker/job posture without converting operational health into marketplace trust or financial readiness.
 
@@ -156,16 +156,26 @@ Public `GET /v1/system/health` is redacted and non-authoritative. Bearer-protect
 
 Migration: `0028_operational_observability.sql`.
 
-Acceptance: `API build → pnpm check → Railway migration 0028/deploy → v0.22–v0.34 regressions → verify:observability → record acceptance`.
+Acceptance: `API build → pnpm check → Railway migration 0028/deploy → v0.22–v0.34 regressions → verify:observability → record acceptance`. **Passed.**
 
 ## v0.36.0 — Security + Failure Injection Hardening
 
-**Status: NEXT after v0.35 acceptance.**
+**Status: IMPLEMENTATION CANDIDATE COMPLETE; local/Railway/live acceptance pending.**
 
-Exercise upstream outages, RPC divergence, stale/corrupt provider data, malicious operator metadata, payment replay/adversarial cases, DB/idempotency races, malformed Agent Cards, SSRF boundaries and partial-provider failures without weakening fail-closed behavior.
+Harden hostile failure boundaries without creating a production chaos control plane. Shared public-network URL policy, DNS-pinned/revalidated Test Lab requests, bounded Agent Card/provider payloads, BSC JSON-RPC validation/failover/divergence detection, malicious operator/Studio metadata validation, payment replay-race handling and durable Activation idempotency claims preserve fail-closed semantics under adversarial input and partial provider failure.
+
+Migration: `0029_security_failure_injection_hardening.sql`.
+
+Acceptance: `API build → pnpm check → Railway migration 0029/deploy → v0.22–v0.35 regressions → verify:security-hardening → record acceptance`.
+
+## v0.37+ — Production Hardening + Scale Readiness
+
+**Status: NEXT after v0.36 acceptance.**
+
+Queue/worker maturity, caching/index review, rate limiting/API abuse protection, operational runbooks, migration resilience, backup/recovery and deployment hardening.
 
 ## Later production milestones
 
-- failure injection, security and production hardening;
+- scale/readiness and production operations hardening;
 - BSC Mainnet financial readiness only after explicit approval;
 - canonical-front-door/judge portfolio/demo/submission evidence.

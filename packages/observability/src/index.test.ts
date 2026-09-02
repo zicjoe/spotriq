@@ -80,3 +80,13 @@ test("sync persists immutable health samples and history",async()=>{
   assert.equal(history.snapshots[0]?.snapshotId,snapshot.snapshotId);
   assert.equal(history.methodVersion,"marketplace.operational-health@1.0.0");
 });
+
+test("RPC block divergence and invalid provider responses degrade operational health only",async()=>{
+  const divergentChain={...chain,async getStatus(){return{network:"testnet",expectedChainId:97,rpcMode:"configured",latestBlockNumber:"120",activeRpcUrl:"https://rpc-a.example",blockDivergence:{state:"divergent",minBlockNumber:"100",maxBlockNumber:"120",spreadBlocks:"20",toleranceBlocks:5},endpoints:[{url:"https://rpc-a.example",role:"primary",state:"ok",blockNumber:"100"},{url:"https://rpc-b.example",role:"secondary",state:"ok",blockNumber:"120"}]};}} as never;
+  const engine=createOperationalHealthEngine({release:"0.36.0",chain:divergentChain,marketplace,referenceServiceIds:["svc:reference:rangekeeper"],databaseHealth:async()=>({name:"postgres",state:"ok"}),paymentRailsStatus:payment,agentStudioStatus:studio,now:()=>now});
+  const snapshot=await engine.current();const rpc=snapshot.components.find(x=>x.code==="BSC_RPC");
+  assert.equal(rpc?.state,"DEGRADED");
+  assert.equal(rpc?.metrics.blockDivergenceState,"divergent");
+  assert.equal(snapshot.marketplaceReadinessAuthority,false);
+  assert.equal(snapshot.executionAuthority,false);
+});

@@ -3,10 +3,11 @@ import process from "node:process";
 const base=(process.env.SPOTRIQ_ACCEPTANCE_BASE_URL||process.env.PUBLIC_API_BASE_URL||"https://spotriq-production.up.railway.app").replace(/\/$/,"");
 async function request(path,init){const response=await fetch(`${base}${path}`,{...init,headers:{accept:"application/json",...(init?.body?{"content-type":"application/json"}:{}),...(init?.headers||{})}});const body=await response.json().catch(()=>undefined);return{response,body};}
 async function data(path,init){const {response,body}=await request(path,init);if(!response.ok)throw new Error(`${path} returned HTTP ${response.status}: ${JSON.stringify(body)}`);return body?.data;}
+function versionAtLeast(actual,minimum){const parse=value=>{const match=String(value??"").match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);return match?match.slice(1,4).map(Number):null;};const a=parse(actual),m=parse(minimum);if(!a||!m)return false;for(let i=0;i<3;i++){if(a[i]>m[i])return true;if(a[i]<m[i])return false;}return true;}
 
 const {response:legacyResponse,body:legacy}=await request("/health");
 if(![200,503].includes(legacyResponse.status))throw new Error(`/health returned unexpected HTTP ${legacyResponse.status}: ${JSON.stringify(legacy)}`);
-if(legacy?.service!=="spotriq-api"||legacy?.version!=="0.35.0"||!["ok","degraded"].includes(legacy?.status)||!Array.isArray(legacy?.dependencies))throw new Error("Railway /health no longer exposes the compatible direct API/database/BSC health contract for v0.35.");
+if(legacy?.service!=="spotriq-api"||!versionAtLeast(legacy?.version,"0.35.0")||!["ok","degraded"].includes(legacy?.status)||!Array.isArray(legacy?.dependencies))throw new Error(`Railway /health no longer exposes the compatible direct API/database/BSC health contract required since v0.35; live payload=${JSON.stringify(legacy)}.`);
 if((legacy.status==="ok"&&legacyResponse.status!==200)||(legacy.status==="degraded"&&legacyResponse.status!==503))throw new Error(`Railway /health HTTP/status mismatch: HTTP ${legacyResponse.status} with status=${legacy.status}.`);
 
 const health=(await data("/v1/system/health"))?.health;

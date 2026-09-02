@@ -1,17 +1,10 @@
 {
-  "name": "@spotriq/marketplace-supply",
+  "name": "@spotriq/security-hardening",
   "private": true,
   "version": "0.36.0",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
-  },
-  "dependencies": {
-    "@spotriq/agent-registry": "workspace:*",
-    "@spotriq/domain": "workspace:*",
-    "@spotriq/evidence": "workspace:*",
-    "viem": "2.55.11",
-    "@spotriq/security-hardening": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

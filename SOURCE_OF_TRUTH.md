@@ -1,7 +1,7 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.35.0**  
-**Release status:** Observability + Marketplace/System Health implementation candidate; v0.34 externally accepted; local dependency-aware validation and external v0.35 acceptance pending.  
+**Current repository release:** **v0.36.0**  
+**Release status:** Security + Failure Injection Hardening implementation candidate; v0.35 externally accepted; local dependency-aware validation and external v0.36 acceptance pending.  
 **State date:** 2026-09-02
 
 ## Authority hierarchy
@@ -115,6 +115,14 @@ Public API: `GET /v1/system/health`. The public projection is redacted and brief
 
 Migration: `0028_operational_observability.sql`. Acceptance: `pnpm verify:observability`.
 
-## Next milestone after v0.35 acceptance
+## v0.36 implementation truth
 
-**v0.36 — Security + Failure Injection Hardening.**
+`@spotriq/security-hardening` centralizes public-network URL policy, untrusted-text normalization and structured provider-response budgets. Marketplace Test Lab performs public DNS validation and pinned outbound connections with redirect revalidation; BSC RPC responses are bounded, envelope/ID/method validated and cross-provider block divergence is surfaced operationally.
+
+Operator/Agent Studio metadata is bounded before persistence. x402/B402 settlement evidence requires transaction/receipt/log/timestamp coherence, concurrent payment replay uniqueness conflicts fail closed as domain errors, and durable Activation idempotency claims close the pre-check/persist race. No production failure-injection endpoint is exposed.
+
+Migration: `0029_security_failure_injection_hardening.sql`. Acceptance: `pnpm verify:security-hardening`.
+
+## Next milestone after v0.36 acceptance
+
+**v0.37 — Production Hardening + Scale Readiness.**

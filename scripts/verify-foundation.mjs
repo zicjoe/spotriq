@@ -215,6 +215,13 @@ const required = [
   "scripts/verify-observability.mjs",
   "docs/OPERATIONAL_OBSERVABILITY.md",
   "docs/IMPLEMENTATION_REPORT_OBSERVABILITY_v0.35.0.md",
+  "packages/security-hardening/package.json",
+  "packages/security-hardening/src/index.ts",
+  "packages/security-hardening/src/index.test.ts",
+  "packages/db/migrations/0029_security_failure_injection_hardening.sql",
+  "scripts/verify-security-hardening.mjs",
+  "docs/SECURITY_FAILURE_INJECTION_HARDENING.md",
+  "docs/IMPLEMENTATION_REPORT_SECURITY_FAILURE_INJECTION_v0.36.0.md",
   ".env.example",
   ".gitignore",
 ];
@@ -228,11 +235,11 @@ for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper
   if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
 }
 const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
-if (!projectState.includes("v0.34 ✅") || !projectState.includes("v0.35") || !projectState.includes("Observability")) {
-  throw new Error("PROJECT_STATE.md must record externally accepted v0.34 and the current v0.35 Observability candidate.");
+if (!projectState.includes("v0.35 ✅") || !projectState.includes("v0.36") || !projectState.includes("Security + Failure Injection")) {
+  throw new Error("PROJECT_STATE.md must record externally accepted v0.35 and the current v0.36 Security + Failure Injection candidate.");
 }
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
-for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation", "v0.32.0 — Deeper BNB Agent Studio Integration", "v0.33.0 — Grounded AI Explanation Layer", "v0.34.0 — Agent Advantage Measurement + Report", "v0.35.0 — Observability + Marketplace/System Health"]) {
+for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation", "v0.32.0 — Deeper BNB Agent Studio Integration", "v0.33.0 — Grounded AI Explanation Layer", "v0.34.0 — Agent Advantage Measurement + Report", "v0.35.0 — Observability + Marketplace/System Health", "v0.36.0 — Security + Failure Injection Hardening"]) {
   if (!correctedRoadmap.includes(marker)) throw new Error(`Corrected roadmap is missing ${marker}.`);
 }
 
@@ -915,7 +922,7 @@ for (const marker of ["same-service switch", "BLOCKED", "/my-agents", "/switches
   if (!myAgentsVerifier.includes(marker)) throw new Error(`v0.28 live verifier is missing ${marker}.`);
 }
 if (rootManifest.scripts?.["verify:my-agents"] !== "node scripts/verify-my-agents.mjs") throw new Error("Root package.json must expose pnpm verify:my-agents.");
-if (!apiApp.includes('version: "0.35.0"')) throw new Error("API metadata must report v0.35.0.");
+if (!apiApp.includes('version: "0.36.0"')) throw new Error("API metadata must report v0.36.0.");
 
 
 // v0.29 — Smart Money Plans + Compatibility/Conflict Handling.
@@ -953,7 +960,7 @@ for (const marker of ["NO_SHARED_EXECUTION", "INDEPENDENT_PER_SERVICE", "/plans"
 }
 if (legacyMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes('apiRequest<SmartMoneyPlanTemplate[]>("/v1/plans")')) throw new Error("Legacy marketplace repositories must not reuse the persisted /v1/plans namespace for mock plan templates.");
 if (rootManifest.scripts?.["verify:smart-money-plans"] !== "node scripts/verify-smart-money-plans.mjs") throw new Error("Root package.json must expose pnpm verify:smart-money-plans.");
-if (!apiApp.includes('version: "0.35.0"')) throw new Error("API metadata must report v0.35.0.");
+if (!apiApp.includes('version: "0.36.0"')) throw new Error("API metadata must report v0.36.0.");
 
 
 
@@ -1085,8 +1092,42 @@ for (const marker of ["Platform", "Marketplace", "Operational only", "not an age
 for (const marker of ["healthy operational snapshot remains separate from readiness/payment/permission authority", "missing platform dependency configuration degrades aggregate health", "public projection redacts endpoint diagnostics and credentials", "elevated API 5xx rate degrades platform health", "stale Test Lab evidence degrades marketplace/runtime observability", "worker heartbeat persistence has freshness semantics", "sync persists immutable health samples and history"]) { if (!observabilityTests.includes(marker)) throw new Error(`v0.35 observability tests are missing ${marker}.`); }
 for (const marker of ["operationalObservabilityEnabled: true", "publicSystemHealthEnabled: true", "operationalHealthMarketplaceReadinessAuthority: false", "operationalHealthFinancialReadinessAuthority: false"]) { if (!apiApp.includes(marker)) throw new Error(`API capabilities must expose truthful v0.35 feature ${marker}.`); }
 for (const marker of ["structured/redacted", "fail closed", "readiness", "trust", "payment", "permission", "execution", "outcome authority"]) { if (!observabilityVerifier.toLowerCase().includes(marker.toLowerCase())) throw new Error(`v0.35 live verifier is missing ${marker}.`); }
+if (!observabilityVerifier.includes("versionAtLeast") || !observabilityVerifier.includes('"0.35.0"')) throw new Error("v0.35 historical observability verifier must accept current/future Spotriq releases using a >=0.35.0 live-version floor.");
 if (!appUi.includes("SystemHealthIndicator")) throw new Error("v0.35 public web shell must expose the non-authoritative system-health indicator.");
 if (rootManifest.scripts?.["verify:observability"] !== "node scripts/verify-observability.mjs") throw new Error("Root package.json must expose pnpm verify:observability.");
+
+// v0.36 — Security + Failure Injection Hardening.
+const securityHardening = await readFile(path.join(root, "packages/security-hardening/src/index.ts"), "utf8");
+const securityHardeningTests = await readFile(path.join(root, "packages/security-hardening/src/index.test.ts"), "utf8");
+const chainTestsV036 = await readFile(path.join(root, "packages/chain/src/index.test.ts"), "utf8");
+const testLabV036 = await readFile(path.join(root, "packages/marketplace-supply/src/test-lab.ts"), "utf8");
+const testLabTestsV036 = await readFile(path.join(root, "packages/marketplace-supply/src/test-lab.test.ts"), "utf8");
+const commercialV036 = await readFile(path.join(root, "packages/commercial/src/index.ts"), "utf8");
+const commercialTestsV036 = await readFile(path.join(root, "packages/commercial/src/index.test.ts"), "utf8");
+const paymentRailsV036 = await readFile(path.join(root, "packages/payment-rails/src/index.ts"), "utf8");
+const operatorV036 = await readFile(path.join(root, "packages/operator-workspace/src/index.ts"), "utf8");
+const studioV036 = await readFile(path.join(root, "packages/agent-studio/src/index.ts"), "utf8");
+const migration0029 = await readFile(path.join(root, "packages/db/migrations/0029_security_failure_injection_hardening.sql"), "utf8");
+const securityVerifier = await readFile(path.join(root, "scripts/verify-security-hardening.mjs"), "utf8");
+for (const marker of ["validateExternalHttpUrl", "isPublicNetworkAddress", "normalizeUntrustedText", "assertStructuredJsonBudget", "isDatabaseUniqueViolation", "UNSAFE_URL", "UNTRUSTED_TEXT", "STRUCTURE_LIMIT"]) { if (!securityHardening.includes(marker)) throw new Error(`v0.36 security-hardening package is missing ${marker}.`); }
+for (const marker of ["pinnedNodeFetch", "assertPublicResolution", 'redirect: "manual"', "maxResponseBytes", "validateA2aCard", "assertStructuredJsonBudget"]) { if (!testLabV036.includes(marker)) throw new Error(`v0.36 Test Lab hostile-network boundary is missing ${marker}.`); }
+for (const marker of ["blocks localhost/private targets", "revalidates redirects", "maliciously deep or oversized Agent Card"]) { if (!testLabTestsV036.includes(marker)) throw new Error(`v0.36 Test Lab adversarial tests are missing ${marker}.`); }
+for (const marker of ["rpcResponseMaxBytes", "RPC_RESPONSE_INVALID", "body.id !== requestId", "blockDivergence", "rpcDivergenceToleranceBlocks", "validate?.(result)"]) { if (!chainAdapter.includes(marker)) throw new Error(`v0.36 BSC RPC hardening is missing ${marker}.`); }
+for (const marker of ["mismatched JSON-RPC id", "material block divergence", "transaction evidence for a different hash"]) { if (!chainTestsV036.includes(marker)) throw new Error(`v0.36 BSC adversarial tests are missing ${marker}.`); }
+for (const marker of ["claimActivationIdempotency", "commercial_activation_idempotency_claims", "isDatabaseUniqueViolation", "PAYMENT_MISMATCH", "IDEMPOTENCY_CONFLICT", "validateExternalHttpUrl"]) { const source = marker === "commercial_activation_idempotency_claims" ? migration0029 : commercialV036; if (!source.includes(marker)) throw new Error(`v0.36 commercial race/input hardening is missing ${marker}.`); }
+for (const marker of ["transactionReceiptBlockCoherent", "transferLogIndexPresent", "futureLimit", "receipt.transactionHash", "tx.hash"]) { if (!paymentRailsV036.includes(marker)) throw new Error(`v0.36 payment evidence hardening is missing ${marker}.`); }
+for (const marker of ["normalizeUntrustedText", "validateExternalHttpUrl", "boundedTextArray", "permission authority flags must be booleans"]) { if (!operatorV036.includes(marker)) throw new Error(`v0.36 Operator Workspace hostile-input hardening is missing ${marker}.`); }
+for (const marker of ["validateExternalHttpUrl", "normalizeUntrustedText", "studioVersion"]) { if (!studioV036.includes(marker)) throw new Error(`v0.36 Agent Studio hostile-input hardening is missing ${marker}.`); }
+if (!studioV036.includes('runtimeUrl: string=https(input.runtimeUrl,"runtimeUrl").toString()') || !studioV036.includes('agentCardUrl: string=https(input.agentCardUrl,"agentCardUrl").toString()')) throw new Error("v0.36 Agent Studio validated URLs must cross the domain boundary as explicit strings.");
+if (chainAdapter.includes("toSorted(")) throw new Error("v0.36 BSC provider hardening must remain compatible with the repository TypeScript target; Array.prototype.toSorted() is not allowed.");
+if (!chainAdapter.includes("[...observedBlocks].sort(")) throw new Error("v0.36 BSC provider divergence ordering must use a copied target-compatible sort.");
+for (const marker of ["commercial_activation_idempotency_claims", "primary key (buyer_address, idempotency_key)", "unique (activation_id)"]) { if (!migration0029.includes(marker)) throw new Error(`v0.36 migration is missing ${marker}.`); }
+for (const marker of ["public-address policy blocks", "untrusted URL policy rejects", "untrusted text rejects", "structured response budget rejects", "database unique violation detection"]) { if (!securityHardeningTests.includes(marker)) throw new Error(`v0.36 shared security tests are missing ${marker}.`); }
+for (const marker of ["securityFailureHardeningEnabled: true", "ssrfPinnedTransportEnabled: true", "maliciousMetadataValidationEnabled: true", "rpcResponseValidationEnabled: true", "rpcDivergenceDetectionEnabled: true", "paymentReplayRaceProtectionEnabled: true", "activationIdempotencyClaimEnabled: true", "runtimeFailureInjectionEndpointEnabled: false"]) { if (!apiApp.includes(marker)) throw new Error(`API capabilities must expose truthful v0.36 feature ${marker}.`); }
+for (const marker of ["hostile URLs/metadata/provider payloads", "RPC divergence", "payment replay races", "Activation idempotency races", "failure-injection endpoint must not exist", "runtimeFailureInjectionEndpointEnabled=false"]) { if (!securityVerifier.includes(marker)) throw new Error(`v0.36 live verifier is missing ${marker}.`); }
+if (!securityVerifier.includes("versionAtLeast") || !securityVerifier.includes('"0.36.0"') || !securityVerifier.includes("Deploy the current v0.36 repository before running this live verifier")) throw new Error("v0.36 live verifier must enforce a >=0.36.0 deployed-version floor and explain deployment lag explicitly.");
+if (rootManifest.scripts?.["verify:security-hardening"] !== "node scripts/verify-security-hardening.mjs") throw new Error("Root package.json must expose pnpm verify:security-hardening.");
+if (securityVerifier.includes('method:"POST"') && !securityVerifier.includes('/v1/admin/failure-injection')) throw new Error("v0.36 verifier must not add a hidden production fault-injection path.");
 
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -1100,11 +1141,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 36) throw new Error(`v0.35 expects 36 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 37) throw new Error(`v0.36 expects 37 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.35.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.35.0.`);
+  if (manifest.version !== "0.36.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.36.0.`);
 }
 
-console.log("Spotriq foundation + accepted v0.22–v0.34 + v0.35 Observability + Marketplace/System Health verification passed.");
+console.log("Spotriq foundation + accepted v0.22–v0.35 + v0.36 Security + Failure Injection Hardening verification passed.");
 

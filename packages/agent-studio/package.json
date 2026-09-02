@@ -1,6 +1,6 @@
 {
   "name": "@spotriq/agent-studio",
-  "version": "0.35.0",
+  "version": "0.36.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -15,7 +15,8 @@
     "@spotriq/agent-registry": "workspace:*",
     "@spotriq/domain": "workspace:*",
     "@spotriq/marketplace-supply": "workspace:*",
-    "@spotriq/operator-workspace": "workspace:*"
+    "@spotriq/operator-workspace": "workspace:*",
+    "@spotriq/security-hardening": "workspace:*"
   },
   "devDependencies": {
     "tsx": "4.23.1",

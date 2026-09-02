@@ -704,3 +704,18 @@ pnpm verify:observability
 Migration: `0028_operational_observability.sql`.
 
 See `docs/OPERATIONAL_OBSERVABILITY.md` and `docs/IMPLEMENTATION_REPORT_OBSERVABILITY_v0.35.0.md`.
+
+
+## v0.36.0 Security + Failure Injection Hardening
+
+Spotriq now hardens hostile external/runtime/provider data without adding a production chaos endpoint. Marketplace Test Lab validates public DNS answers, pins the validated address into its production HTTP(S) transport, revalidates redirects and bounds Agent Card/MCP payloads. Operator/Agent Studio metadata uses the same public external-URL policy and bounded untrusted-text handling.
+
+The BSC adapter validates JSON-RPC envelope/ID/result coherence, can fail over after corrupt provider responses and reports material block-height divergence as operational degradation only. x402/B402 reconciliation adds transaction/receipt/log/timestamp coherence, concurrent payment replays fail closed, and migration `0029_security_failure_injection_hardening.sql` adds durable Activation idempotency claims.
+
+```powershell
+pnpm verify:security-hardening
+```
+
+Failure injection remains test/verifier-only. Security health never becomes marketplace readiness, trust, payment, PermissionGrant, execution or outcome authority.
+
+See `docs/SECURITY_FAILURE_INJECTION_HARDENING.md` and `docs/IMPLEMENTATION_REPORT_SECURITY_FAILURE_INJECTION_v0.36.0.md`.

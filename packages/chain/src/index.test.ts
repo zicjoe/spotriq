@@ -113,3 +113,51 @@ test("generic contract reads preserve the explicitly observed block", async () =
   assert.equal(result.blockNumber, "100");
   assert.equal(result.data, "0x01");
 });
+
+test("rejects a mismatched JSON-RPC id and fails over to a valid secondary", async () => {
+  const fetchImpl = makeFetch((url, method, _params, id) => {
+    if (url.includes("primary")) return rpcResponse(id + 99, method === "eth_chainId" ? "0x61" : "0x64");
+    if (method === "eth_chainId") return rpcResponse(id, "0x61");
+    if (method === "eth_blockNumber") return rpcResponse(id, "0x64");
+    throw new Error(`unexpected ${method}`);
+  });
+  const adapter = new BscChainAdapter({network:"testnet",primaryRpcUrl:"https://primary.example",secondaryRpcUrl:"https://secondary.example",fetchImpl});
+  assert.equal(await adapter.getBlockNumber(), "100");
+});
+
+test("detects material block divergence across otherwise healthy BSC RPC endpoints", async () => {
+  const fetchImpl = makeFetch((url, method, _params, id) => {
+    if (method === "eth_chainId") return rpcResponse(id, "0x61");
+    if (method === "eth_blockNumber") return rpcResponse(id, url.includes("primary") ? "0x64" : "0x78");
+    throw new Error(`unexpected ${method}`);
+  });
+  const adapter = new BscChainAdapter({network:"testnet",primaryRpcUrl:"https://primary.example",secondaryRpcUrl:"https://secondary.example",fetchImpl,rpcDivergenceToleranceBlocks:5});
+  const status = await adapter.getStatus();
+  assert.equal(status.blockDivergence?.state, "divergent");
+  assert.equal(status.blockDivergence?.spreadBlocks, "20");
+  assert.equal((await adapter.getHealth()).state, "degraded");
+});
+
+test("fails over when an RPC returns transaction evidence for a different hash", async () => {
+  const wanted = `0x${"1".repeat(64)}`;
+  const wrong = `0x${"2".repeat(64)}`;
+  const blockHash = `0x${"3".repeat(64)}`;
+  const fetchImpl = makeFetch((url, method, _params, id) => {
+    if (method === "eth_chainId") return rpcResponse(id, "0x61");
+    if (method === "eth_getTransactionByHash") return rpcResponse(id, {hash:url.includes("primary")?wrong:wanted,blockNumber:"0x64",blockHash,from:"0x1111111111111111111111111111111111111111",to:"0x2222222222222222222222222222222222222222",value:"0x0",input:"0x",transactionIndex:"0x0"});
+    throw new Error(`unexpected ${method}`);
+  });
+  const adapter = new BscChainAdapter({network:"testnet",primaryRpcUrl:"https://primary.example",secondaryRpcUrl:"https://secondary.example",fetchImpl});
+  assert.equal((await adapter.getTransaction(wanted))?.hash, wanted);
+});
+
+
+test("fails over when primary returns malformed scalar RPC results", async () => {
+  const fetchImpl = makeFetch((url, method, _params, id) => {
+    if (method === "eth_chainId") return rpcResponse(id, "0x61");
+    if (method === "eth_blockNumber") return rpcResponse(id, url.includes("primary") ? "not-hex" : "0x64");
+    throw new Error(`unexpected ${method}`);
+  });
+  const adapter = new BscChainAdapter({network:"testnet",primaryRpcUrl:"https://primary.example",secondaryRpcUrl:"https://secondary.example",fetchImpl});
+  assert.equal(await adapter.getBlockNumber(), "100");
+});

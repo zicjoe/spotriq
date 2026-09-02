@@ -274,7 +274,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const agentAdvantage = options.agentAdvantage ?? createAgentAdvantageEngine({ store: agentAdvantageStore, activityOutcomes: activationActivityOutcomes });
   const observabilityStore = sqlDatabase ? new PostgresOperationalHealthStore(sqlDatabase) : new MemoryOperationalHealthStore();
   const observability = options.observability ?? createOperationalHealthEngine({
-    release: "0.35.0",
+    release: "0.36.0",
     chain,
     marketplace: marketplaceSupply,
     referenceServiceIds: referenceServices.map(record => record.service.serviceId),
@@ -316,7 +316,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.35.0",
+      version: "0.36.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,
@@ -424,6 +424,14 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       adminDiagnosticsConfigured: Boolean(config.adminDiagnosticsToken),
       operationalHealthMarketplaceReadinessAuthority: false,
       operationalHealthFinancialReadinessAuthority: false,
+      securityFailureHardeningEnabled: true,
+      ssrfPinnedTransportEnabled: true,
+      maliciousMetadataValidationEnabled: true,
+      rpcResponseValidationEnabled: true,
+      rpcDivergenceDetectionEnabled: true,
+      paymentReplayRaceProtectionEnabled: true,
+      activationIdempotencyClaimEnabled: true,
+      runtimeFailureInjectionEndpointEnabled: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
         config.bscRpcPrimary
@@ -470,6 +478,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "v0.33 adds a grounded explanation layer. The optional OpenAI Responses provider receives only server-built deterministic fact packets, uses structured output without web/tools, and every claim must cite known fact IDs. Invalid provider output falls back to a deterministic cited summary; AI cannot mutate financial truth or decision resources.",
         "v0.34 adds persisted Agent Advantage reports with explicit Activation measurement windows. Service contribution, transaction evidence, financial outcome and Agent Advantage remain separate; transaction success never becomes financial advantage and missing evidence remains Could Not Assess.",
         "v0.35 adds operational observability for API/database, BSC RPC, persisted Marketplace Test Lab/runtime evidence, payment adapters, Agent Studio and worker heartbeat posture. Operational health is explicitly not marketplace readiness, trust, payment, permission, execution or financial-outcome authority; public health is redacted and admin diagnostics fail closed behind a server-side bearer token.",
+        "v0.36 hardens hostile failure boundaries: Test Lab requests pin DNS-validated public addresses and revalidate redirects; provider payloads are bounded/validated; BSC RPC responses are schema/coherence checked with divergence detection; operator/Agent Studio metadata rejects unsafe URL/control-text tricks; payment replay races and Activation idempotency races fail closed. Failure injection remains test/verifier-only and no production chaos endpoint is exposed.",
         "Permission scope is selector-scoped to the PancakeSwap V3 Position Manager with explicit token spend caps and expiry; approve, router swap, withdrawal, arbitrary target, and multicall authority are not granted by the live flow.",
         "Registry-derived services remain non-activatable until canonical identity, tested runtime reachability, explicit authority requirements, marketplace tests, and a later real testnet activation path satisfy all gates.",
       ],

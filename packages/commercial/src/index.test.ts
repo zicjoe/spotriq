@@ -257,3 +257,25 @@ test("marketplace Activation revocation is buyer-bound, idempotent and separate 
   assert.equal(state.payments[0]?.state,"NOT_REQUIRED");
   assert.equal(state.activations[0]?.state,"REVOKED");
 });
+
+test("activation idempotency claim fails closed when one key races across different Hires", async () => {
+  const store=new MemoryCommercialStore();
+  const engine=createCommercialEngine({store,marketplace:marketplace(()=>serviceRecord()),now:()=>new Date("2026-09-02T10:00:00.000Z")});
+  const q1=await engine.createQuote({serviceId:SERVICE,buyerAddress:BUYER,buyerChainId:97,idempotencyKey:"q-race-1"});
+  const h1=await engine.createHire({quoteId:q1.quoteId,buyerAddress:BUYER,idempotencyKey:"h-race-1"});
+  const q2=await engine.createQuote({serviceId:SERVICE,buyerAddress:BUYER,buyerChainId:97,idempotencyKey:"q-race-2"});
+  const h2=await engine.createHire({quoteId:q2.quoteId,buyerAddress:BUYER,idempotencyKey:"h-race-2"});
+  const results=await Promise.allSettled([
+    engine.activate(h1.hireId,{buyerAddress:BUYER,idempotencyKey:"shared-activation-key"}),
+    engine.activate(h2.hireId,{buyerAddress:BUYER,idempotencyKey:"shared-activation-key"}),
+  ]);
+  assert.equal(results.filter(x=>x.status==="fulfilled").length,1);
+  const rejected=results.find(x=>x.status==="rejected");
+  assert.ok(rejected&&String(rejected.reason).includes("idempotency key"));
+});
+
+test("paid Offer rejects local or metadata-like payment endpoints", async () => {
+  const unsafe=freeTerms({commercialModel:"PER_TASK",serviceType:"TASK_SERVICE",price:{amount:"1",amountRaw:"1",currency:"USDT",tokenAddress:"0x3333333333333333333333333333333333333333",decimals:6},paymentRail:"X402",payment:{payToAddress:"0x5555555555555555555555555555555555555555",endpoint:"https://169.254.169.254/pay"}});
+  const engine=createCommercialEngine({marketplace:marketplace(()=>serviceRecord(unsafe))});
+  await assert.rejects(()=>engine.createQuote({serviceId:SERVICE,buyerAddress:BUYER,buyerChainId:97,idempotencyKey:"q-unsafe-payment"}),/blocked|non-public/i);
+});

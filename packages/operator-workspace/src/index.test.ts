@@ -36,3 +36,13 @@ test("canonical owner mismatch fails closed",async()=>{
   const challenge=await engine.createChallenge(owner);const {session}=await engine.verifyChallenge({challengeId:challenge.challengeId,signature:`0x${"11".repeat(65)}`});
   await assert.rejects(()=>engine.claimAgent(session,{chainId:97,agentId:"7"}),/Canonical ERC-8004 ownership/);
 });
+
+test("malicious operator metadata and SSRF-shaped runtime URLs fail before persistence",async()=>{
+  const engine=createOperatorWorkspaceEngine({store:new MemoryOperatorWorkspaceStore(),registry,marketplace,recoverAddress:async()=>owner,now:()=>new Date("2026-09-02T10:00:00Z")});
+  const challenge=await engine.createChallenge(owner);const {session}=await engine.verifyChallenge({challengeId:challenge.challengeId,signature:`0x${"11".repeat(65)}`});
+  await engine.claimAgent(session,{chainId:97,agentId:"7"});
+  const base={chainId:97 as const,agentId:"7",serviceId,category:"grid" as const,name:"Grid Agent",shortDescription:"Grid service",commercial:{commercialModel:"FREE" as const,paymentRail:"FREE" as const,availability:"AVAILABLE" as const,termsVersion:"1"},permission:{intensity:"read-only" as const,executionMode:"READ_ONLY" as const,protocols:["PancakeSwap"],assets:[],walletSigningRequired:false,financialAuthorityRequired:false}};
+  await assert.rejects(()=>engine.upsertDeclaration(session,{...base,runtimeEndpoints:[{name:"A2A",endpoint:"https://169.254.169.254/latest/meta-data",interactionKind:"A2A"}]}),/blocked|non-public/i);
+  await assert.rejects(()=>engine.upsertDeclaration(session,{...base,name:"Grid\u202EAgent",runtimeEndpoints:[{name:"A2A",endpoint:"https://agent.example/a2a",interactionKind:"A2A"}]}),/unsafe control/i);
+  assert.equal((await engine.getWorkspace(session)).services.length,0);
+});

@@ -18,6 +18,7 @@ import type {
 } from "@spotriq/domain";
 import type { AgentRegistryReader } from "@spotriq/agent-registry";
 import type { MarketplaceSupplyReader } from "@spotriq/marketplace-supply";
+import { normalizeUntrustedText, validateExternalHttpUrl } from "@spotriq/security-hardening";
 
 export const OPERATOR_WORKSPACE_METHOD = "operator-workspace.signed-owner-lifecycle@1.0.0";
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -41,9 +42,24 @@ function normalizeAddress(value: string, label = "address"): string {
   return v.toLowerCase();
 }
 function required(value: string | undefined, label: string, max = 2048): string {
-  const v = value?.trim();
-  if (!v || v.length > max) throw new OperatorWorkspaceError(`${label} is required.`, "INVALID_INPUT");
-  return v;
+  try { return normalizeUntrustedText(value, label, max); }
+  catch (error) { throw new OperatorWorkspaceError(error instanceof Error ? error.message : `${label} is invalid.`, "INVALID_INPUT"); }
+}
+function optionalText(value: string | undefined, label: string, max: number): string | undefined {
+  if (value === undefined || value === null || value.trim() === "") return undefined;
+  return required(value, label, max);
+}
+function externalHttps(value: string | undefined, label: string): string {
+  try { return validateExternalHttpUrl(required(value, label, 2048), { label }).toString(); }
+  catch (error) { throw new OperatorWorkspaceError(error instanceof Error ? error.message : `${label} is invalid.`, "INVALID_INPUT"); }
+}
+function oneOf<T extends string>(value: unknown, allowed: readonly T[], label: string): T {
+  if (typeof value !== "string" || !allowed.includes(value as T)) throw new OperatorWorkspaceError(`${label} is invalid.`, "INVALID_INPUT");
+  return value as T;
+}
+function boundedTextArray(value: unknown, label: string, maxItems: number, maxLength: number): string[] {
+  if (!Array.isArray(value) || value.length > maxItems || value.some((item) => typeof item !== "string")) throw new OperatorWorkspaceError(`${label} must contain at most ${maxItems} text values.`, "INVALID_INPUT");
+  return value.map((item, index) => required(item, `${label}[${index}]`, maxLength));
 }
 function digest(prefix: string, ...parts: string[]): string {
   return `${prefix}:${createHash("sha256").update(parts.join("\u0000")).digest("hex").slice(0, 32)}`;
@@ -153,22 +169,74 @@ export function createOperatorWorkspaceEngine(options:{store?:OperatorWorkspaceS
     async createChallenge(raw){const address=normalizeAddress(raw);const created=now();const expires=new Date(created.getTime()+challengeTtl);const nonce=randomBytes(16).toString("hex");const challengeId=digest("opch",address,nonce,created.toISOString());const message=["Spotriq Operator Workspace","","Sign this message to prove control of the operator wallet.",`Address: ${address}`,`Nonce: ${nonce}`,`Issued At: ${created.toISOString()}`,`Expires At: ${expires.toISOString()}`,"","This signature does not grant financial authority or move funds."].join("\n");const out={challengeId,address,nonce,message,createdAt:created.toISOString(),expiresAt:expires.toISOString()};await store.saveChallenge(out);return out;},
     async verifyChallenge(input){const challenge=await store.getChallenge(required(input.challengeId,"challengeId"));if(!challenge)throw new OperatorWorkspaceError("Authentication challenge was not found.","CHALLENGE_NOT_FOUND");if(challenge.usedAt)throw new OperatorWorkspaceError("Authentication challenge was already used.","CHALLENGE_USED");if(Date.parse(challenge.expiresAt)<=now().getTime())throw new OperatorWorkspaceError("Authentication challenge expired.","CHALLENGE_EXPIRED");if(!SIGNATURE.test(input.signature))throw new OperatorWorkspaceError("signature must be a 65-byte EIP-191 signature.","SIGNATURE_INVALID");let recovered:string;try{recovered=normalizeAddress(await recover(challenge.message,input.signature as Hex));}catch(e){throw new OperatorWorkspaceError("Signature could not be verified.","SIGNATURE_INVALID",false,e);}if(recovered!==challenge.address)throw new OperatorWorkspaceError("Signature does not match the challenged wallet.","SIGNATURE_INVALID");const usedAt=nowIso(now);if(!(await store.consumeChallenge(challenge.challengeId,usedAt)))throw new OperatorWorkspaceError("Authentication challenge was already used.","CHALLENGE_USED");const token=randomBytes(32).toString("base64url");const created=now();const session:OperatorSession={sessionId:digest("opsess",challenge.address,token),address:challenge.address,createdAt:created.toISOString(),expiresAt:new Date(created.getTime()+sessionTtl).toISOString()};await store.saveSession(session,tokenHash(token));return{session,token};},
     async authenticate(token){const t=required(token,"session token",4096);const session=await store.getSessionByTokenHash(tokenHash(t));if(!session)throw new OperatorWorkspaceError("Operator authentication is required.","AUTH_REQUIRED");if(Date.parse(session.expiresAt)<=now().getTime())throw new OperatorWorkspaceError("Operator session expired.","SESSION_EXPIRED");return session;},
-    async claimAgent(session,input){if(!/^\d+$/.test(input.agentId))throw new OperatorWorkspaceError("agentId must be numeric.","INVALID_INPUT");const agent=await options.registry.getAgent(input.chainId,input.agentId);const verification=await options.registry.verifyIdentity(input.chainId,input.agentId,agent);const canonical=verification.ownerAddress?normalizeAddress(verification.ownerAddress,"canonical owner"):undefined;if(verification.state!=="VERIFIED"||!canonical||canonical!==session.address)throw new OperatorWorkspaceError("Canonical ERC-8004 ownership must be VERIFIED and match the authenticated operator wallet.","CANONICAL_OWNER_REQUIRED",false,{state:verification.state,ownerAddress:verification.ownerAddress});const at=nowIso(now);const existing=await store.getClaim(session.address,input.chainId,input.agentId);const claim:OperatorAgentClaim={claimId:existing?.claimId??digest("opclaim",session.address,String(input.chainId),input.agentId),operatorAddress:session.address,chainId:input.chainId,agentId:input.agentId,discoveryId:agent.discoveryId,canonicalOwnerAddress:canonical,canonicalVerificationState:verification.state,claimedAt:existing?.claimedAt??at,lastVerifiedAt:at};await store.saveClaim(claim);return claim;},
+    async claimAgent(session,input){if(input.chainId!==56&&input.chainId!==97)throw new OperatorWorkspaceError("chainId must be BSC Mainnet 56 or BSC Testnet 97.","INVALID_INPUT");if(!/^\d{1,78}$/.test(input.agentId))throw new OperatorWorkspaceError("agentId must be a uint256-compatible decimal identifier.","INVALID_INPUT");const agent=await options.registry.getAgent(input.chainId,input.agentId);const verification=await options.registry.verifyIdentity(input.chainId,input.agentId,agent);const canonical=verification.ownerAddress?normalizeAddress(verification.ownerAddress,"canonical owner"):undefined;if(verification.state!=="VERIFIED"||!canonical||canonical!==session.address)throw new OperatorWorkspaceError("Canonical ERC-8004 ownership must be VERIFIED and match the authenticated operator wallet.","CANONICAL_OWNER_REQUIRED",false,{state:verification.state,ownerAddress:verification.ownerAddress});const at=nowIso(now);const existing=await store.getClaim(session.address,input.chainId,input.agentId);const claim:OperatorAgentClaim={claimId:existing?.claimId??digest("opclaim",session.address,String(input.chainId),input.agentId),operatorAddress:session.address,chainId:input.chainId,agentId:input.agentId,discoveryId:agent.discoveryId,canonicalOwnerAddress:canonical,canonicalVerificationState:verification.state,claimedAt:existing?.claimedAt??at,lastVerifiedAt:at};await store.saveClaim(claim);return claim;},
     async getWorkspace(session){const [claims,declarations]=await Promise.all([store.listClaims(session.address),store.listDeclarations(session.address)]);const services=[];for(const declaration of declarations){let marketplace;let latestTest;try{marketplace=await options.marketplace.getService(declaration.serviceId);latestTest=await options.marketplace.getTests(declaration.serviceId);}catch{/* draft service may not yet normalize into public supply */}services.push({declaration,marketplace,latestTest,operatorEvidence:await store.listEvidence(session.address,declaration.serviceId)});}return{operatorAddress:session.address,claims,services,generatedAt:nowIso(now),methodVersion:OPERATOR_WORKSPACE_METHOD,limitations:["Operator declarations are Operator Supplied evidence and cannot overwrite Marketplace Observed Test Lab evidence.","Operator lifecycle can make a service less available, but cannot force marketplace readiness to READY.","Financial PermissionGrants, payments, Activations, executions and outcomes remain independent resources."]};},
-    async upsertDeclaration(session,input){await ownClaim(session.address,input.chainId,input.agentId);const serviceId=required(input.serviceId,"serviceId");const expectedServiceId=`svc:erc8004:${input.chainId}:${input.agentId}:${input.category}`;if(serviceId!==expectedServiceId)throw new OperatorWorkspaceError(`serviceId must match the claimed agent/category namespace: ${expectedServiceId}.`,"SERVICE_NOT_OWNED");const name=required(input.name,"name",160);const shortDescription=required(input.shortDescription,"shortDescription",1000);if(input.runtimeEndpoints.length>8)throw new OperatorWorkspaceError("At most 8 runtime endpoints may be declared.","INVALID_INPUT");for(const ep of input.runtimeEndpoints){required(ep.name,"runtime endpoint name",80);const u=new URL(required(ep.endpoint,"runtime endpoint",2048));if(u.protocol!=="https:")throw new OperatorWorkspaceError("Operator runtime endpoints must use HTTPS.","INVALID_INPUT");}
-      const commercial=input.commercial;
+    async upsertDeclaration(session,input){
+      if(input.chainId!==56&&input.chainId!==97)throw new OperatorWorkspaceError("chainId must be BSC Mainnet 56 or BSC Testnet 97.","INVALID_INPUT");
+      if(!/^\d{1,78}$/.test(input.agentId))throw new OperatorWorkspaceError("agentId must be a uint256-compatible decimal identifier.","INVALID_INPUT");
+      const category=oneOf(input.category,["rebalancing","grid","yield","health"] as const,"category");
+      await ownClaim(session.address,input.chainId,input.agentId);
+      const serviceId=required(input.serviceId,"serviceId");
+      const expectedServiceId=`svc:erc8004:${input.chainId}:${input.agentId}:${category}`;
+      if(serviceId!==expectedServiceId)throw new OperatorWorkspaceError(`serviceId must match the claimed agent/category namespace: ${expectedServiceId}.`,"SERVICE_NOT_OWNED");
+      const name=required(input.name,"name",160);
+      const shortDescription=required(input.shortDescription,"shortDescription",1000);
+      if(!Array.isArray(input.runtimeEndpoints)||input.runtimeEndpoints.length>8)throw new OperatorWorkspaceError("At most 8 runtime endpoints may be declared.","INVALID_INPUT");
+      const runtimeEndpoints=input.runtimeEndpoints.map((ep,index)=>({
+        name:required(ep?.name,`runtimeEndpoints[${index}].name`,80),
+        endpoint:externalHttps(ep?.endpoint,`runtimeEndpoints[${index}].endpoint`),
+        interactionKind:oneOf(ep?.interactionKind,["A2A","MCP","WEB","OTHER"] as const,`runtimeEndpoints[${index}].interactionKind`),
+        version:optionalText(ep?.version,`runtimeEndpoints[${index}].version`,80),
+      }));
+      if(!input.commercial||typeof input.commercial!=="object")throw new OperatorWorkspaceError("commercial declaration is required.","INVALID_INPUT");
+      const rawCommercial=input.commercial;
+      const commercialModel=oneOf(rawCommercial.commercialModel,["FREE","PER_TASK","SUBSCRIPTION","PERFORMANCE","HYBRID","UNDECLARED"] as const,"commercial.commercialModel");
+      const paymentRail=oneOf(rawCommercial.paymentRail,["FREE","ERC8183","X402","B402","UNDECLARED"] as const,"commercial.paymentRail");
+      const availability=oneOf(rawCommercial.availability,["AVAILABLE","UNAVAILABLE","UNDECLARED"] as const,"commercial.availability");
+      const termsVersion=required(rawCommercial.termsVersion,"commercial.termsVersion",80);
       const addr=(v:string|undefined,label:string)=>{const x=(v??"").trim().toLowerCase();if(!/^0x[0-9a-f]{40}$/.test(x))throw new OperatorWorkspaceError(`${label} must be a valid EVM address.`,"INVALID_INPUT");return x;};
-      if(commercial.paymentRail!=="UNDECLARED"&&commercial.paymentRail!=="FREE"){
+      const commercial:OperatorCommercialDeclaration={
+        commercialModel,paymentRail,availability,termsVersion,
+        amount:optionalText(rawCommercial.amount,"commercial.amount",80),
+        currency:optionalText(rawCommercial.currency,"commercial.currency",40),
+        tokenAddress:rawCommercial.tokenAddress?addr(rawCommercial.tokenAddress,"commercial.tokenAddress"):undefined,
+        amountRaw:optionalText(rawCommercial.amountRaw,"commercial.amountRaw",100),
+        decimals:rawCommercial.decimals,
+        note:optionalText(rawCommercial.note,"commercial.note",1000),
+        payment:rawCommercial.payment?{
+          contractAddress:rawCommercial.payment.contractAddress?addr(rawCommercial.payment.contractAddress,"commercial.payment.contractAddress"):undefined,
+          providerAddress:rawCommercial.payment.providerAddress?addr(rawCommercial.payment.providerAddress,"commercial.payment.providerAddress"):undefined,
+          payToAddress:rawCommercial.payment.payToAddress?addr(rawCommercial.payment.payToAddress,"commercial.payment.payToAddress"):undefined,
+          endpoint:rawCommercial.payment.endpoint?externalHttps(rawCommercial.payment.endpoint,"commercial.payment.endpoint"):undefined,
+        }:undefined,
+      };
+      if(paymentRail!=="UNDECLARED"&&paymentRail!=="FREE"){
         required(commercial.amount??"","commercial amount",80); required(commercial.currency??"","commercial currency",40);
         addr(commercial.tokenAddress,"commercial tokenAddress");
         if(!commercial.amountRaw||!/^\d+$/.test(commercial.amountRaw)||BigInt(commercial.amountRaw)<=0n)throw new OperatorWorkspaceError("Paid commercial declarations require positive amountRaw.","INVALID_INPUT");
         if(commercial.decimals===undefined||!Number.isInteger(commercial.decimals)||commercial.decimals<0||commercial.decimals>36)throw new OperatorWorkspaceError("Paid commercial declarations require token decimals between 0 and 36.","INVALID_INPUT");
       }
-      if(commercial.paymentRail==="ERC8183"){addr(commercial.payment?.contractAddress,"ERC-8183 contractAddress");addr(commercial.payment?.providerAddress,"ERC-8183 providerAddress");}
-      if(commercial.paymentRail==="X402"||commercial.paymentRail==="B402"){addr(commercial.payment?.payToAddress??commercial.payment?.providerAddress,`${commercial.paymentRail} payToAddress`);const endpoint=new URL(required(commercial.payment?.endpoint??"",`${commercial.paymentRail} payment endpoint`,2048));if(endpoint.protocol!=="https:")throw new OperatorWorkspaceError(`${commercial.paymentRail} payment endpoint must use HTTPS.`,"INVALID_INPUT");}
-      let existing=input.declarationId?await store.getDeclaration(session.address,input.declarationId):undefined;const at=nowIso(now);const declarationId=existing?.declarationId??digest("opdecl",session.address,String(input.chainId),input.agentId,serviceId,input.category);const next:OperatorServiceDeclaration={declarationId,operatorAddress:session.address,chainId:input.chainId,agentId:input.agentId,serviceId,category:input.category,lifecycleState:existing?.lifecycleState??"DRAFT",name,shortDescription,runtimeEndpoints:clone(input.runtimeEndpoints),commercial:clone(input.commercial),permission:clone(input.permission),declarationVersion:(existing?.declarationVersion??0)+1,createdAt:existing?.createdAt??at,updatedAt:at,submittedAt:existing?.submittedAt,pausedAt:existing?.pausedAt,retiredAt:existing?.retiredAt,limitations:["This declaration is Operator Supplied and does not establish canonical identity, Test Lab success, marketplace readiness, payment, PermissionGrant, execution, or outcome evidence."]};await store.saveDeclaration(next);return next;},
+      if(paymentRail==="ERC8183"){addr(commercial.payment?.contractAddress,"ERC-8183 contractAddress");addr(commercial.payment?.providerAddress,"ERC-8183 providerAddress");}
+      if(paymentRail==="X402"||paymentRail==="B402"){addr(commercial.payment?.payToAddress??commercial.payment?.providerAddress,`${paymentRail} payToAddress`);if(!commercial.payment?.endpoint)throw new OperatorWorkspaceError(`${paymentRail} payment endpoint is required.`,"INVALID_INPUT");}
+      if(!input.permission||typeof input.permission!=="object")throw new OperatorWorkspaceError("permission declaration is required.","INVALID_INPUT");
+      const permission:OperatorPermissionDeclaration={
+        intensity:oneOf(input.permission.intensity,["read-only","low","medium","high","unknown"] as const,"permission.intensity"),
+        executionMode:oneOf(input.permission.executionMode,["READ_ONLY","USER_APPROVAL","BOUNDED_AUTONOMOUS","UNDECLARED"] as const,"permission.executionMode"),
+        protocols:boundedTextArray(input.permission.protocols,"permission.protocols",32,120),
+        assets:boundedTextArray(input.permission.assets,"permission.assets",64,160),
+        walletSigningRequired:Boolean(input.permission.walletSigningRequired),
+        financialAuthorityRequired:Boolean(input.permission.financialAuthorityRequired),
+        note:optionalText(input.permission.note,"permission.note",1000),
+      };
+      if(typeof input.permission.walletSigningRequired!=="boolean"||typeof input.permission.financialAuthorityRequired!=="boolean")throw new OperatorWorkspaceError("permission authority flags must be booleans.","INVALID_INPUT");
+      const existing=input.declarationId?await store.getDeclaration(session.address,required(input.declarationId,"declarationId")):undefined;
+      const at=nowIso(now);
+      const declarationId=existing?.declarationId??digest("opdecl",session.address,String(input.chainId),input.agentId,serviceId,category);
+      const next:OperatorServiceDeclaration={declarationId,operatorAddress:session.address,chainId:input.chainId,agentId:input.agentId,serviceId,category,lifecycleState:existing?.lifecycleState??"DRAFT",name,shortDescription,runtimeEndpoints,commercial,permission,declarationVersion:(existing?.declarationVersion??0)+1,createdAt:existing?.createdAt??at,updatedAt:at,submittedAt:existing?.submittedAt,pausedAt:existing?.pausedAt,retiredAt:existing?.retiredAt,limitations:["This declaration is Operator Supplied and does not establish canonical identity, Test Lab success, marketplace readiness, payment, PermissionGrant, execution, or outcome evidence.","Untrusted operator text and URLs pass bounded input/URL policy before persistence; this validation does not convert operator claims into trusted evidence."]};
+      await store.saveDeclaration(next);return next;
+    },
     async transition(session,declarationId,state){const d=await store.getDeclaration(session.address,required(declarationId,"declarationId"));if(!d)throw new OperatorWorkspaceError("Operator service declaration was not found.","DECLARATION_NOT_FOUND");await ownClaim(session.address,d.chainId,d.agentId);const allowed:Record<OperatorSupplyLifecycleState,OperatorSupplyLifecycleState[]>={DRAFT:["SUBMITTED","RETIRED"],SUBMITTED:["ACTIVE","PAUSED","SUSPENDED","RETIRED"],ACTIVE:["PAUSED","SUSPENDED","RETIRED"],PAUSED:["SUBMITTED","ACTIVE","RETIRED"],SUSPENDED:["SUBMITTED","RETIRED"],RETIRED:[]};if(!allowed[d.lifecycleState].includes(state))throw new OperatorWorkspaceError(`Cannot transition operator service from ${d.lifecycleState} to ${state}.`,"INVALID_LIFECYCLE");const at=nowIso(now);const next={...d,lifecycleState:state,declarationVersion:d.declarationVersion+1,updatedAt:at,submittedAt:state==="SUBMITTED"?(d.submittedAt??at):d.submittedAt,pausedAt:state==="PAUSED"?at:d.pausedAt,retiredAt:state==="RETIRED"?at:d.retiredAt};await store.saveDeclaration(next);return next;},
-    async submitEvidence(session,input){await serviceOwned(session.address,input.serviceId);const observedAt=new Date(required(input.observedAt,"observedAt")).toISOString();const submittedAt=nowIso(now);const value=required(input.value,"value",4000);const record:OperatorSuppliedEvidenceRecord={evidenceId:digest("opev",session.address,input.serviceId,input.evidenceType,input.sourceLabel,observedAt,value),operatorAddress:session.address,serviceId:input.serviceId,evidenceType:required(input.evidenceType,"evidenceType",100),value,sourceLabel:required(input.sourceLabel,"sourceLabel",160),observedAt,submittedAt,provenance:"operator-claimed",limitations:input.limitations?.map(x=>x.trim()).filter(Boolean).slice(0,12)??[]};await store.saveEvidence(record);return record;},
+    async submitEvidence(session,input){await serviceOwned(session.address,required(input.serviceId,"serviceId"));let observedAt:string;try{observedAt=new Date(required(input.observedAt,"observedAt",80)).toISOString();}catch{throw new OperatorWorkspaceError("observedAt must be a valid timestamp.","INVALID_INPUT");}const submittedAt=nowIso(now);const value=required(input.value,"value",4000);const evidenceType=required(input.evidenceType,"evidenceType",100);const sourceLabel=required(input.sourceLabel,"sourceLabel",160);const limitations=input.limitations===undefined?[]:boundedTextArray(input.limitations,"limitations",12,500);const record:OperatorSuppliedEvidenceRecord={evidenceId:digest("opev",session.address,input.serviceId,evidenceType,sourceLabel,observedAt,value),operatorAddress:session.address,serviceId:input.serviceId,evidenceType,value,sourceLabel,observedAt,submittedAt,provenance:"operator-claimed",limitations};await store.saveEvidence(record);return record;},
     async runMarketplaceTests(session,serviceId){await serviceOwned(session.address,required(serviceId,"serviceId"));return options.marketplace.runTests(serviceId);},
     async resolvePublishedOffer(serviceId){const declaration=await store.findLatestDeclarationByService(required(serviceId,"serviceId"));if(!declaration)return undefined;try{await ownClaim(declaration.operatorAddress,declaration.chainId,declaration.agentId);}catch{return undefined;}return operatorDeclarationToServiceOffer(declaration);},
   };

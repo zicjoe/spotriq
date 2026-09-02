@@ -11,6 +11,7 @@ import type {
   WalletBalanceSnapshot,
 } from "@spotriq/domain";
 import { bscSourceRef, createEvidenceEnvelope, DATA_SOURCES, EVIDENCE_METHODS } from "@spotriq/evidence";
+import { assertStructuredJsonBudget } from "@spotriq/security-hardening";
 
 export const BSC_NETWORKS: Record<BscNetwork, BscNetworkDefinition> = {
   mainnet: {
@@ -57,7 +58,8 @@ interface JsonRpcResponse<T> {
 export interface BscRpcEndpointStatus {
   url: string;
   role: "primary" | "secondary";
-  state: "ok" | "unavailable" | "chain_mismatch" | "unchecked";
+  state: "ok" | "unavailable" | "chain_mismatch" | "invalid_response" | "unchecked";
+  blockNumber?: string;
   latencyMs?: number;
   detail?: string;
 }
@@ -68,6 +70,13 @@ export interface BscChainStatus {
   rpcMode: "configured" | "official_public_fallback";
   latestBlockNumber?: string;
   activeRpcUrl?: string;
+  blockDivergence?: {
+    state: "consistent" | "divergent" | "insufficient";
+    minBlockNumber?: string;
+    maxBlockNumber?: string;
+    spreadBlocks?: string;
+    toleranceBlocks: number;
+  };
   endpoints: BscRpcEndpointStatus[];
 }
 
@@ -94,6 +103,8 @@ export interface BscChainAdapterOptions {
   secondaryRpcUrl?: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  rpcResponseMaxBytes?: number;
+  rpcDivergenceToleranceBlocks?: number;
 }
 
 function assertAddress(address: string): string {
@@ -154,8 +165,14 @@ function decodeAbiString(result: string): string | undefined {
 }
 
 function blockTagFromNumber(blockNumber: string): string {
+  if (!/^\d+$/.test(blockNumber)) throw new BscChainError(`Invalid non-negative block number: ${blockNumber}`, "RPC_RESPONSE_INVALID");
   const value = BigInt(blockNumber);
   return `0x${value.toString(16)}`;
+}
+
+function assertHexData(value: string, label = "RPC hex data"): string {
+  if (!/^0x(?:[0-9a-fA-F]{2})*$/.test(value)) throw new BscChainError(`${label} must be a 0x-prefixed even-length hexadecimal string.`, "RPC_RESPONSE_INVALID");
+  return value.toLowerCase();
 }
 
 function safeRpcReference(value: string): string {
@@ -173,6 +190,8 @@ export class BscChainAdapter implements BscChainReader {
   readonly rpcMode: "configured" | "official_public_fallback";
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
+  private readonly rpcResponseMaxBytes: number;
+  private readonly rpcDivergenceToleranceBlocks: number;
   private readonly endpoints: { url: string; role: "primary" | "secondary" }[];
   private requestId = 0;
   private readonly verifiedChainIds = new Map<string, boolean>();
@@ -182,6 +201,8 @@ export class BscChainAdapter implements BscChainReader {
     this.definition = BSC_NETWORKS[options.network];
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = options.timeoutMs ?? 7_500;
+    this.rpcResponseMaxBytes = Math.max(16_384, options.rpcResponseMaxBytes ?? 1_000_000);
+    this.rpcDivergenceToleranceBlocks = Math.max(0, Math.floor(options.rpcDivergenceToleranceBlocks ?? 5));
     this.rpcMode = options.primaryRpcUrl || options.secondaryRpcUrl ? "configured" : "official_public_fallback";
     const primary = options.primaryRpcUrl?.trim() || this.definition.defaultRpcUrls[0];
     const secondary = options.secondaryRpcUrl?.trim() || this.definition.defaultRpcUrls[1];
@@ -194,17 +215,51 @@ export class BscChainAdapter implements BscChainReader {
   private async rawRequest<T>(url: string, method: string, params: unknown[]): Promise<T> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const requestId = ++this.requestId;
     try {
       const response = await this.fetchImpl(url, {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: ++this.requestId, method, params }),
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: requestId, method, params }),
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const body = await response.json() as JsonRpcResponse<T>;
-      if (body.error) throw new Error(`RPC ${body.error.code}: ${body.error.message}`);
-      if (body.result === undefined) throw new Error("RPC response did not contain result");
+      const declaredLength = Number(response.headers.get("content-length") ?? "0");
+      if (Number.isFinite(declaredLength) && declaredLength > this.rpcResponseMaxBytes) {
+        throw new BscChainError(`RPC response exceeded the ${this.rpcResponseMaxBytes}-byte limit.`, "RPC_RESPONSE_INVALID");
+      }
+      const reader = response.body?.getReader();
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+      if (reader) {
+        while (true) {
+          const next = await reader.read();
+          if (next.done) break;
+          received += next.value.byteLength;
+          if (received > this.rpcResponseMaxBytes) {
+            await reader.cancel();
+            throw new BscChainError(`RPC response exceeded the ${this.rpcResponseMaxBytes}-byte limit.`, "RPC_RESPONSE_INVALID");
+          }
+          chunks.push(next.value);
+        }
+      }
+      const bytes = new Uint8Array(received);
+      let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+      const text = new TextDecoder().decode(bytes);
+      let parsed: unknown;
+      try { parsed = JSON.parse(text); }
+      catch { throw new BscChainError("RPC response was not valid JSON.", "RPC_RESPONSE_INVALID"); }
+      assertStructuredJsonBudget(parsed, { maxDepth: 16, maxNodes: 8192, maxArrayLength: 4096, maxObjectKeys: 256, maxStringLength: 1_000_000 });
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new BscChainError("RPC response must be a JSON-RPC object.", "RPC_RESPONSE_INVALID");
+      const body = parsed as Partial<JsonRpcResponse<T>>;
+      if (body.jsonrpc !== "2.0") throw new BscChainError("RPC response did not declare JSON-RPC 2.0.", "RPC_RESPONSE_INVALID");
+      if (body.id !== requestId) throw new BscChainError(`RPC response id ${String(body.id)} did not match request id ${requestId}.`, "RPC_RESPONSE_INVALID");
+      if (body.error !== undefined) {
+        if (!body.error || typeof body.error.code !== "number" || typeof body.error.message !== "string") throw new BscChainError("RPC response contained a malformed error object.", "RPC_RESPONSE_INVALID");
+        throw new Error(`RPC ${body.error.code}: ${body.error.message}`);
+      }
+      if (body.result === undefined) throw new BscChainError("RPC response did not contain result.", "RPC_RESPONSE_INVALID");
       return body.result;
     } finally {
       clearTimeout(timeout);
@@ -226,12 +281,13 @@ export class BscChainAdapter implements BscChainReader {
     this.verifiedChainIds.set(url, true);
   }
 
-  async request<T>(method: string, params: unknown[] = []): Promise<{ result: T; rpcUrl: string }> {
+  async request<T>(method: string, params: unknown[] = [], validate?: (result: T) => void): Promise<{ result: T; rpcUrl: string }> {
     const failures: { url: string; message: string }[] = [];
     for (const endpoint of this.endpoints) {
       try {
         if (method !== "eth_chainId") await this.verifyEndpoint(endpoint.url);
         const result = await this.rawRequest<T>(endpoint.url, method, params);
+        validate?.(result);
         return { result, rpcUrl: endpoint.url };
       } catch (error) {
         failures.push({ url: endpoint.url, message: error instanceof Error ? error.message : String(error) });
@@ -247,45 +303,47 @@ export class BscChainAdapter implements BscChainReader {
 
   async getStatus(): Promise<BscChainStatus> {
     const statuses: BscRpcEndpointStatus[] = [];
-    let latestBlockNumber: string | undefined;
-    let activeRpcUrl: string | undefined;
+    const observedBlocks: Array<{ url: string; block: bigint }> = [];
     for (const endpoint of this.endpoints) {
       const started = performance.now();
       try {
         const chainIdHex = await this.rawRequest<string>(endpoint.url, "eth_chainId", []);
         const chainId = hexToNumber(chainIdHex);
         if (chainId !== this.definition.chainId) {
-          statuses.push({
-            ...endpoint,
-            state: "chain_mismatch",
-            latencyMs: Math.round(performance.now() - started),
-            detail: `Expected chain ${this.definition.chainId}, received ${chainId}.`,
-          });
+          statuses.push({ ...endpoint, state: "chain_mismatch", latencyMs: Math.round(performance.now() - started), detail: `Expected chain ${this.definition.chainId}, received ${chainId}.` });
           continue;
         }
         this.verifiedChainIds.set(endpoint.url, true);
         const blockHex = await this.rawRequest<string>(endpoint.url, "eth_blockNumber", []);
-        const blockNumber = hexToBigInt(blockHex).toString();
-        statuses.push({ ...endpoint, state: "ok", latencyMs: Math.round(performance.now() - started) });
-        if (!latestBlockNumber) {
-          latestBlockNumber = blockNumber;
-          activeRpcUrl = endpoint.url;
-        }
+        const block = hexToBigInt(blockHex);
+        const blockNumber = block.toString();
+        statuses.push({ ...endpoint, state: "ok", blockNumber, latencyMs: Math.round(performance.now() - started) });
+        observedBlocks.push({ url: endpoint.url, block });
       } catch (error) {
         statuses.push({
           ...endpoint,
-          state: "unavailable",
+          state: error instanceof BscChainError && error.code === "RPC_RESPONSE_INVALID" ? "invalid_response" : "unavailable",
           latencyMs: Math.round(performance.now() - started),
           detail: error instanceof Error ? error.message : String(error),
         });
       }
     }
+    const sorted = [...observedBlocks].sort((a, b) => a.block < b.block ? -1 : a.block > b.block ? 1 : 0);
+    const min = sorted[0]?.block;
+    const max = sorted.at(-1)?.block;
+    const spread = min !== undefined && max !== undefined ? max - min : undefined;
+    const tolerance = BigInt(this.rpcDivergenceToleranceBlocks);
+    const blockDivergence: BscChainStatus["blockDivergence"] = observedBlocks.length < 2
+      ? { state: "insufficient", minBlockNumber: min?.toString(), maxBlockNumber: max?.toString(), spreadBlocks: spread?.toString(), toleranceBlocks: this.rpcDivergenceToleranceBlocks }
+      : { state: spread! > tolerance ? "divergent" : "consistent", minBlockNumber: min!.toString(), maxBlockNumber: max!.toString(), spreadBlocks: spread!.toString(), toleranceBlocks: this.rpcDivergenceToleranceBlocks };
+    const activeRpcUrl = statuses.find((item) => item.state === "ok")?.url;
     return {
       network: this.network,
       expectedChainId: this.definition.chainId,
       rpcMode: this.rpcMode,
-      latestBlockNumber,
+      latestBlockNumber: max?.toString(),
       activeRpcUrl,
+      blockDivergence,
       endpoints: statuses,
     };
   }
@@ -295,14 +353,17 @@ export class BscChainAdapter implements BscChainReader {
     try {
       const status = await this.getStatus();
       const healthy = status.endpoints.some((endpoint) => endpoint.state === "ok");
+      const divergent = status.blockDivergence?.state === "divergent";
       return {
         name: "bsc-rpc",
-        state: healthy ? (this.rpcMode === "configured" ? "ok" : "degraded") : "unavailable",
+        state: healthy ? (this.rpcMode === "configured" && !divergent ? "ok" : "degraded") : "unavailable",
         latencyMs: Math.round(performance.now() - started),
         detail: healthy
-          ? this.rpcMode === "configured"
-            ? `BSC ${this.network} RPC reachable.`
-            : `Using official public BSC ${this.network} fallback RPC. Configure BSC_RPC_PRIMARY for production-grade access.`
+          ? divergent
+            ? `BSC ${this.network} RPC endpoints diverge by ${status.blockDivergence?.spreadBlocks ?? "unknown"} blocks (tolerance ${status.blockDivergence?.toleranceBlocks ?? this.rpcDivergenceToleranceBlocks}); decision-grade reads continue through explicit block-pinned calls and health is degraded.`
+            : this.rpcMode === "configured"
+              ? `BSC ${this.network} RPC reachable.`
+              : `Using official public BSC ${this.network} fallback RPC. Configure BSC_RPC_PRIMARY for production-grade access.`
           : `No BSC ${this.network} RPC endpoint is reachable.`,
       };
     } catch (error) {
@@ -316,7 +377,7 @@ export class BscChainAdapter implements BscChainReader {
   }
 
   async getBlockNumber(): Promise<string> {
-    const { result } = await this.request<string>("eth_blockNumber");
+    const { result } = await this.request<string>("eth_blockNumber", [], (candidate) => { hexToBigInt(candidate); });
     return hexToBigInt(result).toString();
   }
 
@@ -324,16 +385,20 @@ export class BscChainAdapter implements BscChainReader {
     const tag = block === "latest" ? "latest" : blockTagFromNumber(block);
     const { result } = await this.request<null | {
       number: string; hash: string; parentHash: string; timestamp: string;
-    }>("eth_getBlockByNumber", [tag, false]);
+    }>("eth_getBlockByNumber", [tag, false], (candidate) => {
+      if (!candidate) throw new BscChainError(`BSC block ${block} was not found.`, "RPC_RESPONSE_INVALID");
+      const candidateNumber = hexToBigInt(candidate.number).toString();
+      if (block !== "latest" && candidateNumber !== BigInt(block).toString()) throw new BscChainError(`RPC returned block ${candidateNumber} for requested block ${block}.`, "RPC_RESPONSE_INVALID");
+      assertHash(candidate.hash); assertHash(candidate.parentHash); hexToBigInt(candidate.timestamp);
+    });
     if (!result) throw new BscChainError(`BSC block ${block} was not found.`, "RPC_RESPONSE_INVALID");
-    return {
-      network: this.network,
-      chainId: this.definition.chainId,
-      number: hexToBigInt(result.number).toString(),
-      hash: assertHash(result.hash),
-      parentHash: assertHash(result.parentHash),
-      timestamp: new Date(Number(hexToBigInt(result.timestamp)) * 1000).toISOString(),
-    };
+    const number = hexToBigInt(result.number).toString();
+    if (block !== "latest" && number !== BigInt(block).toString()) throw new BscChainError(`RPC returned block ${number} for requested block ${block}.`, "RPC_RESPONSE_INVALID");
+    const timestampSeconds = hexToBigInt(result.timestamp);
+    if (timestampSeconds > BigInt(Number.MAX_SAFE_INTEGER)) throw new BscChainError("RPC block timestamp exceeds the supported range.", "RPC_RESPONSE_INVALID");
+    const timestamp = new Date(Number(timestampSeconds) * 1000);
+    if (!Number.isFinite(timestamp.getTime())) throw new BscChainError("RPC block timestamp is invalid.", "RPC_RESPONSE_INVALID");
+    return { network: this.network, chainId: this.definition.chainId, number, hash: assertHash(result.hash), parentHash: assertHash(result.parentHash), timestamp: timestamp.toISOString() };
   }
 
   async getTransaction(hash: string): Promise<BscTransactionSummary | null> {
@@ -341,18 +406,24 @@ export class BscChainAdapter implements BscChainReader {
     const { result } = await this.request<null | {
       hash: string; blockNumber?: string | null; blockHash?: string | null; from: string; to?: string | null;
       value: string; input: string; transactionIndex?: string | null;
-    }>("eth_getTransactionByHash", [normalized]);
+    }>("eth_getTransactionByHash", [normalized], (candidate) => {
+      if (!candidate) return;
+      if (assertHash(candidate.hash) !== normalized) throw new BscChainError("RPC transaction response hash does not match the requested transaction.", "RPC_RESPONSE_INVALID");
+      assertAddress(candidate.from); if(candidate.to) assertAddress(candidate.to); hexToBigInt(candidate.value); assertHexData(candidate.input, "RPC transaction input");
+    });
     if (!result) return null;
+    const returnedHash = assertHash(result.hash);
+    if (returnedHash !== normalized) throw new BscChainError("RPC transaction response hash does not match the requested transaction.", "RPC_RESPONSE_INVALID");
     return {
       network: this.network,
       chainId: this.definition.chainId,
-      hash: assertHash(result.hash),
+      hash: returnedHash,
       blockNumber: result.blockNumber ? hexToBigInt(result.blockNumber).toString() : undefined,
       blockHash: result.blockHash ? assertHash(result.blockHash) : undefined,
       from: assertAddress(result.from),
       to: result.to ? assertAddress(result.to) : undefined,
       valueRaw: hexToBigInt(result.value).toString(),
-      input: result.input,
+      input: assertHexData(result.input, "RPC transaction input"),
       transactionIndex: result.transactionIndex ? hexToNumber(result.transactionIndex) : undefined,
     };
   }
@@ -362,12 +433,19 @@ export class BscChainAdapter implements BscChainReader {
     const { result } = await this.request<null | {
       transactionHash: string; blockNumber: string; blockHash: string; status: string; gasUsed: string; effectiveGasPrice?: string;
       logs?: Array<{ address: string; topics: string[]; data: string; logIndex?: string | null; transactionIndex?: string | null }>;
-    }>("eth_getTransactionReceipt", [normalized]);
+    }>("eth_getTransactionReceipt", [normalized], (candidate) => {
+      if (!candidate) return;
+      if (assertHash(candidate.transactionHash) !== normalized) throw new BscChainError("RPC receipt transactionHash does not match the requested transaction.", "RPC_RESPONSE_INVALID");
+      hexToBigInt(candidate.blockNumber); assertHash(candidate.blockHash); hexToBigInt(candidate.status); hexToBigInt(candidate.gasUsed);
+      for(const log of candidate.logs ?? []){assertAddress(log.address);for(const topic of log.topics)assertHash(topic);assertHexData(log.data,"RPC log data");}
+    });
     if (!result) return null;
+    const returnedHash = assertHash(result.transactionHash);
+    if (returnedHash !== normalized) throw new BscChainError("RPC receipt transactionHash does not match the requested transaction.", "RPC_RESPONSE_INVALID");
     return {
       network: this.network,
       chainId: this.definition.chainId,
-      transactionHash: assertHash(result.transactionHash),
+      transactionHash: returnedHash,
       blockNumber: hexToBigInt(result.blockNumber).toString(),
       blockHash: assertHash(result.blockHash),
       status: hexToBigInt(result.status) === 1n ? "SUCCESS" : "REVERTED",
@@ -376,7 +454,7 @@ export class BscChainAdapter implements BscChainReader {
       logs: result.logs?.map((log) => ({
         address: assertAddress(log.address),
         topics: log.topics.map((topic) => assertHash(topic)),
-        data: log.data,
+        data: assertHexData(log.data, "RPC log data"),
         logIndex: log.logIndex ? hexToNumber(log.logIndex) : undefined,
         transactionIndex: log.transactionIndex ? hexToNumber(log.transactionIndex) : undefined,
       })),
@@ -387,7 +465,7 @@ export class BscChainAdapter implements BscChainReader {
     const wallet = assertAddress(walletAddress);
     const observedBlock = blockNumber ?? await this.getBlockNumber();
     const observedAt = new Date().toISOString();
-    const { result, rpcUrl } = await this.request<string>("eth_getBalance", [wallet, blockTagFromNumber(observedBlock)]);
+    const { result, rpcUrl } = await this.request<string>("eth_getBalance", [wallet, blockTagFromNumber(observedBlock)], (candidate) => { hexToBigInt(candidate); });
     const raw = hexToBigInt(result);
     const evidence = createEvidenceEnvelope({
       subjectType: "wallet",
@@ -427,7 +505,7 @@ export class BscChainAdapter implements BscChainReader {
   }
 
   private async ethCall(to: string, data: string, blockNumber: string): Promise<{ result: string; rpcUrl: string }> {
-    return this.request<string>("eth_call", [{ to: assertAddress(to), data }, blockTagFromNumber(blockNumber)]);
+    return this.request<string>("eth_call", [{ to: assertAddress(to), data }, blockTagFromNumber(blockNumber)], (result) => { assertHexData(result, "eth_call result"); });
   }
 
   async callContract(contractAddress: string, data: string, blockNumber?: string): Promise<{ data: string; blockNumber: string }> {
@@ -437,7 +515,7 @@ export class BscChainAdapter implements BscChainReader {
     }
     const observedBlock = blockNumber ?? await this.getBlockNumber();
     const { result } = await this.ethCall(contract, data, observedBlock);
-    return { data: result, blockNumber: observedBlock };
+    return { data: assertHexData(result, "eth_call result"), blockNumber: observedBlock };
   }
 
   async callContractFrom(contractAddress: string, data: string, fromAddress: string, blockNumber?: string): Promise<{ data: string; blockNumber: string }> {
@@ -447,8 +525,8 @@ export class BscChainAdapter implements BscChainReader {
       throw new BscChainError("Contract calldata must be a 0x-prefixed even-length hexadecimal string.", "RPC_RESPONSE_INVALID");
     }
     const observedBlock = blockNumber ?? await this.getBlockNumber();
-    const { result } = await this.request<string>("eth_call", [{ to: contract, from, data }, blockTagFromNumber(observedBlock)]);
-    return { data: result, blockNumber: observedBlock };
+    const { result } = await this.request<string>("eth_call", [{ to: contract, from, data }, blockTagFromNumber(observedBlock)], (candidate) => { assertHexData(candidate, "eth_call result"); });
+    return { data: assertHexData(result, "eth_call result"), blockNumber: observedBlock };
   }
 
   async getErc20Balance(tokenAddress: string, walletAddress: string, blockNumber?: string): Promise<Erc20BalanceSnapshot> {
@@ -464,7 +542,8 @@ export class BscChainAdapter implements BscChainReader {
         this.ethCall(token, "0x06fdde03", observedBlock).catch(() => undefined),
       ]);
       const raw = hexToBigInt(balanceHex);
-      const decimals = decimalsCall?.result && decimalsCall.result !== "0x" ? hexToNumber(decimalsCall.result) : undefined;
+      const decodedDecimals = decimalsCall?.result && decimalsCall.result !== "0x" ? hexToNumber(decimalsCall.result) : undefined;
+      const decimals = decodedDecimals !== undefined && decodedDecimals <= 255 ? decodedDecimals : undefined;
       const symbol = symbolCall?.result ? decodeAbiString(symbolCall.result) : undefined;
       const name = nameCall?.result ? decodeAbiString(nameCall.result) : undefined;
       const evidence = createEvidenceEnvelope({

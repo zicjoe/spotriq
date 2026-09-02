@@ -106,3 +106,23 @@ test("Test Lab blocks localhost/private targets before any network request", asy
   assert.equal(run.coverage, "FAIL");
   assert.equal(run.tests.find((item) => item.code === "ENDPOINT_POLICY")?.state, "FAIL");
 });
+
+test("Test Lab revalidates redirects and blocks a redirect target that resolves private", async () => {
+  let calls=0;
+  const lab=createMarketplaceTestLab({
+    resolver:async(host)=>host==="agent.example"?["93.184.216.34"]:["127.0.0.1"],
+    fetcher:async()=>{calls+=1;return new Response(null,{status:302,headers:{location:"https://private.example/agent-card.json"}});},
+  });
+  const run=await lab.run(recordFor("A2A"));
+  assert.equal(calls,1);
+  assert.equal(run.coverage,"FAIL");
+  assert.match(run.tests.find(item=>item.code==="ENDPOINT_POLICY")?.detail??"",/blocked|non-public/i);
+});
+
+test("Test Lab rejects maliciously deep or oversized Agent Card structures", async () => {
+  const hugeSkills=Array.from({length:300},(_,i)=>({id:String(i),name:`skill-${i}`,description:"rebalance"}));
+  const lab=createMarketplaceTestLab({resolver:publicResolver,fetcher:async()=>new Response(JSON.stringify({name:"Range Sentinel",skills:hugeSkills}),{status:200,headers:{"content-type":"application/json"}})});
+  const run=await lab.run(recordFor("A2A"));
+  assert.equal(run.coverage,"FAIL");
+  assert.ok(run.tests.some(item=>item.state==="FAIL"));
+});
