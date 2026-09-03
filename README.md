@@ -6,7 +6,7 @@
 
 > Know what your money needs. Spot the right agent for it.
 
-**Current release candidate: v0.39.0 — Production Analytics + Adoption Feedback Loop**
+**Current accepted release: v0.39.0 — Production Analytics + Adoption Feedback Loop**
 
 Spotriq connects deterministic wallet need → specialist AgentService discovery/evaluation → commercial activation → scoped authority → guarded execution where independently authorized → Activity/Outcome → Agent Advantage → grounded explanation → Continue / Switch / Combine / Revoke.
 

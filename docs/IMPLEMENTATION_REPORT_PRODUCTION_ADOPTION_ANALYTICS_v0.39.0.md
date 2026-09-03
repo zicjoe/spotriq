@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation candidate. v0.38 is the externally accepted baseline. Do not mark v0.39 accepted until local build/check, migration/deployment, prior regressions and `pnpm verify:adoption-analytics` pass.
+Externally accepted. Local build/check, migration/deployment, prior regressions and `pnpm verify:adoption-analytics` passed before the production-testing handoff.
 
 ## Implemented
 

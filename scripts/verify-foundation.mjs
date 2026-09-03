@@ -367,6 +367,12 @@ const appUi = await readFile(path.join(root, "apps/web/src/app/App.tsx"), "utf8"
 if (!appUi.includes("smartMoneyRepository.startCheck") || !appUi.includes("subscribeToSmartMoneyCheck") || !appUi.includes("Live BSC data")) {
   throw new Error("Smart Money Check UI must be wired to the live API while retaining example mode.");
 }
+if (appUi.includes("0x7F3a...9c2d") || appUi.includes("activeAgents={ACTIVATIONS.length}")) {
+  throw new Error("Production navigation must not fabricate a connected wallet or My Agents count from demo fixtures.");
+}
+for (const marker of ["Activating a marketplace relationship does not itself grant financial authority.", "Ending a Spotriq relationship does not silently revoke an independent PermissionGrant", "Missing transaction or outcome evidence stays explicit."]) {
+  if (!appUi.includes(marker)) throw new Error(`Homepage trust copy must preserve the production authority/evidence boundary: ${marker}`);
+}
 
 
 
@@ -1265,5 +1271,5 @@ for (const manifestPath of manifests) {
   if (manifest.version !== "0.39.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.39.0.`);
 }
 
-console.log("Spotriq foundation + accepted v0.22–v0.38 + v0.39 Production Analytics + Adoption Feedback Loop verification passed.");
+console.log("Spotriq foundation + accepted v0.22–v0.39 Production Analytics + Adoption Feedback Loop verification passed.");
 

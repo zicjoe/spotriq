@@ -13,7 +13,7 @@ export interface PublicAdoptionManifest {
   schemaVersion: "spotriq.public-adoption@1.0.0";
   release: {
     version: string;
-    status: "PUBLIC_LAUNCH_CANDIDATE" | "ADOPTION_MEASUREMENT_CANDIDATE";
+    status: "PUBLIC_LAUNCH_CANDIDATE" | "ADOPTION_MEASUREMENT_CANDIDATE" | "ADOPTION_MEASUREMENT_ACTIVE";
     acceptedThrough: string;
   };
   product: {
@@ -68,7 +68,7 @@ const OFFICIAL = {
 export function buildPublicAdoptionManifest(): PublicAdoptionManifest {
   return {
     schemaVersion: "spotriq.public-adoption@1.0.0",
-    release: { version: "0.39.0", status: "ADOPTION_MEASUREMENT_CANDIDATE", acceptedThrough: "0.38.0" },
+    release: { version: "0.39.0", status: "ADOPTION_MEASUREMENT_ACTIVE", acceptedThrough: "0.39.0" },
     product: {
       name: "Spotriq",
       descriptor: "BSC financial-agent marketplace",

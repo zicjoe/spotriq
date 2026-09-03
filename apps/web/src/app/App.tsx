@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Activity, AlertCircle, AlertTriangle, ArrowLeft, ArrowRight,
-  ArrowUpRight, Bell, Check, CheckCircle2, ChevronDown, ChevronRight,
+  ArrowUpRight, Check, CheckCircle2, ChevronDown, ChevronRight,
   ChevronUp, Clock, Copy, ExternalLink, Eye, Filter, Home,
   Info, Lock, Menu, Minus, MoreHorizontal, Play, Plus,
   RefreshCw, Search, Shield, ShieldCheck, Sliders, Star,
@@ -57,7 +57,6 @@ import { adoptionAnalyticsRepository } from "../repositories/adoptionAnalyticsRe
 const {
   services: SERVICES,
   findings: FINDINGS,
-  activations: ACTIVATIONS,
   permissionGrants: PERMISSION_GRANTS,
   activityEvents: ACTIVITY_EVENTS,
   planTemplates: PLAN_TEMPLATES,
@@ -496,10 +495,9 @@ function PlanCard({ plan, onView }: { plan: typeof PLAN_TEMPLATES[0]; onView: ()
 
 // ─── GLOBAL NAV ──────────────────────────────────────────────────────────────
 
-function GlobalNav({ nav, navigate, activeAgents }: {
+function GlobalNav({ nav, navigate }: {
   nav: NavState;
   navigate: (r: Route, p?: Partial<NavState>) => void;
-  activeAgents: number;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const links: { label: string; route: Route }[] = [
@@ -527,25 +525,15 @@ function GlobalNav({ nav, navigate, activeAgents }: {
           <button key={l.route} onClick={() => navigate(l.route)}
             className={cn("px-3 py-1.5 text-sm rounded-md transition-colors", nav.route === l.route ? "text-[#dde3ef] bg-white/8" : "text-[#6b7d99] hover:text-[#9aacc4] hover:bg-white/4")}>
             {l.label}
-            {l.route === "my-agents" && activeAgents > 0 && (
-              <span className="ml-1.5 text-[10px] font-mono bg-[#2dd4bf]/20 text-[#2dd4bf] px-1.5 py-0.5 rounded-full">{activeAgents}</span>
-            )}
           </button>
         ))}
       </nav>
 
       {/* Right */}
       <div className="flex items-center gap-2 ml-auto">
-        <button className="w-8 h-8 flex items-center justify-center text-[#6b7d99] hover:text-[#9aacc4] rounded-md hover:bg-white/5 transition-colors">
-          <Search className="w-4 h-4" />
-        </button>
-        <button className="w-8 h-8 flex items-center justify-center text-[#6b7d99] hover:text-[#9aacc4] rounded-md hover:bg-white/5 transition-colors relative">
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#f59e0b] rounded-full" />
-        </button>
-        <button className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#1c2433] border border-white/8 hover:border-white/14 transition-colors text-sm text-[#9aacc4]">
+        <button onClick={() => navigate("check")} className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#1c2433] border border-white/8 hover:border-white/14 transition-colors text-sm text-[#9aacc4]">
           <Wallet className="w-3.5 h-3.5" />
-          <span className="hidden sm:block font-mono text-xs">0x7F3a...9c2d</span>
+          <span className="hidden sm:block text-xs">Check Wallet</span>
         </button>
         <button className="md:hidden w-8 h-8 flex items-center justify-center text-[#6b7d99]" onClick={() => setMenuOpen(m => !m)}>
           {menuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -612,7 +600,7 @@ function ContextBar({ finding, onClear }: { finding: Finding; onClear: () => voi
 
 // ─── PAGE: HOME ───────────────────────────────────────────────────────────────
 
-function HomePage({ navigate, hasActivations }: { navigate: (r: Route, p?: Partial<NavState>) => void; hasActivations: boolean }) {
+function HomePage({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => void }) {
   const categories: { category: ServiceCategory; goal: string; hint: string }[] = [
     { category: "rebalancing", goal: "Manage my liquidity", hint: "For concentrated-liquidity LP positions" },
     { category: "grid", goal: "Automate trading", hint: "Systematic buy/sell across a price range" },
@@ -622,11 +610,6 @@ function HomePage({ navigate, hasActivations }: { navigate: (r: Route, p?: Parti
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10 space-y-16">
-      {/* Sample data notice */}
-      <div className="text-[11px] font-mono text-center text-[#6b7d99] bg-white/3 border border-white/6 rounded px-3 py-1.5">
-        Example Portfolio / Sample Data — all values are synthetic and for demonstration only
-      </div>
-
       {/* Hero */}
       <div className="text-center space-y-6 max-w-2xl mx-auto">
         <h1 className="text-4xl md:text-5xl font-semibold text-[#dde3ef] leading-tight tracking-tight">
@@ -642,7 +625,7 @@ function HomePage({ navigate, hasActivations }: { navigate: (r: Route, p?: Parti
           </Btn>
         </div>
         <p className="text-xs text-[#6b7d99] flex items-center justify-center gap-1.5">
-          <Lock className="w-3 h-3" /> Read-only until you choose to activate an agent.
+          <Lock className="w-3 h-3" /> Smart Money Check is read-only. Activating a marketplace relationship does not itself grant financial authority.
         </p>
       </div>
 
@@ -675,11 +658,15 @@ function HomePage({ navigate, hasActivations }: { navigate: (r: Route, p?: Parti
 
       {/* Smart Money Plans */}
       <div>
-        <SectionHeader label="Smart Money Plans" action={
-          <Btn variant="ghost" size="sm" onClick={() => navigate("plans")} className="text-[#2dd4bf]">All plans <ChevronRight className="w-3.5 h-3.5" /></Btn>
-        } />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {PLAN_TEMPLATES.map(p => <PlanCard key={p.planId} plan={p} onView={() => navigate("plan-profile", { planId: p.planId })} />)}
+        <SectionHeader label="Smart Money Plans" />
+        <div className="rounded-xl border border-white/7 bg-card p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="max-w-2xl">
+            <div className="font-medium text-[#dde3ef]">Combine independent specialists without creating a super-agent.</div>
+            <p className="text-sm text-[#6b7d99] mt-2">Live plans are built from your Smart Money Check findings. Every member keeps its own Offer, Activation, PermissionGrant, activity and outcome state.</p>
+          </div>
+          <Btn variant="secondary" onClick={() => navigate("plans")} className="shrink-0">
+            View Smart Money Plans <ChevronRight className="w-3.5 h-3.5" />
+          </Btn>
         </div>
       </div>
 
@@ -688,12 +675,12 @@ function HomePage({ navigate, hasActivations }: { navigate: (r: Route, p?: Parti
         <SectionHeader label="Why trust this marketplace?" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
-            { icon: Shield, title: "Verified Identity", desc: "Agents are linked to ERC-8004 on-chain identity records, not just operator claims." },
-            { icon: BarChart2, title: "Marketplace Evidence", desc: "Performance data is observed by the marketplace, separated from operator-supplied claims." },
-            { icon: CheckCircle2, title: "Standardized Tests", desc: "All listed agents pass required marketplace tests before being marked Ready." },
-            { icon: Lock, title: "Scoped Permissions", desc: "You control exactly what each agent can access, with strict limits and expiry." },
-            { icon: X, title: "Revocable Anytime", desc: "Cancel any agent's authority immediately. Revocation happens on-chain." },
-            { icon: Eye, title: "Full Transparency", desc: "Every agent action is logged. You can always see what was done and why." },
+            { icon: Shield, title: "Identity Evidence", desc: "Spotriq can show ERC-8004 identity evidence, while identity remains separate from marketplace readiness." },
+            { icon: BarChart2, title: "Evidence Provenance", desc: "Marketplace Observed, Marketplace Derived, External and Operator Supplied evidence remain visibly distinct." },
+            { icon: CheckCircle2, title: "Marketplace Test Lab", desc: "Runtime test evidence is shown separately from identity, commercial state and financial authority." },
+            { icon: Lock, title: "Permission Checkout", desc: "Activation does not itself grant financial authority. When authority is required, exact scope is reviewed separately." },
+            { icon: X, title: "Separate Revocation", desc: "Ending a Spotriq relationship does not silently revoke an independent PermissionGrant; each authority has its own revocation path." },
+            { icon: Eye, title: "Observed Activity", desc: "Spotriq shows the activity and evidence it can actually observe. Missing transaction or outcome evidence stays explicit." },
           ].map(({ icon: Icon, title, desc }) => (
             <div key={title} className="p-4 rounded-lg border border-white/6 bg-card">
               <Icon className="w-5 h-5 text-[#2dd4bf] mb-3" />
@@ -3717,7 +3704,7 @@ export default function App() {
   const renderPage = () => {
     switch (nav.route) {
       case "home":
-        return <HomePage navigate={navigate} hasActivations={ACTIVATIONS.length > 0} />;
+        return <HomePage navigate={navigate} />;
 
       case "explore":
         return <ExplorePage navigate={navigate} initialCategory={nav.exploreCategory} fromFinding={nav.fromFinding} />;
@@ -3759,7 +3746,7 @@ export default function App() {
         return <LaunchReadinessPage navigate={navigate} />;
 
       default:
-        return <HomePage navigate={navigate} hasActivations={false} />;
+        return <HomePage navigate={navigate} />;
     }
   };
 
@@ -3767,7 +3754,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <GlobalNav nav={nav} navigate={navigate} activeAgents={ACTIVATIONS.length} />
+      <GlobalNav nav={nav} navigate={navigate} />
       <main className="flex-1">
         {renderPage()}
       </main>

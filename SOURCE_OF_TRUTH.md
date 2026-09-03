@@ -1,7 +1,7 @@
 # Spotriq Source of Truth
 
 **Current repository release:** **v0.39.0**  
-**Release status:** Production Analytics + Adoption Feedback Loop implementation candidate; v0.38 externally accepted; local dependency-aware validation and external v0.39 acceptance pending.  
+**Release status:** v0.39.0 Production Analytics + Adoption Feedback Loop externally accepted; production testing/adoption validation is active.  
 **State date:** 2026-09-03
 
 ## Authority hierarchy
@@ -52,6 +52,7 @@ AI explains. Deterministic systems decide.
 - **v0.36 ✅** Security + Failure Injection Hardening with fail-closed hostile-input/race/provider boundaries.
 - **v0.37 ✅** Production Hardening + Scale Readiness with abuse controls, migration resilience and durable maintenance queueing.
 - **v0.38 ✅** Ecosystem Adoption + Judge/Public Launch Readiness with public proof/evidence surfaces and mainnet execution still unapproved.
+- **v0.39 ✅** Production Analytics + Adoption Feedback Loop with privacy-bounded telemetry, deterministic funnel reporting, feedback separation and private baseline capture.
 
 ## v0.29 accepted truth
 

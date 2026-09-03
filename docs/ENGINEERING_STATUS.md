@@ -222,4 +222,4 @@ Current status: implementation candidate complete; do not record v0.38 externall
 
 New package `@spotriq/adoption-analytics`, migration `0031_production_adoption_analytics.sql`, bounded product/feedback ingestion, authenticated adoption report/export, hidden admin dashboard, acceptance-traffic separation, and private production-baseline capture. Domain lifecycle tables remain authoritative; analytics do not infer financial truth or Agent Advantage.
 
-Current status: implementation candidate; run `pnpm verify:adoption-analytics` only after the deployed API reports >=0.39.0.
+Current status: externally accepted. Use `pnpm verify:adoption-analytics` after relevant production changes; real production testing/adoption evidence now determines subsequent product work.

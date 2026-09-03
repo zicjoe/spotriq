@@ -2,7 +2,7 @@
 
 **Reconciled:** 2026-09-02  
 **Current implementation:** v0.39.0  
-**Current milestone:** Ecosystem Adoption + Judge/Public Launch Readiness
+**Current phase:** Production testing + adoption validation + production measurement
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
 
@@ -196,7 +196,7 @@ Acceptance: `API build → pnpm check → deploy v0.38 → v0.22–v0.37 regress
 
 ## v0.39.0 — Production Analytics + Adoption Feedback Loop
 
-Status: implementation candidate; v0.38 externally accepted.
+Status: COMPLETE / externally accepted. Production testing/adoption validation is now active.
 
 Scope: privacy-bounded product telemetry, contextual buyer/operator feedback, deterministic domain-funnel measurement, Agent Advantage coverage, private admin reporting/export and production baseline capture. Analytics are never financial truth or readiness/authority state.
 

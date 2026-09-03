@@ -1,7 +1,7 @@
 # Spotriq Project State
 
 **Current implementation release:** v0.39.0  
-**Implementation status:** Production Analytics + Adoption Feedback Loop implemented as an acceptance candidate; v0.38 is externally accepted; dependency-aware local/Railway/live v0.39 acceptance pending.  
+**Implementation status:** v0.39.0 Production Analytics + Adoption Feedback Loop externally accepted; current phase is real production testing, adoption validation and production measurement.  
 **Last state update:** 2026-09-03  
 **Repository role:** concise present-state map; current repository remains implementation truth.
 
@@ -44,6 +44,7 @@ Locked separations remain:
 - **v0.36 ✅** Security + Failure Injection Hardening.
 - **v0.37 ✅** Production Hardening + Scale Readiness.
 - **v0.38 ✅** Ecosystem Adoption + Judge/Public Launch Readiness.
+- **v0.39 ✅** Production Analytics + Adoption Feedback Loop.
 
 ## Current architecture
 
@@ -74,10 +75,8 @@ Authoritative local gate:
 
 `pnpm --filter @spotriq/api build → pnpm check`
 
-After migration/deployment, run accepted regressions through v0.38 and then `pnpm verify:adoption-analytics`.
+The v0.39 acceptance gates have passed. Continue to use `pnpm verify:adoption-analytics` after relevant production changes and capture private baselines only from real deployed state.
 
-Do not record v0.39 externally accepted until those gates pass.
-
-## Roadmap after v0.39 acceptance
+## Current phase after v0.39 acceptance
 
 Run Spotriq with real user/operator cohorts and capture a production baseline. The next product milestone should be chosen from measured conversion, reliability, supply and feedback evidence rather than invented in advance. Mainnet financial execution remains a separately approved program only.

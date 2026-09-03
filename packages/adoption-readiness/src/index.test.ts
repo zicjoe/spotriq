@@ -5,7 +5,8 @@ import { buildPublicAdoptionManifest } from "./index.js";
 test("public adoption manifest preserves product and network truth", () => {
   const manifest = buildPublicAdoptionManifest();
   assert.equal(manifest.release.version, "0.39.0");
-  assert.equal(manifest.release.acceptedThrough, "0.38.0");
+  assert.equal(manifest.release.acceptedThrough, "0.39.0");
+  assert.equal(manifest.release.status, "ADOPTION_MEASUREMENT_ACTIVE");
   assert.equal(manifest.networks.discovery.chainId, 56);
   assert.equal(manifest.networks.transactionalDevelopment.chainId, 97);
   assert.equal(manifest.networks.bscMainnetFinancialExecutionApproved, false);
