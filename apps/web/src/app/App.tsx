@@ -23,7 +23,7 @@ import { DEMO_MARKETPLACE } from "../repositories/marketplaceRepository";
 import { BRAND } from "../config/brand";
 import { FOOTER_CONFIG } from "../config/footer";
 import { subscribeToMockCheck, runMockAgentTest } from "../services/mockRealtime";
-import { walletHandlers } from "../services/walletHandlers";
+import { subscribeWalletConnection, walletHandlers } from "../services/walletHandlers";
 import { WalletAccountControl } from "../components/WalletAccountControl";
 import {
   getActiveCheckMode, getActiveCheckSessionId, setActiveLiveCheck, setExampleCheckMode, smartMoneyRepository,
@@ -1512,7 +1512,10 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
 function CheckStartPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => void }) {
   const [address, setAddress] = useState("");
   const [starting, setStarting] = useState(false);
+  const [walletSnapshot, setWalletSnapshot] = useState(() => walletHandlers.getSnapshot());
   const [error, setError] = useState<string>();
+
+  useEffect(() => subscribeWalletConnection(setWalletSnapshot), []);
   const coverage = [
     "BSC native wallet balance", "Supported PancakeSwap V3 positions", "Rebalancing range-state findings",
     "Venus Core Pool and Isolated Pool lending positions", "Venus health / liquidation-buffer findings",
@@ -1549,18 +1552,18 @@ function CheckStartPage({ navigate }: { navigate: (r: Route, p?: Partial<NavStat
       </div>
 
       <Card className="p-6 space-y-4">
-        <Btn variant="primary" className="w-full justify-center" disabled={starting} onClick={async () => {
+        <Btn variant="primary" className="w-full justify-center" disabled={starting || walletSnapshot.restoring} onClick={async () => {
           try {
             setStarting(true);
             setError(undefined);
-            const wallet = await walletHandlers.connectWallet();
+            const wallet = walletSnapshot.session ?? await walletHandlers.connectWallet();
             await startLiveCheck(wallet.address, wallet.controlState);
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : "Wallet connection failed.");
             setStarting(false);
           }
         }}>
-          <Wallet className="w-4 h-4" /> {starting ? "Starting…" : "Connect Wallet"}
+          <Wallet className="w-4 h-4" /> {starting ? "Starting…" : walletSnapshot.restoring ? "Restoring Wallet…" : walletSnapshot.session ? `Check ${walletSnapshot.session.address.slice(0, 6)}…${walletSnapshot.session.address.slice(-4)}` : "Connect Wallet"}
         </Btn>
         <div className="relative flex items-center gap-3">
           <div className="flex-1 border-t border-white/8" />

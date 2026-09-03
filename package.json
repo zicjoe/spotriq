@@ -15,7 +15,7 @@
     "check": "pnpm verify && pnpm typecheck && pnpm test && pnpm build",
     "db:migrate": "pnpm --filter @spotriq/db migrate",
     "db:health": "pnpm --filter @spotriq/db health",
-    "verify": "node scripts/verify-foundation.mjs && node scripts/verify-wallet-connectivity.mjs",
+    "verify": "node scripts/verify-foundation.mjs && node scripts/verify-wallet-connectivity.mjs && node scripts/verify-wallet-session-lifecycle.mjs",
     "verify:reference-acceptance": "node scripts/verify-reference-acceptance.mjs",
     "verify:commercial-acceptance": "node scripts/verify-commercial-acceptance.mjs",
     "verify:activation-parity": "node scripts/verify-activation-parity.mjs",
@@ -36,7 +36,9 @@
     "capture:public-launch-evidence": "node scripts/capture-public-launch-evidence.mjs",
     "verify:adoption-analytics": "node scripts/verify-adoption-analytics.mjs",
     "capture:adoption-baseline": "node scripts/capture-adoption-baseline.mjs",
-    "verify:wallet-connectivity": "node scripts/verify-wallet-connectivity.mjs"
+    "verify:wallet-connectivity": "node scripts/verify-wallet-connectivity.mjs",
+    "verify:wallet-session": "node scripts/verify-wallet-session-lifecycle.mjs",
+    "preflight:production-testing": "pnpm verify && pnpm --filter @spotriq/web typecheck && pnpm --filter @spotriq/web build && pnpm --filter @spotriq/api build"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

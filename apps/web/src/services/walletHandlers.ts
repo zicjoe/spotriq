@@ -19,28 +19,37 @@ export type DiscoveredWallet = {
   rdns?: string;
 };
 
+export type WalletConnectionSnapshot = {
+  session?: WalletSession;
+  connected: boolean;
+  wallets: DiscoveredWallet[];
+  restoring: boolean;
+};
+
 type Eip6963ProviderDetail = {
   info: { uuid: string; name: string; icon?: string; rdns?: string };
   provider: Eip1193Provider;
 };
 
-type WalletConnectionSnapshot = {
-  session?: WalletSession;
-  connected: boolean;
-  wallets: DiscoveredWallet[];
-};
+type PreferredWallet =
+  | { kind: "EIP6963"; rdns: string }
+  | { kind: "LEGACY_INJECTED" };
 
 declare global {
   interface Window { ethereum?: Eip1193Provider; }
   interface WindowEventMap { "eip6963:announceProvider": CustomEvent<Eip6963ProviderDetail>; }
 }
 
+const PREFERENCE_KEY = "spotriq.wallet.provider.v1";
 const providers = new Map<string, Eip6963ProviderDetail>();
 const subscribers = new Set<(snapshot: WalletConnectionSnapshot) => void>();
+const wiredProviders = new WeakSet<object>();
+const restoreInFlight = new WeakSet<object>();
 let activeProvider: Eip1193Provider | undefined;
 let activeProviderId: string | undefined;
 let session: WalletSession | undefined;
 let initialized = false;
+let restoring = false;
 
 function parseChainId(value: unknown): 56 | 97 {
   const chainId = typeof value === "string"
@@ -61,12 +70,53 @@ function walletList(): DiscoveredWallet[] {
   return list;
 }
 
+function snapshot(): WalletConnectionSnapshot {
+  return { session, connected: Boolean(session), wallets: walletList(), restoring };
+}
+
 function notify() {
-  const snapshot: WalletConnectionSnapshot = { session, connected: Boolean(session), wallets: walletList() };
-  for (const subscriber of subscribers) subscriber(snapshot);
+  const current = snapshot();
+  for (const subscriber of subscribers) subscriber(current);
+}
+
+function storage(): Storage | undefined {
+  if (typeof window === "undefined") return undefined;
+  try { return window.localStorage; } catch { return undefined; }
+}
+
+function readPreference(): PreferredWallet | undefined {
+  const value = storage()?.getItem(PREFERENCE_KEY);
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value) as Partial<PreferredWallet>;
+    if (parsed.kind === "LEGACY_INJECTED") return { kind: "LEGACY_INJECTED" };
+    if (parsed.kind === "EIP6963" && typeof parsed.rdns === "string" && parsed.rdns.length > 0) return { kind: "EIP6963", rdns: parsed.rdns };
+  } catch {
+    // Invalid local preference is non-authoritative and can be discarded safely.
+  }
+  storage()?.removeItem(PREFERENCE_KEY);
+  return undefined;
+}
+
+function rememberProvider(id: string) {
+  const store = storage();
+  if (!store) return;
+  if (id === "legacy-injected") {
+    store.setItem(PREFERENCE_KEY, JSON.stringify({ kind: "LEGACY_INJECTED" } satisfies PreferredWallet));
+    return;
+  }
+  const detail = providers.get(id);
+  if (detail?.info.rdns) store.setItem(PREFERENCE_KEY, JSON.stringify({ kind: "EIP6963", rdns: detail.info.rdns } satisfies PreferredWallet));
+}
+
+function forgetProvider() {
+  storage()?.removeItem(PREFERENCE_KEY);
 }
 
 function wireProviderEvents(provider: Eip1193Provider) {
+  if (wiredProviders.has(provider as object)) return;
+  wiredProviders.add(provider as object);
+
   provider.on?.("accountsChanged", async (accounts: unknown) => {
     if (!Array.isArray(accounts) || !accounts[0]) {
       session = undefined;
@@ -81,6 +131,7 @@ function wireProviderEvents(provider: Eip1193Provider) {
     }
     notify();
   });
+
   provider.on?.("chainChanged", (chain: unknown) => {
     if (!session) return;
     try { session = { ...session, chainId: parseChainId(chain) }; }
@@ -89,16 +140,81 @@ function wireProviderEvents(provider: Eip1193Provider) {
   });
 }
 
+function preferenceMatches(id: string, detail?: Eip6963ProviderDetail): boolean {
+  const preference = readPreference();
+  if (!preference) return false;
+  if (preference.kind === "LEGACY_INJECTED") return id === "legacy-injected";
+  return Boolean(detail?.info.rdns && detail.info.rdns === preference.rdns);
+}
+
+async function restoreProvider(id: string, provider: Eip1193Provider, detail?: Eip6963ProviderDetail): Promise<WalletSession | undefined> {
+  if (!preferenceMatches(id, detail) || restoreInFlight.has(provider as object)) return session;
+  restoreInFlight.add(provider as object);
+  restoring = true;
+  notify();
+  try {
+    activeProvider = provider;
+    activeProviderId = id;
+    wireProviderEvents(provider);
+    const accounts = await provider.request({ method: "eth_accounts" });
+    const account = Array.isArray(accounts) ? accounts[0] : undefined;
+    if (!account) {
+      session = undefined;
+      return undefined;
+    }
+    const chain = await provider.request({ method: "eth_chainId" });
+    session = { address: assertAddress(account), chainId: parseChainId(chain), controlState: "CONNECTED" };
+    return session;
+  } catch {
+    session = undefined;
+    return undefined;
+  } finally {
+    restoring = false;
+    restoreInFlight.delete(provider as object);
+    notify();
+  }
+}
+
+async function restorePreferredFromKnownProviders(): Promise<WalletSession | undefined> {
+  const preference = readPreference();
+  if (!preference) return undefined;
+  if (preference.kind === "EIP6963") {
+    for (const [id, detail] of providers) {
+      if (detail.info.rdns === preference.rdns) return restoreProvider(id, detail.provider, detail);
+    }
+    return undefined;
+  }
+  if (typeof window !== "undefined" && window.ethereum) return restoreProvider("legacy-injected", window.ethereum);
+  return undefined;
+}
+
 function initializeDiscovery() {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
+
   window.addEventListener("eip6963:announceProvider", (event) => {
     const detail = event.detail;
     if (!detail?.info?.uuid || !detail.provider) return;
     providers.set(detail.info.uuid, detail);
     notify();
+    if (preferenceMatches(detail.info.uuid, detail)) void restoreProvider(detail.info.uuid, detail.provider, detail);
   });
+
+  window.addEventListener("storage", (event) => {
+    if (event.key !== PREFERENCE_KEY) return;
+    if (!event.newValue) {
+      session = undefined;
+      activeProvider = undefined;
+      activeProviderId = undefined;
+      restoring = false;
+      notify();
+      return;
+    }
+    void restorePreferredFromKnownProviders();
+  });
+
   window.dispatchEvent(new Event("eip6963:requestProvider"));
+  if (window.ethereum && readPreference()?.kind === "LEGACY_INJECTED") void restoreProvider("legacy-injected", window.ethereum);
 }
 
 initializeDiscovery();
@@ -121,6 +237,7 @@ async function connectProvider(id?: string): Promise<WalletSession> {
   activeProvider = selected.provider;
   activeProviderId = selected.id;
   wireProviderEvents(selected.provider);
+  rememberProvider(selected.id);
   notify();
   return session;
 }
@@ -129,22 +246,33 @@ async function connectProvider(id?: string): Promise<WalletSession> {
  * Zero-service wallet boundary.
  *
  * Spotriq discovers installed EVM wallets with EIP-6963 and retains the legacy
- * EIP-1193 `window.ethereum` fallback. It requires no Reown/thirdweb account,
- * WalletConnect project ID, hosted relay plan, or custodial wallet service.
+ * EIP-1193 `window.ethereum` fallback. It requires no hosted wallet account,
+ * project ID, relay plan, or custodial wallet service.
+ *
+ * The remembered browser preference contains only a provider locator (rdns or
+ * legacy marker), never the wallet address. On refresh Spotriq calls
+ * `eth_accounts`, which is non-interactive, to reconcile an account the user
+ * already approved. It never re-prompts merely because the page reloaded.
  *
  * Connection identifies an account only. It never creates a PermissionGrant,
  * marketplace Activation, payment, transaction, or financial execution authority.
  */
 export const walletHandlers = {
   getSession(): WalletSession | undefined { return session; },
+  getSnapshot(): WalletConnectionSnapshot { initializeDiscovery(); return snapshot(); },
   getWallets(): DiscoveredWallet[] { initializeDiscovery(); return walletList(); },
   hasInjectedWallet(): boolean { return walletList().length > 0; },
 
   subscribe(subscriber: (snapshot: WalletConnectionSnapshot) => void) {
     initializeDiscovery();
     subscribers.add(subscriber);
-    subscriber({ session, connected: Boolean(session), wallets: walletList() });
+    subscriber(snapshot());
     return () => { subscribers.delete(subscriber); };
+  },
+
+  async restoreSession(): Promise<WalletSession | undefined> {
+    initializeDiscovery();
+    return restorePreferredFromKnownProviders();
   },
 
   async connectWallet(walletId?: string): Promise<WalletSession> {
@@ -157,9 +285,11 @@ export const walletHandlers = {
   },
 
   async disconnectWallet(): Promise<void> {
+    forgetProvider();
     session = undefined;
     activeProvider = undefined;
     activeProviderId = undefined;
+    restoring = false;
     notify();
   },
 

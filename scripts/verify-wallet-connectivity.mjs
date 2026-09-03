@@ -7,6 +7,10 @@ expect("apps/web/src/services/walletHandlers.ts",/window\.ethereum/,"Wallet laye
 expect("apps/web/src/services/walletHandlers.ts",/chainId !== 56 && chainId !== 97/,"Wallet layer must stay constrained to BSC Mainnet/Testnet.");
 expect("apps/web/src/components/WalletAccountControl.tsx",/Open in Trust Wallet/,"Mobile no-provider state must provide a wallet-browser route.");
 expect("apps/web/src/components/WalletAccountControl.tsx",/Connecting never grants agent authority/,"Wallet UX must preserve authority separation.");
+expect("apps/web/src/services/walletHandlers.ts",/eth_accounts/,"Wallet layer must silently reconcile an already-authorized account after refresh without a second connection prompt.");
+expect("apps/web/src/services/walletHandlers.ts",/spotriq\.wallet\.provider\.v1/,"Wallet layer must retain a non-sensitive provider preference for refresh reconciliation.");
+expect("apps/web/src/services/walletHandlers.ts",/addEventListener\("storage"/,"Wallet layer must reconcile Spotriq connect/disconnect state across browser tabs.");
+expect("apps/web/src/app/App.tsx",/walletSnapshot\.session[^\n]*Check/,"Smart Money Check must visibly reuse an already-connected wallet instead of asking for unnecessary address entry.");
 
 expect("apps/web/src/components/WalletConnectionDialog.tsx",/WalletAccountControl/,"Legacy wallet dialog compatibility shim must delegate to the active zero-service wallet control.");
 absent("apps/web/src/components/WalletConnectionDialog.tsx",/cancelWalletPrompt|retryWalletDiscovery|selectWalletProvider|subscribeWalletPrompt/,"Legacy wallet dialog must not depend on removed wallet-prompt APIs.");

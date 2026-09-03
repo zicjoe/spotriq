@@ -7,11 +7,13 @@ export function WalletAccountControl({ onFallback }: { onFallback: () => void })
   const [wallets, setWallets] = useState<DiscoveredWallet[]>(() => walletHandlers.getWallets());
   const [pickerOpen, setPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [restoring, setRestoring] = useState(() => walletHandlers.getSnapshot().restoring);
   const [error, setError] = useState<string>();
 
   useEffect(() => subscribeWalletConnection((snapshot) => {
     setSession(snapshot.session);
     setWallets(snapshot.wallets);
+    setRestoring(snapshot.restoring);
   }), []);
 
   const label = session ? `${session.address.slice(0, 6)}…${session.address.slice(-4)}` : "Connect Wallet";
@@ -34,7 +36,7 @@ export function WalletAccountControl({ onFallback }: { onFallback: () => void })
     <div className="relative">
       <button
         type="button"
-        disabled={busy}
+        disabled={busy || restoring}
         onClick={async () => {
           setError(undefined);
           if (session) {
@@ -48,8 +50,8 @@ export function WalletAccountControl({ onFallback }: { onFallback: () => void })
         aria-label={session ? `Connected wallet ${session.address}. Open wallet menu.` : "Connect wallet"}
       >
         <Wallet className="w-3.5 h-3.5" />
-        <span className="sm:hidden text-[11px]">{busy ? "Connecting…" : session ? label : "Connect"}</span>
-        <span className="hidden sm:block text-xs">{busy ? "Connecting…" : label}</span>
+        <span className="sm:hidden text-[11px]">{restoring ? "Restoring…" : busy ? "Connecting…" : session ? label : "Connect"}</span>
+        <span className="hidden sm:block text-xs">{restoring ? "Restoring wallet…" : busy ? "Connecting…" : label}</span>
       </button>
 
       {pickerOpen && (
