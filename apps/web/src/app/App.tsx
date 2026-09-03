@@ -24,6 +24,7 @@ import { BRAND } from "../config/brand";
 import { FOOTER_CONFIG } from "../config/footer";
 import { subscribeToMockCheck, runMockAgentTest } from "../services/mockRealtime";
 import { walletHandlers } from "../services/walletHandlers";
+import { WalletAccountControl } from "../components/WalletAccountControl";
 import {
   getActiveCheckMode, getActiveCheckSessionId, setActiveLiveCheck, setExampleCheckMode, smartMoneyRepository,
   type SmartMoneyCheckView,
@@ -531,10 +532,7 @@ function GlobalNav({ nav, navigate }: {
 
       {/* Right */}
       <div className="flex items-center gap-2 ml-auto">
-        <button onClick={() => navigate("check")} className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#1c2433] border border-white/8 hover:border-white/14 transition-colors text-sm text-[#9aacc4]">
-          <Wallet className="w-3.5 h-3.5" />
-          <span className="hidden sm:block text-xs">Check Wallet</span>
-        </button>
+        <WalletAccountControl onFallback={() => navigate("check")} />
         <button className="md:hidden w-8 h-8 flex items-center justify-center text-[#6b7d99]" onClick={() => setMenuOpen(m => !m)}>
           {menuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
         </button>
@@ -3669,7 +3667,7 @@ function Footer({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => v
                   <span className="text-[#1e2d3d] select-none hidden sm:inline" aria-hidden>·</span>
                 )}
                 <button
-                  onClick={l.route ? () => navigate(l.route) : undefined}
+                  onClick={l.route ? () => navigate(l.route as Route) : undefined}
                   className={cn(
                     "text-[11px] font-mono text-[#2d3d52] hover:text-[#4d6280] transition-colors",
                     !l.route && "cursor-default"

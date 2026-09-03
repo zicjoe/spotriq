@@ -136,7 +136,7 @@ The Grid context layer reads supported PancakeSwap V3 current pool state and ava
 
 The existing Figma Smart Money Check is now wired to a real read-only backend for supported BSC data.
 
-Start a live check from the UI by connecting an EIP-1193 compatible wallet or entering a BSC address. The Example Portfolio remains available and clearly labelled as sample data for the complete four-category demo flow.
+Start a live check from the UI by connecting through Spotriq's self-managed EIP-6963/EIP-1193 wallet picker or by entering a BSC address for watch-only analysis. On mobile, the zero-relay path is to open Spotriq inside a compatible wallet app's built-in dapp browser. The Example Portfolio remains available and clearly labelled as sample data for the complete four-category demo flow. Wallet connection identifies the account only; it does not grant agent authority.
 
 API:
 
@@ -764,6 +764,11 @@ See `docs/public/README.md` and `docs/IMPLEMENTATION_REPORT_ECOSYSTEM_ADOPTION_v
 
 
 ## v0.39.0 Production Analytics + Adoption Feedback Loop
+
+### Production-testing wallet connectivity hotfix
+
+Manual production testing exposed that the original v0.39 browser wallet boundary only used one `window.ethereum` provider. The v0.39 production-testing hotfix now uses self-managed EIP-6963 multi-wallet discovery with an EIP-1193 legacy fallback, exposes a real global Connect Wallet/account control, and reuses that session across wallet-dependent flows. It requires no hosted wallet-service project ID or subscription. Mobile users can connect without a relay by opening Spotriq in a compatible wallet app's built-in dapp browser. Wallet connection remains separate from PermissionGrant, Activation and financial execution authority. See `docs/PRODUCTION_TESTING_WALLET_CONNECTIVITY_HOTFIX_v0.39.0.md`.
+
 
 Spotriq now measures real adoption through a privacy-bounded analytics vocabulary plus authoritative domain-table funnel counts. Raw wallet addresses are rejected from telemetry; session IDs are hashed server-side; verifier traffic is separated from production adoption totals; and browser events cannot create Quote/Hire/Activation/Permission/transaction/outcome/Agent Advantage truth.
 

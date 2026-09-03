@@ -1,0 +1,20 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "buildCommand": "pnpm --filter @spotriq/web build",
+  "outputDirectory": "apps/web/dist",
+  "rewrites": [
+    {
+      "source": "/v1/:path*",
+      "destination": "https://spotriq-production.up.railway.app/v1/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://spotriq-production.up.railway.app/health"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
+    }
+  ]
+}

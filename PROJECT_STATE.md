@@ -53,6 +53,7 @@ Locked separations remain:
 - `apps/worker` — maintenance queue consumer; financial Smart Money jobs remain `API_INLINE`.
 - PostgreSQL migrations `0001`–`0031`.
 - `@spotriq/adoption-analytics` — privacy-bounded interaction/feedback ingestion plus deterministic domain-funnel reporting.
+- Production-testing wallet hotfix — self-managed EIP-6963 multi-injected-provider discovery plus EIP-1193 fallback provides wallet selection without a hosted wallet-service dependency while preserving Spotriq's separate permission/execution authority model.
 
 ## Current v0.39 implementation truth
 
@@ -68,6 +69,7 @@ v0.39 measures what real users/operators do without turning analytics into produ
 - Agent Advantage coverage is measured without inferring financial benefit;
 - no wallet-connect conversion is fabricated until there is a deterministic server-observed connection fact;
 - BSC Mainnet financial execution remains unapproved.
+- Wallet connection is now a real app-level production session, but `Connect Wallet ≠ PermissionGrant ≠ Activation ≠ Execution`; it requires no hosted wallet-service project ID. On mobile, the relay-free path is a compatible wallet app's built-in dapp browser.
 
 ## Current validation state
 
