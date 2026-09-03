@@ -516,6 +516,17 @@ export function createServiceTaskEngine(options:{store?:ServiceTaskStore;marketp
     return {bindingId:binding.bindingId,state:"VERIFIED",runtimeEndpoint:binding.runtimeEndpoint,agentCardUrl:binding.agentCardUrl,sessionKeyAddress:binding.sessionKeyAddress,evidenceIds:binding.evidenceIds,detail:binding.detail,firstParty:false};
   }
 
+  async function ensureFreshMarketplaceTests(record: MarketplaceServiceRecord): Promise<MarketplaceServiceTestCoverage> {
+    const current = await marketplace.getTests(record.service.serviceId);
+    if (exactA2aTestEndpoint(current, now().getTime())) return current;
+    // A user-initiated real task may outlive the one-hour Test Lab freshness
+    // window. Re-run the bounded Marketplace Test Lab automatically instead of
+    // turning a stale safety proof into a dead-end UX. Invocation still fails
+    // closed unless the fresh run produces the exact required A2A PASS set.
+    const refreshed = await marketplace.runTests(record.service.serviceId);
+    return refreshed.tests;
+  }
+
   async function discoverInterface(record:MarketplaceServiceRecord, tests:MarketplaceServiceTestCoverage, binding:RuntimeOriginBinding):Promise<SelectedA2aInterface>{
     const testedEndpoint=exactA2aTestEndpoint(tests,now().getTime()); if(!testedEndpoint) throw new ServiceTaskError("A fresh Marketplace Test Lab PASS for a category-capable A2A endpoint is required before real task invocation.","SERVICE_NOT_READY");
     const cardUrl=a2aCardUrl(testedEndpoint,httpOptions.allowInsecureHttp); const response=await boundedFetch(cardUrl,{method:"GET"},httpOptions);
@@ -572,8 +583,9 @@ export function createServiceTaskEngine(options:{store?:ServiceTaskStore;marketp
     let base:ServiceTask=existing?{...existing,originKind:"JOB_INTENT",category:"rebalancing",state:"READY_TO_INVOKE",attempt:attemptNumber,attempts:[...existing.attempts,attempt],proposalState:"NONE",proposal:undefined,result:emptyResult,requestContext:context,requestContextHash:contextHash,updatedAt:requestedAt}:{serviceTaskId:id,originKind:"JOB_INTENT",jobIntentId:job.jobIntentId,findingId:job.findingId,serviceId:job.selectedService.serviceId,agentId:job.selectedService.agentId,category:"rebalancing",state:"READY_TO_INVOKE",protocol:"A2A",requestContextHash:contextHash,requestContext:context,attempt:attemptNumber,attempts:[attempt],proposalState:"NONE",result:emptyResult,originProof:blankOrigin({serviceId:job.selectedService.serviceId,agentId:job.selectedService.agentId,requestContextHash:contextHash},requestIdValue,messageIdValue),commercialState:activation?(activation.paymentRequired?"PAYMENT_PROVEN":"HIRING_PROVEN"):"NOT_PROVEN",activationId:activation?.activationId,hireId:activation?.hireId,evidence:[],createdAt:requestedAt,updatedAt:requestedAt,limitations:activation?["This ServiceTask is bound to an ACTIVE Spotriq marketplace Activation for the same buyer and AgentService.",activation.paymentRequired?"Independent payment evidence was required by the Activation; ServiceTask binding still does not imply permission, execution or outcome.":"The bound FREE read-only Activation required no payment and grants no wallet signing or transaction authority."]:["Task invocation is not commercial hiring, payment or marketplace activation."]};
     await store.save(base);
     try{
-      const [record,tests]=await Promise.all([marketplace.getService(job.selectedService.serviceId),marketplace.getTests(job.selectedService.serviceId)]);
+      const record=await marketplace.getService(job.selectedService.serviceId);
       if(record.service.serviceId!==job.selectedService.serviceId||record.identity.discoveryId!==job.selectedService.agentId)throw new ServiceTaskError("Live AgentService identity no longer matches the Job Intent snapshot.","SERVICE_NOT_READY");
+      const tests=await ensureFreshMarketplaceTests(record);
       const binding=await runtimeBinding(record);
       const selected=await discoverInterface(record,tests,binding); const remote=await send(selected,context,contextHash,requestIdValue,messageIdValue); const next=taskFromRemote(base,remote,selected,binding,attempt); await store.save(next); return next;
     }catch(error){
@@ -592,7 +604,7 @@ export function createServiceTaskEngine(options:{store?:ServiceTaskStore;marketp
     let base:ServiceTask=existing?{...existing,originKind:"ACTIVATION",category:record.service.category,state:"READY_TO_INVOKE",attempt:attemptNumber,attempts:[...existing.attempts,attempt],proposalState:"NONE",proposal:undefined,result:emptyResult,requestContext:context,requestContextHash:contextHash,updatedAt:requestedAt}:{serviceTaskId:id,originKind:"ACTIVATION",serviceId:record.service.serviceId,agentId:record.service.agentId,category:record.service.category,state:"READY_TO_INVOKE",protocol:"A2A",requestContextHash:contextHash,requestContext:context,attempt:attemptNumber,attempts:[attempt],proposalState:"NONE",result:emptyResult,originProof:blankOrigin({serviceId:record.service.serviceId,agentId:record.service.agentId,requestContextHash:contextHash},requestIdValue,messageIdValue),commercialState:activation.paymentRequired?"PAYMENT_PROVEN":"HIRING_PROVEN",activationId:activation.activationId,hireId:activation.hireId,evidence:[],createdAt:requestedAt,updatedAt:requestedAt,limitations:["This category task is bound to an ACTIVE marketplace Activation for the same buyer and AgentService.","The v0.24 activation task is read-only and grants no wallet signing or financial execution authority.",record.service.category==="grid"?"Optional capital context is descriptive only; it is never a spend cap, trading permission or proof of capital.":record.service.category==="yield"?"A current rate/opportunity snapshot is not realised yield.":record.service.category==="health"?"Health monitoring begins with an on-demand snapshot; protective writes remain separately gated.":"Position analysis is separate from the existing reviewed Rebalancing execution spine."]};
     await store.save(base);
     try{
-      const tests=await marketplace.getTests(record.service.serviceId);
+      const tests=await ensureFreshMarketplaceTests(record);
       const binding=await runtimeBinding(record);
       const selected=await discoverInterface(record,tests,binding);
       const remote=await send(selected,context,contextHash,requestIdValue,messageIdValue);

@@ -209,3 +209,29 @@ test("reference activation origin uses canonical ERC-8004 + fresh Test Lab rathe
   assert.equal(task.originProof.serviceSessionKeyAddress,undefined);
   assert.match(task.originProof.detail,/first-party/i);
 });
+
+test("activation task automatically refreshes stale Marketplace Test Lab evidence before invoking the runtime", async () => {
+  const category:ServiceCategory="yield";
+  const serviceId=`svc:reference:${category}`;
+  let runCount=0;
+  const staleTime=new Date(fixedNow.getTime()-2*60*60_000).toISOString();
+  const staleTests:MarketplaceServiceTestCoverage={...tests(),serviceId,observedAt:staleTime,tests:tests().tests.map(item=>({...item,observedAt:staleTime}))};
+  const freshTests:MarketplaceServiceTestCoverage={...tests(),serviceId};
+  const mp={
+    ...referenceMarketplace(category),
+    getTests:async()=>staleTests,
+    runTests:async()=>{runCount+=1;return{tests:freshTests,readiness:{} as never};},
+  } as MarketplaceSupplyReader;
+  const fetcher:typeof fetch=async(input,init={})=>{
+    const url=String(input);
+    if(url.includes(".well-known/agent-card.json"))return json(v1Card);
+    const request=JSON.parse(String(init.body??"{}")) as Record<string,any>;
+    return json({jsonrpc:"2.0",id:request.id,result:{id:"remote-yield-refresh",status:{state:"TASK_STATE_COMPLETED"},artifacts:[{artifactId:"result-yield-refresh",parts:[{data:{capability:"yield",action:"scan_opportunities",observed:"fresh-test-lab"}}]}]}});
+  };
+  const engine=createServiceTaskEngine({marketplace:mp,http:{fetcher,resolver:async()=>["1.1.1.1"],now:()=>fixedNow}});
+  const task=await engine.invokeActivation(referenceActivation(category),{});
+  assert.equal(runCount,1);
+  assert.equal(task.state,"COMPLETED");
+  assert.equal(task.result.state,"STRUCTURED");
+  assert.equal(task.originProof.state,"VERIFIED");
+});

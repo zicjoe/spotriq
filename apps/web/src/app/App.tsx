@@ -712,7 +712,7 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
   const failedOrUnknown = (record.readiness.checks ?? []).filter((check) => check.state !== "PASS");
   const machineEndpoints = (service.runtimeEndpoints ?? []).filter((endpoint) => endpoint.machineCallable);
   const marketplaceTestCheck = (record.readiness.checks ?? []).find((check) => check.code === "MARKETPLACE_TESTS");
-  const testLabel = marketplaceTestCheck?.state === "PASS" ? "Contract tests passed" : marketplaceTestCheck?.state === "FAIL" ? "Tests failed" : marketplaceTestCheck?.state === "WARN" ? "Partial coverage" : "Not run";
+  const testLabel = marketplaceTestCheck?.state === "PASS" ? "Latest tests passed" : marketplaceTestCheck?.state === "FAIL" ? "Tests failed" : marketplaceTestCheck?.state === "WARN" ? "Partial coverage" : "Not run";
   const testClass = marketplaceTestCheck?.state === "PASS" ? "text-[#4ade80]" : marketplaceTestCheck?.state === "FAIL" ? "text-[#f87171]" : "text-[#f59e0b]";
   return (
     <Card className="p-4 space-y-3 border-[#2dd4bf]/15 bg-[#2dd4bf]/[0.025]">
@@ -749,7 +749,7 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
         <div>
           <div className="text-[#6b7d99] mb-0.5">Marketplace tests</div>
           <div className={testClass}>{testLabel}</div>
-          <div className="text-[10px] text-[#6b7d99]">{service.evidenceSummary.testsPassed} check{service.evidenceSummary.testsPassed === 1 ? "" : "s"} passed · no financial execution</div>
+          <div className="text-[10px] text-[#6b7d99]">{service.evidenceSummary.testsPassed} check{service.evidenceSummary.testsPassed === 1 ? "" : "s"} passed · task launch re-validates Test Lab freshness · no financial execution</div>
         </div>
       </div>
 
@@ -1108,7 +1108,12 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
     setCommercialErrors((current)=>({...current,[serviceId]:""}));
     try{
       const wallet=await walletHandlers.connectWallet();
-      await serviceTaskRepository.invokeActivation(activation.activationId,{buyerAddress:wallet.address,...input});
+      const previous=activationRuntimeStates[serviceId]?.latestTask;
+      if(previous){
+        await serviceTaskRepository.retryActivation(activation.activationId,{buyerAddress:wallet.address,...input});
+      }else{
+        await serviceTaskRepository.invokeActivation(activation.activationId,{buyerAddress:wallet.address,...input});
+      }
       const state=await serviceTaskRepository.getActivationRuntimeState(activation.activationId);
       setActivationRuntimeStates((current)=>({...current,[serviceId]:state}));
     }catch(cause){
