@@ -12,9 +12,9 @@ export interface AdoptionIntegration {
 export interface PublicAdoptionManifest {
   schemaVersion: "spotriq.public-adoption@1.0.0";
   release: {
-    version: "0.38.0";
-    status: "PUBLIC_LAUNCH_CANDIDATE";
-    acceptedThrough: "0.37.0";
+    version: string;
+    status: "PUBLIC_LAUNCH_CANDIDATE" | "ADOPTION_MEASUREMENT_CANDIDATE";
+    acceptedThrough: string;
   };
   product: {
     name: "Spotriq";
@@ -35,6 +35,7 @@ export interface PublicAdoptionManifest {
     capabilitiesPath: "/v1/system/capabilities";
     systemHealthPath: "/v1/system/health";
     adoptionManifestPath: "/v1/public/adoption";
+    adoptionAnalyticsAdminPath?: "/v1/admin/adoption-analytics";
     referenceAgentsPath: "/v1/reference-agents";
   };
   launchPackage: {
@@ -51,6 +52,7 @@ export interface PublicAdoptionManifest {
     machineReadableAdoptionManifest: true;
     liveAcceptanceVerifierIncluded: true;
     evidenceCaptureScriptIncluded: true;
+    productionAdoptionAnalyticsEnabled?: true;
     mainnetFinancialExecutionApproved: false;
     unresolvedExternalItems: string[];
   };
@@ -66,7 +68,7 @@ const OFFICIAL = {
 export function buildPublicAdoptionManifest(): PublicAdoptionManifest {
   return {
     schemaVersion: "spotriq.public-adoption@1.0.0",
-    release: { version: "0.38.0", status: "PUBLIC_LAUNCH_CANDIDATE", acceptedThrough: "0.37.0" },
+    release: { version: "0.39.0", status: "ADOPTION_MEASUREMENT_CANDIDATE", acceptedThrough: "0.38.0" },
     product: {
       name: "Spotriq",
       descriptor: "BSC financial-agent marketplace",
@@ -104,6 +106,7 @@ export function buildPublicAdoptionManifest(): PublicAdoptionManifest {
       capabilitiesPath: "/v1/system/capabilities",
       systemHealthPath: "/v1/system/health",
       adoptionManifestPath: "/v1/public/adoption",
+      adoptionAnalyticsAdminPath: "/v1/admin/adoption-analytics",
       referenceAgentsPath: "/v1/reference-agents",
     },
     launchPackage: {
@@ -120,9 +123,10 @@ export function buildPublicAdoptionManifest(): PublicAdoptionManifest {
       machineReadableAdoptionManifest: true,
       liveAcceptanceVerifierIncluded: true,
       evidenceCaptureScriptIncluded: true,
+      productionAdoptionAnalyticsEnabled: true,
       mainnetFinancialExecutionApproved: false,
       unresolvedExternalItems: [
-        "Capture current production screenshots after v0.38 deployment.",
+        "Capture/refresh current production screenshots after v0.39 deployment.",
         "Record final public demo video and submission URLs outside the repository.",
         "BSC Mainnet financial execution requires separate explicit approval and readiness review.",
       ],

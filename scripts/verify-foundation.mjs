@@ -247,6 +247,18 @@ const required = [
   "docs/public/SCREENSHOT_EVIDENCE_CHECKLIST.md",
   "docs/public/SUBMISSION_CHECKLIST.md",
   "docs/IMPLEMENTATION_REPORT_ECOSYSTEM_ADOPTION_v0.38.0.md",
+  "packages/adoption-analytics/package.json",
+  "packages/adoption-analytics/src/index.ts",
+  "packages/adoption-analytics/src/index.test.ts",
+  "apps/api/src/routes/adoption-analytics.ts",
+  "apps/web/src/repositories/adoptionAnalyticsRepository.ts",
+  "apps/web/src/components/AdminAdoptionAnalyticsDashboard.tsx",
+  "apps/web/src/components/AdoptionFeedbackPrompt.tsx",
+  "scripts/verify-adoption-analytics.mjs",
+  "scripts/capture-adoption-baseline.mjs",
+  "packages/db/migrations/0031_production_adoption_analytics.sql",
+  "docs/PRODUCTION_ADOPTION_ANALYTICS.md",
+  "docs/IMPLEMENTATION_REPORT_PRODUCTION_ADOPTION_ANALYTICS_v0.39.0.md",
   "SECURITY.md",
   "artifacts/README.md",
   ".env.example",
@@ -262,11 +274,11 @@ for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper
   if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
 }
 const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
-if (!projectState.includes("v0.37 ✅") || !projectState.includes("v0.38.0") || !projectState.includes("Ecosystem Adoption + Judge/Public Launch Readiness")) {
-  throw new Error("PROJECT_STATE.md must record externally accepted v0.37 and the current v0.38 Ecosystem Adoption + Judge/Public Launch Readiness candidate.");
+if (!projectState.includes("v0.38 ✅") || !projectState.includes("v0.39.0") || !projectState.includes("Production Analytics + Adoption Feedback Loop")) {
+  throw new Error("PROJECT_STATE.md must record externally accepted v0.38 and the current v0.39 Production Analytics + Adoption Feedback Loop candidate.");
 }
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
-for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation", "v0.32.0 — Deeper BNB Agent Studio Integration", "v0.33.0 — Grounded AI Explanation Layer", "v0.34.0 — Agent Advantage Measurement + Report", "v0.35.0 — Observability + Marketplace/System Health", "v0.36.0 — Security + Failure Injection Hardening", "v0.37.0 — Production Hardening + Scale Readiness", "v0.38.0 — Ecosystem Adoption + Judge/Public Launch Readiness"]) {
+for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation", "v0.32.0 — Deeper BNB Agent Studio Integration", "v0.33.0 — Grounded AI Explanation Layer", "v0.34.0 — Agent Advantage Measurement + Report", "v0.35.0 — Observability + Marketplace/System Health", "v0.36.0 — Security + Failure Injection Hardening", "v0.37.0 — Production Hardening + Scale Readiness", "v0.38.0 — Ecosystem Adoption + Judge/Public Launch Readiness", "v0.39.0 — Production Analytics + Adoption Feedback Loop"]) {
   if (!correctedRoadmap.includes(marker)) throw new Error(`Corrected roadmap is missing ${marker}.`);
 }
 
@@ -949,7 +961,7 @@ for (const marker of ["same-service switch", "BLOCKED", "/my-agents", "/switches
   if (!myAgentsVerifier.includes(marker)) throw new Error(`v0.28 live verifier is missing ${marker}.`);
 }
 if (rootManifest.scripts?.["verify:my-agents"] !== "node scripts/verify-my-agents.mjs") throw new Error("Root package.json must expose pnpm verify:my-agents.");
-if (!apiApp.includes('version: "0.38.0"')) throw new Error("API metadata must report v0.38.0.");
+if (!apiApp.includes('version: "0.39.0"')) throw new Error("API metadata must report v0.39.0.");
 
 
 // v0.29 — Smart Money Plans + Compatibility/Conflict Handling.
@@ -987,7 +999,7 @@ for (const marker of ["NO_SHARED_EXECUTION", "INDEPENDENT_PER_SERVICE", "/plans"
 }
 if (legacyMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes('apiRequest<SmartMoneyPlanTemplate[]>("/v1/plans")')) throw new Error("Legacy marketplace repositories must not reuse the persisted /v1/plans namespace for mock plan templates.");
 if (rootManifest.scripts?.["verify:smart-money-plans"] !== "node scripts/verify-smart-money-plans.mjs") throw new Error("Root package.json must expose pnpm verify:smart-money-plans.");
-if (!apiApp.includes('version: "0.38.0"')) throw new Error("API metadata must report v0.38.0.");
+if (!apiApp.includes('version: "0.39.0"')) throw new Error("API metadata must report v0.39.0.");
 
 
 
@@ -1204,8 +1216,36 @@ for (const marker of ["Production proof", "Permission boundary", "Agent Advantag
 for (const marker of ["final demo video URL", "public frontend URL", "GitHub repository URL", "These external values are intentionally not fabricated"]) if (!submissionChecklist.includes(marker)) throw new Error(`v0.38 submission checklist is missing ${marker}.`);
 if (rootManifest.scripts?.["verify:adoption-readiness"] !== "node scripts/verify-adoption-readiness.mjs") throw new Error("Root package.json must expose pnpm verify:adoption-readiness.");
 if (rootManifest.scripts?.["capture:public-launch-evidence"] !== "node scripts/capture-public-launch-evidence.mjs") throw new Error("Root package.json must expose pnpm capture:public-launch-evidence.");
-if (!apiApp.includes('version: "0.38.0"') || !workerV037.includes('version: "0.38.0"')) throw new Error("API and worker release metadata must report v0.38.0.");
+if (!apiApp.includes('version: "0.39.0"') || !workerV037.includes('version: "0.39.0"')) throw new Error("API and worker release metadata must report v0.39.0.");
 if (!gitignore.includes("artifacts/*.json")) throw new Error("Generated public launch evidence must be ignored by default to avoid accidental canonicalization.");
+
+
+// v0.39 — Production Analytics + Adoption Feedback Loop.
+const adoptionAnalytics = await readFile(path.join(root, "packages/adoption-analytics/src/index.ts"), "utf8");
+const adoptionAnalyticsTests = await readFile(path.join(root, "packages/adoption-analytics/src/index.test.ts"), "utf8");
+const adoptionAnalyticsRoutes = await readFile(path.join(root, "apps/api/src/routes/adoption-analytics.ts"), "utf8");
+const adoptionAnalyticsRepo = await readFile(path.join(root, "apps/web/src/repositories/adoptionAnalyticsRepository.ts"), "utf8");
+const adoptionAnalyticsDashboard = await readFile(path.join(root, "apps/web/src/components/AdminAdoptionAnalyticsDashboard.tsx"), "utf8");
+const adoptionFeedbackPrompt = await readFile(path.join(root, "apps/web/src/components/AdoptionFeedbackPrompt.tsx"), "utf8");
+const migration0031 = await readFile(path.join(root, "packages/db/migrations/0031_production_adoption_analytics.sql"), "utf8");
+const adoptionAnalyticsVerifier = await readFile(path.join(root, "scripts/verify-adoption-analytics.mjs"), "utf8");
+const adoptionBaselineCapture = await readFile(path.join(root, "scripts/capture-adoption-baseline.mjs"), "utf8");
+const adoptionAnalyticsDoc = await readFile(path.join(root, "docs/PRODUCTION_ADOPTION_ANALYTICS.md"), "utf8");
+for (const marker of ["ADOPTION_EVENT_NAMES", "HOME_VIEWED", "EXPLORE_VIEWED", "SERVICE_PROFILE_VIEWED", "ACCEPTANCE", "sessionHash", "PostgresAdoptionAnalyticsStore", "financialTruth:false", "Wallet-connect conversion is not reported"]) if (!adoptionAnalytics.replaceAll(" ","").includes(marker.replaceAll(" ",""))) throw new Error(`v0.39 adoption analytics package is missing ${marker}.`);
+for (const marker of ["raw wallet addresses are rejected", "acceptance events are excluded", "domain facts remain authoritative", "Agent Advantage coverage cannot become financial truth", "invalid vocabulary"]) if (!adoptionAnalyticsTests.includes(marker)) throw new Error(`v0.39 adoption analytics tests are missing ${marker}.`);
+for (const route of ["/v1/analytics/events", "/v1/analytics/feedback", "/v1/admin/adoption-analytics", "/v1/admin/adoption-analytics/export"]) if (!adoptionAnalyticsRoutes.includes(route)) throw new Error(`Missing v0.39 adoption analytics route ${route}.`);
+for (const marker of ["adoption_analytics_events", "adoption_feedback", "PRODUCT", "ACCEPTANCE", "session_hash", "reason_code"]) if (!migration0031.includes(marker)) throw new Error(`v0.39 analytics migration is missing ${marker}.`);
+for (const marker of ["spotriq:analytics-session:v1", "/v1/analytics/events", "/v1/analytics/feedback"]) if (!adoptionAnalyticsRepo.includes(marker)) throw new Error(`v0.39 web analytics repository is missing ${marker}.`);
+for (const marker of ["Production adoption analytics", "Privacy-bounded", "financial truth", "All categories"]) if (!adoptionAnalyticsDashboard.includes(marker)) throw new Error(`v0.39 private dashboard is missing ${marker}.`);
+if (!adoptionFeedbackPrompt.includes("feedback is recorded separately") || !appUi.includes('get("admin") === "analytics"')) throw new Error("v0.39 feedback/dashboard surfaces must remain contextual and outside normal public navigation.");
+for (const marker of ["adoptionAnalyticsEnabled: true", "privacyBoundedProductTelemetryEnabled: true", "adoptionFeedbackEnabled: true", "adoptionAnalyticsFinancialTruthAuthority: false"]) if (!apiApp.includes(marker)) throw new Error(`API capabilities must expose truthful v0.39 feature ${marker}.`);
+for (const marker of ["raw wallet", "ACCEPTANCE traffic separation", "deterministic domain records", "deployed Spotriq >=0.39.0"]) if (!adoptionAnalyticsVerifier.includes(marker)) throw new Error(`v0.39 live verifier is missing ${marker}.`);
+for (const marker of ["spotriq.adoption-baseline@1.0.0", "/v1/admin/adoption-analytics", "financialTruth", "Private production measurement artifact"]) if (!adoptionBaselineCapture.includes(marker)) throw new Error(`v0.39 baseline capture is missing ${marker}.`);
+for (const marker of ["Domain facts remain authoritative", "Acceptance traffic", "raw wallet", "Agent Advantage", "not financial truth"]) if (!adoptionAnalyticsDoc.includes(marker)) throw new Error(`v0.39 analytics documentation is missing ${marker}.`);
+if (rootManifest.scripts?.["verify:adoption-analytics"] !== "node scripts/verify-adoption-analytics.mjs") throw new Error("Root package.json must expose pnpm verify:adoption-analytics.");
+if (rootManifest.scripts?.["capture:adoption-baseline"] !== "node scripts/capture-adoption-baseline.mjs") throw new Error("Root package.json must expose pnpm capture:adoption-baseline.");
+if (!apiApp.includes('version: "0.39.0"') || !workerV037.includes('version: "0.39.0"')) throw new Error("API and worker release metadata must report v0.39.0.");
+if (!apiApp.includes("PostgresAdoptionAnalyticsStore") || !apiApp.includes("MemoryAdoptionAnalyticsStore") || !apiApp.includes("registerAdoptionAnalyticsRoutes")) throw new Error("v0.39 analytics engine is not wired into the API.");
 
 async function collectPackageJson(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -1219,11 +1259,11 @@ async function collectPackageJson(directory) {
   return output;
 }
 const manifests = await collectPackageJson(root);
-if (manifests.length !== 39) throw new Error(`v0.38 expects 39 repository package manifests, found ${manifests.length}.`);
+if (manifests.length !== 40) throw new Error(`v0.39 expects 40 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.38.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.38.0.`);
+  if (manifest.version !== "0.39.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.39.0.`);
 }
 
-console.log("Spotriq foundation + accepted v0.22–v0.37 + v0.38 Ecosystem Adoption + Judge/Public Launch Readiness verification passed.");
+console.log("Spotriq foundation + accepted v0.22–v0.38 + v0.39 Production Analytics + Adoption Feedback Loop verification passed.");
 

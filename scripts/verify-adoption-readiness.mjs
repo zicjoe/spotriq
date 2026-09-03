@@ -10,7 +10,7 @@ if(![200,503].includes(health.response.status)||health.body?.service!=="spotriq-
 const adoption=await request("/v1/public/adoption");
 if(!adoption.response.ok)throw new Error(`/v1/public/adoption returned HTTP ${adoption.response.status}: ${JSON.stringify(adoption.body)}`);
 const manifest=adoption.body?.data;
-if(manifest?.schemaVersion!=="spotriq.public-adoption@1.0.0"||!versionAtLeast(manifest?.release?.version,"0.38.0")||manifest?.release?.acceptedThrough!=="0.37.0")throw new Error("Public adoption manifest does not expose the v0.38 release contract.");
+if(manifest?.schemaVersion!=="spotriq.public-adoption@1.0.0"||!versionAtLeast(manifest?.release?.version,"0.38.0")||!versionAtLeast(manifest?.release?.acceptedThrough,"0.37.0"))throw new Error("Public adoption manifest no longer preserves the accepted v0.38 release floor.");
 if(manifest?.product?.descriptor!=="BSC financial-agent marketplace"||!Array.isArray(manifest?.product?.categories)||manifest.product.categories.length!==4)throw new Error("Public adoption manifest lost the Spotriq product/four-category contract.");
 if(manifest?.networks?.discovery?.chainId!==56||manifest?.networks?.transactionalDevelopment?.chainId!==97||manifest?.networks?.bscMainnetFinancialExecutionApproved!==false)throw new Error("Public adoption manifest must preserve BSC Mainnet discovery vs BSC Testnet transactional policy and keep mainnet financial execution unapproved.");
 const codes=new Set((manifest?.integrations??[]).map(item=>item?.code));

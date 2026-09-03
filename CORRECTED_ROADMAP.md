@@ -1,7 +1,7 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-09-02  
-**Current implementation:** v0.38.0  
+**Current implementation:** v0.39.0  
 **Current milestone:** Ecosystem Adoption + Judge/Public Launch Readiness
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
@@ -192,3 +192,14 @@ Acceptance: `API build → pnpm check → deploy v0.38 → v0.22–v0.37 regress
 
 - BSC Mainnet financial readiness only after explicit approval;
 - further scale work driven by measured production load, not speculative complexity.
+
+
+## v0.39.0 — Production Analytics + Adoption Feedback Loop
+
+Status: implementation candidate; v0.38 externally accepted.
+
+Scope: privacy-bounded product telemetry, contextual buyer/operator feedback, deterministic domain-funnel measurement, Agent Advantage coverage, private admin reporting/export and production baseline capture. Analytics are never financial truth or readiness/authority state.
+
+Acceptance: `API build → pnpm check → deploy migration 0031 → accepted regressions through v0.38 → verify:adoption-analytics → capture private adoption baseline`.
+
+After acceptance, use real cohort data and production measurements to choose the next engineering milestone. Do not infer BSC Mainnet financial execution approval.

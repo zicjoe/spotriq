@@ -1,7 +1,7 @@
 {
   "name": "spotriq",
   "private": true,
-  "version": "0.38.0",
+  "version": "0.39.0",
   "packageManager": "pnpm@10.14.0",
   "type": "module",
   "scripts": {
@@ -33,7 +33,9 @@
     "verify:security-hardening": "node scripts/verify-security-hardening.mjs",
     "verify:production-hardening": "node scripts/verify-production-hardening.mjs",
     "verify:adoption-readiness": "node scripts/verify-adoption-readiness.mjs",
-    "capture:public-launch-evidence": "node scripts/capture-public-launch-evidence.mjs"
+    "capture:public-launch-evidence": "node scripts/capture-public-launch-evidence.mjs",
+    "verify:adoption-analytics": "node scripts/verify-adoption-analytics.mjs",
+    "capture:adoption-baseline": "node scripts/capture-adoption-baseline.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

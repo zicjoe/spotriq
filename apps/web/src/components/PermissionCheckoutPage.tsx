@@ -1,4 +1,4 @@
-import React,{useMemo,useState} from "react";
+import React,{useEffect,useMemo,useState} from "react";
 import {AlertTriangle,ArrowLeft,ArrowRight,Check,CheckCircle2,Lock,RefreshCw,ShieldCheck,Wallet,X} from "lucide-react";
 import type {FinancialExecutionPreflight,NavState,PermissionApprovalMode,PermissionCheckout,PermissionCheckoutCategoryInput,Route,ScopedPermissionRequest,ServiceCategory} from "../domain/types";
 import {walletHandlers} from "../services/walletHandlers";
@@ -7,6 +7,8 @@ import {marketplaceSupplyRepository} from "../repositories/marketplaceSupplyRepo
 import {permissionCheckoutRepository} from "../repositories/permissionCheckoutRepository";
 import {financialExecutionAdapterRepository} from "../repositories/financialExecutionAdapterRepository";
 import {GroundedExplanationPanel} from "./GroundedExplanationPanel";
+import {AdoptionFeedbackPrompt} from "./AdoptionFeedbackPrompt";
+import {adoptionAnalyticsRepository} from "../repositories/adoptionAnalyticsRepository";
 
 const LABEL:Record<ServiceCategory,string>={rebalancing:"Rebalancing",grid:"Grid Trading",yield:"Yield Optimisation",health:"Health Factor Monitoring"};
 function button(base:string){return `inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${base}`;}
@@ -28,6 +30,7 @@ export function PermissionCheckoutPage({serviceId,navigate}:{serviceId:string;na
   const [validForMinutes,setValidForMinutes]=useState("60"); const [approvalMode,setApprovalMode]=useState<PermissionApprovalMode>("ASK_BEFORE_EXECUTION"); const [healthRepay,setHealthRepay]=useState(true); const [healthCollateral,setHealthCollateral]=useState(false);
   const category=record?.service.category;
   const steps=["Job","Authority","Limits","Cost","Risk","Review"];
+  useEffect(()=>{void adoptionAnalyticsRepository.event("PERMISSION_CHECKOUT_VIEWED",{serviceId,category});},[serviceId,category]);
 
   const proposedAuthority=useMemo(()=>{
     if(!category)return{can:[],cannot:[]};

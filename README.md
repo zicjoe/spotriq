@@ -6,7 +6,7 @@
 
 > Know what your money needs. Spot the right agent for it.
 
-**Current release candidate: v0.38.0 — Ecosystem Adoption + Judge/Public Launch Readiness**
+**Current release candidate: v0.39.0 — Production Analytics + Adoption Feedback Loop**
 
 Spotriq connects deterministic wallet need → specialist AgentService discovery/evaluation → commercial activation → scoped authority → guarded execution where independently authorized → Activity/Outcome → Agent Advantage → grounded explanation → Continue / Switch / Combine / Revoke.
 
@@ -24,7 +24,7 @@ GET /v1/reference-agents
 
 The judge/ecosystem package lives under `docs/public/` and includes the architecture/trust-boundary brief, BNB integration map, demo playbook, adoption-evidence guide, security/operations brief, screenshot checklist and final submission checklist. `pnpm capture:public-launch-evidence` records timestamped machine-readable production proof without fabricating screenshots or video.
 
-Network policy remains explicit: BSC Mainnet (`56`) may be used for ERC-8004 discovery; transactional/authority/reference-agent development remains BSC Testnet (`97`). **v0.38 does not approve BSC Mainnet financial execution.**
+Network policy remains explicit: BSC Mainnet (`56`) may be used for ERC-8004 discovery; transactional/authority/reference-agent development remains BSC Testnet (`97`). **v0.39 does not approve BSC Mainnet financial execution.**
 
 Spotriq is a pnpm monorepo containing the Figma-derived consumer frontend plus the backend, worker, BSC chain, PancakeSwap protocol adapter, Smart Money Check engine, evidence, agent-registry, domain, API-contract, and PostgreSQL foundations for the real financial-agent marketplace.
 
@@ -761,3 +761,10 @@ Spotriq v0.38 adds a deterministic public adoption manifest at `GET /v1/public/a
 The launch package is deliberately honest about external artifacts: production screenshots, the final demo video and submission URLs must be captured from the deployed product and are not fabricated in source. Public-launch readiness does not enable BSC Mainnet financial execution or merge identity, readiness, payment, PermissionGrant, execution or outcome state.
 
 See `docs/public/README.md` and `docs/IMPLEMENTATION_REPORT_ECOSYSTEM_ADOPTION_v0.38.0.md`.
+
+
+## v0.39.0 Production Analytics + Adoption Feedback Loop
+
+Spotriq now measures real adoption through a privacy-bounded analytics vocabulary plus authoritative domain-table funnel counts. Raw wallet addresses are rejected from telemetry; session IDs are hashed server-side; verifier traffic is separated from production adoption totals; and browser events cannot create Quote/Hire/Activation/Permission/transaction/outcome/Agent Advantage truth.
+
+Private reporting is available through `/v1/admin/adoption-analytics` behind `SPOTRIQ_ADMIN_DIAGNOSTICS_TOKEN`. Use `pnpm verify:adoption-analytics` after deployment and `pnpm capture:adoption-baseline` to record a private production baseline. See `docs/PRODUCTION_ADOPTION_ANALYTICS.md`.

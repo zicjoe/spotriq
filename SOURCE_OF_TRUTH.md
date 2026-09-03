@@ -1,8 +1,8 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.38.0**  
-**Release status:** Ecosystem Adoption + Judge/Public Launch Readiness implementation candidate; v0.37 externally accepted; local dependency-aware validation and external v0.38 acceptance pending.  
-**State date:** 2026-09-02
+**Current repository release:** **v0.39.0**  
+**Release status:** Production Analytics + Adoption Feedback Loop implementation candidate; v0.38 externally accepted; local dependency-aware validation and external v0.39 acceptance pending.  
+**State date:** 2026-09-03
 
 ## Authority hierarchy
 
@@ -51,6 +51,7 @@ AI explains. Deterministic systems decide.
 - **v0.35 ✅** Operational observability with redacted/non-authoritative health.
 - **v0.36 ✅** Security + Failure Injection Hardening with fail-closed hostile-input/race/provider boundaries.
 - **v0.37 ✅** Production Hardening + Scale Readiness with abuse controls, migration resilience and durable maintenance queueing.
+- **v0.38 ✅** Ecosystem Adoption + Judge/Public Launch Readiness with public proof/evidence surfaces and mainnet execution still unapproved.
 
 ## v0.29 accepted truth
 
@@ -147,3 +148,16 @@ No schema migration is required. `bscMainnetFinancialExecutionApproved=false`; p
 ## Post-v0.38 roadmap
 
 Further engineering should be driven by measured adoption/production evidence or an explicitly approved BSC Mainnet financial-readiness program. Mainnet execution is not implicitly authorized by public-launch readiness.
+
+
+## v0.39 implementation truth
+
+`@spotriq/adoption-analytics` measures privacy-bounded product interaction and feedback while deterministic domain tables remain authoritative for completed marketplace/financial lifecycle stages. Browser analytics cannot manufacture Quote, Hire, Activation, PermissionGrant, transaction, outcome or Agent Advantage state.
+
+Migration: `0031_production_adoption_analytics.sql`.
+
+API: `POST /v1/analytics/events`, `POST /v1/analytics/feedback`, authenticated `GET /v1/admin/adoption-analytics`, and authenticated export.
+
+Acceptance traffic is separated from real `PRODUCT` traffic. Raw wallet addresses are rejected from telemetry. Session IDs are SHA-256 hashed server-side.
+
+New gate: `pnpm verify:adoption-analytics`. Private baseline capture: `pnpm capture:adoption-baseline`.

@@ -50,6 +50,9 @@ import { GroundedExplanationPanel } from "../components/GroundedExplanationPanel
 import { AgentAdvantageReportPanel } from "../components/AgentAdvantageReportPanel";
 import { SystemHealthIndicator } from "../components/SystemHealthIndicator";
 import { LaunchReadinessPage } from "../components/LaunchReadinessPage";
+import { AdminAdoptionAnalyticsDashboard } from "../components/AdminAdoptionAnalyticsDashboard";
+import { AdoptionFeedbackPrompt } from "../components/AdoptionFeedbackPrompt";
+import { adoptionAnalyticsRepository } from "../repositories/adoptionAnalyticsRepository";
 
 const {
   services: SERVICES,
@@ -3242,6 +3245,7 @@ function MyAgentsPage({ navigate, initialTab = "overview" }: { navigate: (r: Rou
   const [error, setError] = useState<string>();
   const [busyActivationId, setBusyActivationId] = useState<string>();
   const [switchTargetByActivation, setSwitchTargetByActivation] = useState<Record<string,string>>({});
+  const [relationshipFeedback,setRelationshipFeedback]=useState<{context:"SWITCH"|"REVOKE";serviceId:string;category:ServiceCategory}>();
 
   const tabs: { key: MyAgentsTab; label: string }[] = [
     { key: "overview", label: "Overview" }, { key: "agents", label: "Agents" },
@@ -3271,14 +3275,14 @@ function MyAgentsPage({ navigate, initialTab = "overview" }: { navigate: (r: Rou
   const refresh=async()=>{if(buyerAddress)await load(buyerAddress);};
   const revoke=async(item:MyAgentPortfolioItem)=>{
     if(!portfolio)return;setBusyActivationId(item.activation.activationId);setError(undefined);
-    try{await myAgentsRepository.revokeRelationship(portfolio.buyerAddress,item.activation.activationId,{buyerAddress:portfolio.buyerAddress});await refresh();}
+    try{await myAgentsRepository.revokeRelationship(portfolio.buyerAddress,item.activation.activationId,{buyerAddress:portfolio.buyerAddress});await refresh();setRelationshipFeedback({context:"REVOKE",serviceId:item.service.serviceId,category:item.service.category});}
     catch(cause){setError(cause instanceof Error?cause.message:"Spotriq could not end this relationship.");}
     finally{setBusyActivationId(undefined);}
   };
   const switchAgent=async(item:MyAgentPortfolioItem)=>{
     if(!portfolio)return;const target=switchTargetByActivation[item.activation.activationId];if(!target)return;
     setBusyActivationId(item.activation.activationId);setError(undefined);
-    try{const result=await myAgentsRepository.switchService(portfolio.buyerAddress,item.activation.activationId,{targetServiceId:target,idempotencyKey:`ui-switch:${item.activation.activationId}:${target}`});if(result.state==="BLOCKED")setError(result.blockers.join(" "));await refresh();}
+    try{const result=await myAgentsRepository.switchService(portfolio.buyerAddress,item.activation.activationId,{targetServiceId:target,idempotencyKey:`ui-switch:${item.activation.activationId}:${target}`});if(result.state==="BLOCKED")setError(result.blockers.join(" "));await refresh();if(result.state==="COMPLETED")setRelationshipFeedback({context:"SWITCH",serviceId:target,category:item.service.category});}
     catch(cause){setError(cause instanceof Error?cause.message:"Spotriq could not switch this relationship.");}
     finally{setBusyActivationId(undefined);}
   };
@@ -3311,6 +3315,7 @@ function MyAgentsPage({ navigate, initialTab = "overview" }: { navigate: (r: Rou
     <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4"><div><div className="text-[11px] font-mono uppercase tracking-wide text-[#2dd4bf]">Live buyer portfolio</div><h1 className="text-2xl font-semibold text-[#dde3ef] mt-1">My Agents</h1><p className="text-sm text-[#6b7d99] mt-1 max-w-2xl">Commercial relationships, reviewed authority, runtime activity and outcomes stay separate. Missing financial evidence remains Could Not Assess.</p></div><Btn variant="teal-outline" size="sm" onClick={()=>navigate("explore")}><Plus className="w-3.5 h-3.5"/> Add Agent</Btn></div>
     <Card className="p-4"><div className="flex flex-col sm:flex-row gap-2"><input value={buyerAddress} onChange={e=>setBuyerAddress(e.target.value)} placeholder="0x buyer wallet" className="flex-1 bg-[#111722] border border-white/10 rounded-md px-3 py-2 text-sm font-mono text-[#dde3ef]"/><Btn variant="secondary" onClick={()=>void load()} disabled={loading}>{loading?<RefreshCw className="w-4 h-4 animate-spin"/>:<RefreshCw className="w-4 h-4"/>} Load portfolio</Btn></div><div className="text-[10px] text-[#52637b] mt-2">A live Smart Money Check wallet is loaded automatically when available. This view does not infer wallet ownership from an address alone.</div></Card>
     {error&&<div className="rounded-lg border border-[#f87171]/20 bg-[#f87171]/5 p-3 text-sm text-[#fca5a5]">{error}</div>}
+    {relationshipFeedback&&<AdoptionFeedbackPrompt context={relationshipFeedback.context} serviceId={relationshipFeedback.serviceId} category={relationshipFeedback.category} prompt={relationshipFeedback.context==="SWITCH"?"Why did you switch? Was the replacement easier to choose?":"Was ending this agent relationship straightforward?"}/>}
     {portfolio&&<>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3"><div className="bg-card border border-white/7 rounded-lg p-4"><div className="text-xl font-semibold font-mono text-[#dde3ef]">{portfolio.active.length}</div><div className="text-xs text-[#6b7d99]">Active relationships</div></div><div className="bg-card border border-white/7 rounded-lg p-4"><div className="text-xl font-semibold font-mono text-[#dde3ef]">{portfolio.history.length}</div><div className="text-xs text-[#6b7d99]">Relationship history</div></div><div className="bg-card border border-white/7 rounded-lg p-4"><div className="text-xl font-semibold font-mono text-[#dde3ef]">{portfolio.active.filter(x=>x.hasReconciledPermissionGrant).length}</div><div className="text-xs text-[#6b7d99]">Reconciled grants</div></div><div className="bg-card border border-white/7 rounded-lg p-4"><div className="text-xl font-semibold font-mono text-[#dde3ef]">{portfolio.switches.length}</div><div className="text-xs text-[#6b7d99]">Switch attempts</div></div></div>
       <div className="flex gap-1 border-b border-white/7 overflow-x-auto">{tabs.map(t=><button key={t.key} onClick={()=>setTab(t.key)} className={cn("px-4 py-2.5 text-sm whitespace-nowrap border-b-2 -mb-px",tab===t.key?"text-[#2dd4bf] border-[#2dd4bf]":"text-[#6b7d99] border-transparent")}>{t.label}</button>)}</div>
@@ -3701,6 +3706,8 @@ function Footer({ navigate }: { navigate: (r: Route, p?: Partial<NavState>) => v
 
 export default function App() {
   const [nav, setNav] = useState<NavState>({ route: "home", checkPhase: "start" });
+  const adminAnalytics = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("admin") === "analytics";
+  useEffect(()=>{if(adminAnalytics)return;const mapped:Record<string,any>={home:"HOME_VIEWED",explore:"EXPLORE_VIEWED",agent:"SERVICE_PROFILE_VIEWED",compare:"SERVICE_COMPARE_VIEWED","my-agents":"MY_AGENTS_VIEWED"};const eventName=mapped[nav.route];if(eventName)void adoptionAnalyticsRepository.event(eventName,{serviceId:nav.agentId});},[adminAnalytics,nav.route,nav.agentId]);
 
   const navigate = useCallback((route: Route, params?: Partial<NavState>) => {
     setNav({ route, checkPhase: "start", ...params });
@@ -3755,6 +3762,8 @@ export default function App() {
         return <HomePage navigate={navigate} hasActivations={false} />;
     }
   };
+
+  if(adminAnalytics)return <div className="min-h-screen bg-background text-foreground"><AdminAdoptionAnalyticsDashboard/></div>;
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">

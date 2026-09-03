@@ -144,6 +144,11 @@ export interface CapabilityResponse {
   publicAdoptionManifestEnabled: boolean;
   publicLaunchDocumentationEnabled: boolean;
   publicEvidenceCaptureEnabled: boolean;
+  adoptionAnalyticsEnabled: boolean;
+  privacyBoundedProductTelemetryEnabled: boolean;
+  adoptionFeedbackEnabled: boolean;
+  adoptionAdminReportEnabled: boolean;
+  adoptionAnalyticsFinancialTruthAuthority: boolean;
   bscMainnetFinancialExecutionApproved: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];

@@ -216,3 +216,10 @@ Tooling: `pnpm capture:public-launch-evidence` records timestamped deployed proo
 No new migration is required; `0030_production_hardening_scale_readiness.sql` remains latest. BSC Mainnet financial execution remains unapproved.
 
 Current status: implementation candidate complete; do not record v0.38 externally accepted until dependency-aware build/check, deployment, accepted regressions through v0.37 and the adoption-readiness verifier pass.
+
+
+## v0.39 Production Analytics + Adoption Feedback Loop
+
+New package `@spotriq/adoption-analytics`, migration `0031_production_adoption_analytics.sql`, bounded product/feedback ingestion, authenticated adoption report/export, hidden admin dashboard, acceptance-traffic separation, and private production-baseline capture. Domain lifecycle tables remain authoritative; analytics do not infer financial truth or Agent Advantage.
+
+Current status: implementation candidate; run `pnpm verify:adoption-analytics` only after the deployed API reports >=0.39.0.

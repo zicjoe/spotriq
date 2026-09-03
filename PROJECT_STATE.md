@@ -1,8 +1,8 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.38.0  
-**Implementation status:** Ecosystem Adoption + Judge/Public Launch Readiness implemented as an acceptance candidate; v0.37 is externally accepted; dependency-aware local/Railway/live v0.38 acceptance pending.  
-**Last state update:** 2026-09-02  
+**Current implementation release:** v0.39.0  
+**Implementation status:** Production Analytics + Adoption Feedback Loop implemented as an acceptance candidate; v0.38 is externally accepted; dependency-aware local/Railway/live v0.39 acceptance pending.  
+**Last state update:** 2026-09-03  
 **Repository role:** concise present-state map; current repository remains implementation truth.
 
 ## Product position
@@ -43,36 +43,30 @@ Locked separations remain:
 - **v0.35 ✅** Observability + Marketplace/System Health.
 - **v0.36 ✅** Security + Failure Injection Hardening.
 - **v0.37 ✅** Production Hardening + Scale Readiness.
+- **v0.38 ✅** Ecosystem Adoption + Judge/Public Launch Readiness.
 
 ## Current architecture
 
-- `apps/web` — React/Vite marketplace UX plus public BNB/adoption explanation surface.
-- `apps/api` — Fastify API including `GET /v1/public/adoption`.
-- `apps/worker` — operational maintenance queue consumer; financial Smart Money jobs remain `API_INLINE`.
-- PostgreSQL migrations `0001`–`0030`; v0.38 requires no schema migration.
-- Existing deterministic BSC/DeFi/marketplace/commercial/permission/execution/outcome/operator/AI/observability/security/production packages remain intact.
-- `@spotriq/adoption-readiness` — deterministic public adoption manifest and launch-package truth.
+- `apps/web` — marketplace UX plus contextual adoption feedback and hidden admin analytics view (`?admin=analytics`).
+- `apps/api` — Fastify API including privacy-bounded analytics ingestion and bearer-protected adoption reporting.
+- `apps/worker` — maintenance queue consumer; financial Smart Money jobs remain `API_INLINE`.
+- PostgreSQL migrations `0001`–`0031`.
+- `@spotriq/adoption-analytics` — privacy-bounded interaction/feedback ingestion plus deterministic domain-funnel reporting.
 
-## Current v0.38 implementation truth
+## Current v0.39 implementation truth
 
-v0.38 packages the accepted product for ecosystem/judge/public scrutiny without inventing proof:
+v0.39 measures what real users/operators do without turning analytics into product truth:
 
-- machine-readable `GET /v1/public/adoption` manifest;
-- visible web `Why Spotriq` / BNB integration surface;
-- polished public architecture and trust-boundary documentation;
-- BNB ecosystem integration brief covering BSC, ERC-8004, BNB Agent Studio, ERC-8183, x402/B402, PancakeSwap and Venus;
-- judge/ecosystem demo playbook;
-- adoption evidence guide and production screenshot checklist;
-- security/operations public brief plus root `SECURITY.md`;
-- submission checklist that keeps external URLs/video/screenshots explicit rather than fabricated;
-- `pnpm capture:public-launch-evidence` to archive timestamped live public API proof after deployment;
-- `pnpm verify:adoption-readiness` live acceptance gate.
-
-Network truth remains:
-
-- BSC Mainnet `56` may be used for real ERC-8004 discovery;
-- BSC Testnet `97` remains transactional/authority/reference-agent development;
-- `bscMainnetFinancialExecutionApproved = false`.
+- allow-listed product interaction events only;
+- browser session IDs are hashed server-side;
+- raw wallet addresses and arbitrary metadata are rejected from telemetry;
+- Quote/Hire/Activation/Permission/transaction/outcome/Agent Advantage counts come from deterministic domain tables;
+- `ACCEPTANCE` traffic is excluded from `PRODUCT` adoption totals;
+- private date/category report and export require admin diagnostics authentication;
+- contextual feedback remains downstream of deterministic actions and cannot block or mutate them;
+- Agent Advantage coverage is measured without inferring financial benefit;
+- no wallet-connect conversion is fabricated until there is a deterministic server-observed connection fact;
+- BSC Mainnet financial execution remains unapproved.
 
 ## Current validation state
 
@@ -80,10 +74,10 @@ Authoritative local gate:
 
 `pnpm --filter @spotriq/api build → pnpm check`
 
-Externally accepted regression verifier chain through v0.37 remains required before the v0.38 gate.
+After migration/deployment, run accepted regressions through v0.38 and then `pnpm verify:adoption-analytics`.
 
-v0.38 must not be recorded externally accepted until local checks, deployment, prior regressions and `pnpm verify:adoption-readiness` pass against the deployed API.
+Do not record v0.39 externally accepted until those gates pass.
 
-## Next milestone after v0.38 acceptance
+## Roadmap after v0.39 acceptance
 
-The core roadmap through production/adoption readiness is complete. Any next engineering milestone should be driven by **measured production/adoption feedback** or by a separately approved **BSC Mainnet financial-readiness** program. Mainnet financial execution must not be enabled implicitly.
+Run Spotriq with real user/operator cohorts and capture a production baseline. The next product milestone should be chosen from measured conversion, reliability, supply and feedback evidence rather than invented in advance. Mainnet financial execution remains a separately approved program only.

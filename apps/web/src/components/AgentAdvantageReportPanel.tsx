@@ -3,6 +3,8 @@ import { RefreshCw, Target } from "lucide-react";
 import type { AgentAdvantageReport } from "@spotriq/domain";
 import { ApiError } from "../api/client";
 import { agentAdvantageRepository } from "../repositories/agentAdvantageRepository";
+import { adoptionAnalyticsRepository } from "../repositories/adoptionAnalyticsRepository";
+import { AdoptionFeedbackPrompt } from "./AdoptionFeedbackPrompt";
 
 export function AgentAdvantageReportPanel({activationId}:{activationId:string}){
   const [report,setReport]=useState<AgentAdvantageReport>();
@@ -10,7 +12,7 @@ export function AgentAdvantageReportPanel({activationId}:{activationId:string}){
   const [syncing,setSyncing]=useState(false);
   const [error,setError]=useState<string>();
   const load=useCallback(async()=>{setLoading(true);setError(undefined);try{setReport(await agentAdvantageRepository.latest(activationId));}catch(cause){if(cause instanceof ApiError&&cause.status===404)setReport(undefined);else setError(cause instanceof Error?cause.message:"Could not load Agent Advantage report.");}finally{setLoading(false);}},[activationId]);
-  useEffect(()=>{void load();},[load]);
+  useEffect(()=>{void load();void adoptionAnalyticsRepository.event("AGENT_ADVANTAGE_VIEWED",{subjectId:activationId});},[load,activationId]);
   const sync=async()=>{setSyncing(true);setError(undefined);try{setReport(await agentAdvantageRepository.sync(activationId));}catch(cause){setError(cause instanceof Error?cause.message:"Could not measure Agent Advantage.");}finally{setSyncing(false);}};
   if(loading)return <div className="rounded-lg border border-white/7 bg-white/[0.02] p-4 text-xs text-[#6b7d99] flex items-center gap-2"><RefreshCw className="w-3.5 h-3.5 animate-spin"/>Loading Agent Advantage report…</div>;
   return <div className="rounded-lg border border-white/7 bg-white/[0.02] p-4 space-y-3">
@@ -28,6 +30,7 @@ export function AgentAdvantageReportPanel({activationId}:{activationId:string}){
       <div className="rounded-md border border-white/6 p-3"><div className="text-[10px] uppercase font-mono text-[#6b7d99]">Measurement window</div><div className="text-xs text-[#9aacc4] mt-1">{new Date(report.window.startedAt).toLocaleString()} → {new Date(report.window.endedAt).toLocaleString()} · {report.window.basis.replaceAll("_"," ").toLowerCase()}</div></div>
       <div className="text-[11px] text-[#9aacc4]"><span className="text-[#6b7d99]">Next evidence step:</span> {report.nextMeasurementStep}</div>
       <div className="text-[10px] text-[#52637b]">Could Not Assess is intentional when attribution, transaction evidence, history or comparison evidence is insufficient.</div>
+      <AdoptionFeedbackPrompt context="AGENT_ADVANTAGE" prompt="Did this measurement reflect your experience?"/>
     </>}
   </div>;
 }
