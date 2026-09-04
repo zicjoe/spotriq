@@ -39,7 +39,7 @@ function serviceRecord(terms: CommercialOfferTerms = freeTerms()): MarketplaceSe
       supportedProtocols: ["PancakeSwap"],
       evidenceSummary: { testsPassed: 3 },
     },
-    offer: { offerId: `offer:${SERVICE}`, serviceId: SERVICE, state: "AVAILABLE", pricing: { pricingId: "pricing:free", serviceId: SERVICE, model: "FREE", amount: "0" }, terms, source: "marketplace-observed", note: "free" },
+    offer: { offerId: `offer:${SERVICE}`, serviceId: SERVICE, state: "AVAILABLE", pricing: { pricingId: "pricing:free", serviceId: SERVICE, model: "FREE", amount: "0" }, readOnlyObservationChainIds: [56, 97], terms, source: "marketplace-observed", note: "free" },
     permissionProfile: { permissionProfileId: "permission:rk", serviceId: SERVICE, protocols: ["PancakeSwap"], assets: [], executionMode: "READ_ONLY" },
     readiness: {
       readinessSnapshotId: "readiness:rk",
@@ -124,6 +124,29 @@ test("FREE read-only Offer creates immutable Quote, Hire, NOT_REQUIRED payment e
   assert.equal(state.hires[0]?.state, "ACTIVATED");
   assert.equal(state.payments[0]?.state, "NOT_REQUIRED");
   assert.equal(state.activations[0]?.activationId, activation.activationId);
+});
+
+
+test("FREE read-only reference Offer can freeze BSC Mainnet observation without granting financial authority", async () => {
+  const engine = createCommercialEngine({ marketplace: marketplace(() => serviceRecord()), now: () => new Date("2026-09-04T12:00:00.000Z") });
+  const quote = await engine.createQuote({ serviceId: SERVICE, buyerAddress: BUYER, buyerChainId: 56, serviceChainId: 56, idempotencyKey: "q-mainnet-read-only" });
+  assert.equal(quote.termsSnapshot.chainId, 56);
+  assert.equal(quote.termsSnapshot.serviceType, "READ_ONLY_SERVICE");
+  assert.equal(quote.termsSnapshot.scope.walletSigningRequired, false);
+  assert.equal(quote.termsSnapshot.scope.financialAuthorityRequired, false);
+  const hire = await engine.createHire({ quoteId: quote.quoteId, buyerAddress: BUYER, idempotencyKey: "h-mainnet-read-only" });
+  const activation = await engine.activate(hire.hireId, { buyerAddress: BUYER, idempotencyKey: "a-mainnet-read-only" });
+  assert.equal(activation.serviceChainId, 56);
+  assert.equal(activation.walletSigningAuthorityGranted, false);
+  assert.equal(activation.financialExecutionAuthorityGranted, false);
+  assert.match(activation.limitations.join(" "), /Mainnet.*observation-only/i);
+});
+
+test("read-only observation chain override fails closed unless the Offer explicitly supports it", async () => {
+  const record = serviceRecord();
+  record.offer.readOnlyObservationChainIds = [97];
+  const engine = createCommercialEngine({ marketplace: marketplace(() => record), now: () => new Date("2026-09-04T12:00:00.000Z") });
+  await assert.rejects(() => engine.createQuote({ serviceId: SERVICE, buyerAddress: BUYER, buyerChainId: 56, serviceChainId: 56, idempotencyKey: "q-unsupported-mainnet" }), /does not support read-only observation/i);
 });
 
 test("quote, hire and activation retries are idempotent while reused keys with different inputs conflict", async () => {

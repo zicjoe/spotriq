@@ -4,7 +4,7 @@ Spotriq treats ecosystem integrations as provider/protocol layers, not as shortc
 
 ## BSC
 
-BSC is the chain substrate for evidence, identity discovery and testnet financial development. Discovery on chain 56 remains separate from transactional/reference development on chain 97.
+BSC is the chain substrate for evidence, identity discovery, real read-only financial observation and testnet financial development. Chain 56 supports ERC-8004 discovery plus supported read-only Smart Money/reference-agent observation. Chain 97 remains the authority/execution sandbox. Mainnet observation does not approve Mainnet financial execution.
 
 ## ERC-8004
 
@@ -39,4 +39,4 @@ Official x402 reference:
 
 ## PancakeSwap and Venus
 
-PancakeSwap provides concentrated-liquidity and supported market/execution primitives. Venus provides lending-health and supported yield state. Protocol observations do not become invented performance claims or autonomous authority.
+PancakeSwap provides concentrated-liquidity and supported market/execution primitives. Venus provides lending-health and supported yield state. Spotriq can now route supported read-only protocol observations to BSC Mainnet or Testnet, while guarded financial execution remains Testnet-only. Protocol observations do not become invented performance claims or autonomous authority.

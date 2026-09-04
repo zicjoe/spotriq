@@ -724,6 +724,7 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
             <Badge variant="teal">{isReference ? "Live reference service" : "Normalized service"}</Badge>
           </div>
           <div className="text-[11px] text-[#6b7d99] font-mono mt-1">{isReference ? `Spotriq first-party · ${record.identity.canonicalVerification?.state === "VERIFIED" ? `ERC-8004 #${record.identity.identity.agentId} verified` : "ERC-8004 identity not reconciled"} · ${record.listing.status}` : `ERC-8004 #${record.identity.identity.agentId} · ${record.listing.status}`}</div>
+          {isReference && <div className="flex flex-wrap gap-1.5 mt-2"><Badge variant="muted">Identity: BSC {record.identity.identity.chainId === 56 ? "Mainnet" : "Testnet"}</Badge><Badge variant="teal">Observation: Mainnet + Testnet</Badge><Badge variant="muted">Mainnet execution: disabled</Badge></div>}
         </div>
         <ReadinessPill state={service.readiness} />
       </div>
@@ -1072,12 +1073,24 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
         throw new Error("This service does not currently publish a FREE read-only Spotriq Offer.");
       }
       const wallet = await walletHandlers.connectWallet();
+      let serviceChainId: 56 | 97 = wallet.chainId;
+      const activeCheckSessionId = getActiveCheckSessionId();
+      if (fromFinding && getActiveCheckMode() === "live" && activeCheckSessionId) {
+        const check = await smartMoneyRepository.getCheck(activeCheckSessionId);
+        const observedChainId = check.portfolio?.chainId ?? check.session.chainId;
+        if (observedChainId === 56 || observedChainId === 97) serviceChainId = observedChainId;
+      }
+      const supportedObservationChains = record.offer.readOnlyObservationChainIds ?? [terms.chainId];
+      if (!supportedObservationChains.includes(serviceChainId)) {
+        throw new Error(`This FREE read-only Offer does not support the selected Smart Money observation chain ${serviceChainId}.`);
+      }
       const operationId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const quote = await commercialRepository.createQuote({
         serviceId,
         offerId: record.offer.offerId,
         buyerAddress: wallet.address,
         buyerChainId: wallet.chainId,
+        serviceChainId,
         idempotencyKey: `web-free-quote:${serviceId}:${operationId}`,
       });
       const hire = await commercialRepository.createHire({
@@ -1518,6 +1531,7 @@ function CheckStartPage({ navigate }: { navigate: (r: Route, p?: Partial<NavStat
   const [address, setAddress] = useState("");
   const [starting, setStarting] = useState(false);
   const [walletSnapshot, setWalletSnapshot] = useState(() => walletHandlers.getSnapshot());
+  const [checkNetwork, setCheckNetwork] = useState<"mainnet" | "testnet">("mainnet");
   const [error, setError] = useState<string>();
 
   useEffect(() => subscribeWalletConnection(setWalletSnapshot), []);
@@ -1533,7 +1547,7 @@ function CheckStartPage({ navigate }: { navigate: (r: Route, p?: Partial<NavStat
     setStarting(true);
     setError(undefined);
     try {
-      const result = await smartMoneyRepository.startCheck(walletAddress, control);
+      const result = await smartMoneyRepository.startCheck(walletAddress, control, checkNetwork);
       setActiveLiveCheck(result.session.checkSessionId);
       navigate("check", { checkPhase: "scan" });
     } catch (cause) {
@@ -1557,6 +1571,21 @@ function CheckStartPage({ navigate }: { navigate: (r: Route, p?: Partial<NavStat
       </div>
 
       <Card className="p-6 space-y-4">
+        <div className="grid grid-cols-2 gap-2 rounded-lg border border-white/8 bg-[#0f141d] p-1">
+          <button type="button" onClick={() => setCheckNetwork("mainnet")} className={cn("rounded-md px-3 py-2.5 text-left transition-colors", checkNetwork === "mainnet" ? "bg-[#2dd4bf]/10 border border-[#2dd4bf]/25" : "border border-transparent hover:bg-white/[0.03]")}>
+            <div className={cn("text-xs font-medium", checkNetwork === "mainnet" ? "text-[#2dd4bf]" : "text-[#9aacc4]")}>BSC Mainnet</div>
+            <div className="text-[10px] text-[#6b7d99] mt-0.5">Real read-only · chain 56</div>
+          </button>
+          <button type="button" onClick={() => setCheckNetwork("testnet")} className={cn("rounded-md px-3 py-2.5 text-left transition-colors", checkNetwork === "testnet" ? "bg-[#a78bfa]/10 border border-[#a78bfa]/25" : "border border-transparent hover:bg-white/[0.03]")}>
+            <div className={cn("text-xs font-medium", checkNetwork === "testnet" ? "text-[#a78bfa]" : "text-[#9aacc4]")}>BSC Testnet</div>
+            <div className="text-[10px] text-[#6b7d99] mt-0.5">Sandbox · chain 97</div>
+          </button>
+        </div>
+        <div className={cn("rounded-lg border p-3 text-xs", checkNetwork === "mainnet" ? "border-[#2dd4bf]/15 bg-[#2dd4bf]/5 text-[#80d9cc]" : "border-[#a78bfa]/15 bg-[#a78bfa]/5 text-[#b9a4ef]")}>
+          {checkNetwork === "mainnet"
+            ? "Mainnet mode reads supported real BSC state only. Spotriq will not request token approval, create a financial PermissionGrant, sign a transaction, or dispatch Mainnet financial execution."
+            : "Testnet mode reads BSC Testnet state and remains the sandbox for separately gated financial-execution testing."}
+        </div>
         <Btn variant="primary" className="w-full justify-center" disabled={starting || walletSnapshot.restoring} onClick={async () => {
           try {
             setStarting(true);
@@ -1595,7 +1624,7 @@ function CheckStartPage({ navigate }: { navigate: (r: Route, p?: Partial<NavStat
         <Btn variant="secondary" className="w-full justify-center" onClick={() => { setExampleCheckMode(); navigate("check", { checkPhase: "scan" }); }}>
           <Eye className="w-4 h-4" /> Try Example Portfolio
         </Btn>
-        <p className="text-[11px] text-center text-[#6b7d99]">Entering an address does not prove ownership. Activation requires wallet connection.</p>
+        <p className="text-[11px] text-center text-[#6b7d99]">Entering an address does not prove ownership. Read-only analysis can inspect either network; marketplace Activation still requires a connected wallet and never equals financial authority.</p>
         {error && (
           <div className="flex items-start gap-2 rounded-lg border border-[#f87171]/20 bg-[#f87171]/5 p-3 text-xs text-[#fca5a5]">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -1739,7 +1768,7 @@ function CheckScanPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState
           <div className="mt-3"><Btn variant="ghost" onClick={() => navigate("check", { checkPhase: "start" })}>Start Again</Btn></div>
         </div>
       )}
-      <p className="text-center text-xs text-[#6b7d99]">{mode === "example" ? "Example Portfolio · Sample Data" : "Live BSC read · Supported sources only"}</p>
+      <p className="text-center text-xs text-[#6b7d99]">{mode === "example" ? "Example Portfolio · Sample Data" : "Live BSC read · Selected network · Supported sources only"}</p>
     </div>
   );
 }

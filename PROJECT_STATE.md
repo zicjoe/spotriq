@@ -55,6 +55,7 @@ Locked separations remain:
 - `@spotriq/adoption-analytics` — privacy-bounded interaction/feedback ingestion plus deterministic domain-funnel reporting.
 - Production-testing wallet hotfix — self-managed EIP-6963 multi-injected-provider discovery plus EIP-1193 fallback provides wallet selection without a hosted wallet-service dependency while preserving Spotriq's separate permission/execution authority model. A provider locator plus one-way account fingerprint is retained locally so refresh can reconcile with non-interactive `eth_accounts`; a non-announcing injected-provider fallback is fingerprint-checked and fails closed on mismatch.
 - Production-testing core-runtime hotfix — activation-bound read-only tasks automatically refresh stale Marketplace Test Lab evidence before invocation and explicit reruns create a fresh retry attempt instead of replaying a stale failed/completed task.
+- Production-testing BSC Mainnet read-only core — Smart Money Check can explicitly observe supported real BSC Mainnet state on chain 56, while BSC Testnet chain 97 remains the financial authority/execution sandbox. First-party FREE read-only Offers declare observation support on both 56 and 97; an immutable Quote freezes the selected observation chain. ERC-8004 identity chain is evidence and remains separate from service observation chain. Mainnet read-only Activations grant no wallet signing, PermissionGrant, transaction submission, or financial execution authority.
 
 ## Current v0.39 implementation truth
 

@@ -217,7 +217,8 @@ function referenceEvidence(definition: ReferenceAgentDefinition, observedAt: str
 function referenceReadiness(input: {
   definition: ReferenceAgentDefinition;
   serviceId: string;
-  chainId: AgentRegistryChainId;
+  observationChainId: AgentRegistryChainId;
+  identityChainId: AgentRegistryChainId;
   runtimeEndpoint: string;
   observedAt: string;
   canonicalVerification?: AgentCanonicalVerification;
@@ -225,12 +226,12 @@ function referenceReadiness(input: {
   const checks: ReadinessCheck[] = [
     {
       code: "BSC_NETWORK",
-      label: "BSC network",
-      state: input.chainId === 56 ? "PASS" : "WARN",
+      label: "Read-only observation network",
+      state: "PASS",
       requiredForActivation: true,
-      detail: input.chainId === 56
-        ? "The reference service is published into Spotriq's BSC Mainnet discovery catalog; its runtime actions remain read-only in this milestone."
-        : "The reference service is currently associated with BSC Testnet discovery context.",
+      detail: input.observationChainId === 56
+        ? "This service can observe supported BSC Mainnet protocol state in read-only mode. Mainnet financial execution remains disabled."
+        : "This service can observe supported BSC Testnet protocol state in read-only mode.",
     },
     {
       code: "CANONICAL_IDENTITY",
@@ -238,7 +239,7 @@ function referenceReadiness(input: {
       state: input.canonicalVerification?.state === "VERIFIED" ? "PASS" : input.canonicalVerification?.state === "MISMATCH" ? "FAIL" : "UNKNOWN",
       requiredForActivation: true,
       detail: input.canonicalVerification?.state === "VERIFIED"
-        ? "The first-party runtime is bound to a canonically verified ERC-8004 identity whose registration metadata matches the expected Spotriq reference service."
+        ? `The first-party runtime is bound to a canonically verified ERC-8004 identity on BSC chain ${input.identityChainId}; identity network is evidence and is separate from the service's read-only observation network.`
         : input.canonicalVerification?.state === "MISMATCH"
           ? "The configured first-party ERC-8004 identity failed canonical reconciliation."
           : "The first-party runtime is registration-ready, but no reconciled ERC-8004 identity is currently bound.",
@@ -282,14 +283,16 @@ function referenceReadiness(input: {
   return {
     readinessSnapshotId: `ready:${input.serviceId}`,
     serviceId: input.serviceId,
-    state: input.chainId === 97 ? "TESTNET_ONLY" : "LIMITED",
+    state: "LIMITED",
     checkedAt: input.observedAt,
     reasons: checks.filter((check) => check.state !== "PASS").map((check) => check.detail),
     checks,
     activationEligible: false,
     limitations: [
       "A real first-party runtime is not the same as an ERC-8004 on-chain identity; Spotriq will not invent registration evidence.",
-      "These capabilities are read-only decision-support surfaces. v0.23 can commercially activate a FREE read-only service relationship, while wallet permission and financial activation remain separate gates.",
+      input.observationChainId === 56
+        ? "Mainnet support here means read-only observation only. No wallet signing, PermissionGrant, transaction dispatch, or BSC Mainnet financial execution is enabled."
+        : "These capabilities are read-only decision-support surfaces on BSC Testnet; wallet permission and financial activation remain separate gates.",
       "Marketplace Test Lab must observe the deployed HTTPS runtime before operational reachability can pass.",
     ],
     methodVersion: REFERENCE_AGENT_CATALOG_METHOD,
@@ -407,13 +410,14 @@ function definitionRecord(definition: ReferenceAgentDefinition, options: Referen
     serviceId,
     state: "AVAILABLE",
     pricing: { pricingId: `pricing:${serviceId}:free-read-only`, serviceId, model: "FREE", amount: "0" },
+    readOnlyObservationChainIds: [56, 97],
     terms: {
       termsVersion: "spotriq-reference-free-read-only@1.0.0",
       commercialModel: "FREE",
       serviceType: "READ_ONLY_SERVICE",
       price: { amount: "0", currency: "NONE", amountRaw: "0" },
       network: "BSC",
-      chainId: identity.identity.chainId,
+      chainId: options.chainId,
       paymentRail: "FREE",
       scope: {
         summary: `Activate ${definition.name} as a read-only Spotriq service relationship for deterministic ${definition.category} analysis.`,
@@ -425,9 +429,11 @@ function definitionRecord(definition: ReferenceAgentDefinition, options: Referen
       quoteValiditySeconds: 900,
     },
     source: "marketplace-observed",
-    note: "Spotriq v0.23 publishes this first-party reference service as FREE / READ_ONLY_SERVICE. No payment, wallet signature, fund movement, or financial execution authority is implied.",
+    note: "Spotriq publishes this first-party service as FREE / READ_ONLY_SERVICE across BSC Mainnet and Testnet observation. The Quote freezes one selected observation chain; no payment, wallet signature, fund movement, or financial execution authority is implied.",
   };
-  const readiness = referenceReadiness({ definition, serviceId, chainId: identity.identity.chainId, runtimeEndpoint, observedAt, canonicalVerification: identity.canonicalVerification });
+  const readiness = referenceReadiness({
+    definition, serviceId, observationChainId: options.chainId, identityChainId: identity.identity.chainId, runtimeEndpoint, observedAt, canonicalVerification: identity.canonicalVerification,
+  });
   const claim: AgentCapabilityClaim = {
     capabilityClaimId: `claim:${serviceId}:${definition.category}`,
     serviceId,
@@ -447,7 +453,9 @@ function definitionRecord(definition: ReferenceAgentDefinition, options: Referen
     category: definition.category,
     description: definition.description,
     readiness: readiness.state,
-    readinessNote: readiness.reasons[0],
+    readinessNote: options.chainId === 56
+      ? `BSC Mainnet read-only observation is supported; canonical identity remains independently evidenced on chain ${identity.identity.chainId}. Mainnet financial execution is disabled.`
+      : readiness.reasons[0],
     permissionIntensity: "read-only",
     pricing: { model: "FREE", amount: "Free", period: "read-only service relationship", protocolCostsNote: "No Spotriq service fee is charged for the v0.23 reference read-only relationship. No payment or financial authority is implied." },
     supportedProtocols: [...definition.protocols],
@@ -477,7 +485,10 @@ function definitionRecord(definition: ReferenceAgentDefinition, options: Referen
       identity.canonicalVerification?.state === "VERIFIED"
         ? `Canonical ERC-8004 identity ${identity.identity.agentId} is bound to this first-party service only after registration-name and A2A endpoint reconciliation.`
         : "ERC-8004 registration must be performed after a public endpoint exists; Spotriq does not fabricate an on-chain agentId.",
-      "v0.23 supports a real FREE read-only Quote → Hire → Activation relationship. Financial execution authority remains separately gated.",
+      options.chainId === 56
+        ? `This service is offered for BSC Mainnet read-only observation. Its ERC-8004 identity may be evidenced on chain ${identity.identity.chainId}; that does not change the observation network or grant mainnet financial authority.`
+        : "This service is offered for BSC Testnet read-only observation.",
+      "FREE Quote → Hire → Activation is a marketplace relationship only. Financial execution authority remains separately gated, and BSC Mainnet financial execution is disabled.",
     ],
   };
 }

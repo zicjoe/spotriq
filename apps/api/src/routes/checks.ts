@@ -7,6 +7,7 @@ import type {
   StartSmartMoneyCheckRequest,
 } from "@spotriq/api-contracts";
 import type { SmartMoneyEngine } from "@spotriq/smart-money";
+import type { BscNetwork } from "@spotriq/domain";
 import type { MarketplaceSupplyReader } from "@spotriq/marketplace-supply";
 import { ApiInputError } from "../errors.js";
 
@@ -40,7 +41,11 @@ function parseStartBody(value: unknown): StartSmartMoneyCheckRequest {
   if (walletControl !== undefined && walletControl !== "WATCH_ONLY" && walletControl !== "CONNECTED" && walletControl !== "VERIFIED_CONTROL") {
     throw new ApiInputError("walletControl must be WATCH_ONLY, CONNECTED, or VERIFIED_CONTROL.", "INVALID_WALLET_CONTROL");
   }
-  return { walletAddress: body.walletAddress.trim().toLowerCase(), walletControl } as StartSmartMoneyCheckRequest;
+  const network = body.network;
+  if (network !== undefined && network !== "mainnet" && network !== "testnet") {
+    throw new ApiInputError("network must be mainnet or testnet.", "INVALID_CHECK_NETWORK");
+  }
+  return { walletAddress: body.walletAddress.trim().toLowerCase(), walletControl, network } as StartSmartMoneyCheckRequest;
 }
 
 async function sendNotFound(reply: FastifyReply, requestId: string, checkSessionId: string) {
@@ -55,13 +60,20 @@ async function sendNotFound(reply: FastifyReply, requestId: string, checkSession
   });
 }
 
-export async function registerCheckRoutes(app: FastifyInstance, smartMoney: SmartMoneyEngine, marketplaceSupply: MarketplaceSupplyReader): Promise<void> {
+export async function registerCheckRoutes(
+  app: FastifyInstance,
+  smartMoney: SmartMoneyEngine,
+  marketplaceSupply: MarketplaceSupplyReader,
+  enginesByNetwork: Partial<Record<BscNetwork, SmartMoneyEngine>> = {},
+): Promise<void> {
   app.post<{ Body: StartSmartMoneyCheckRequest }>("/v1/checks", async (request, reply) => {
     const input = parseStartBody(request.body);
-    const session = await smartMoney.startCheck(input);
+    const requestedNetwork = input.network ?? "testnet";
+    const engine = enginesByNetwork[requestedNetwork] ?? smartMoney;
+    const session = await engine.startCheck(input);
 
     setImmediate(() => {
-      void smartMoney.runCheck(session.checkSessionId).catch((error) => {
+      void engine.runCheck(session.checkSessionId).catch((error) => {
         request.log.error({ err: error, checkSessionId: session.checkSessionId }, "Smart Money Check background execution failed");
       });
     });

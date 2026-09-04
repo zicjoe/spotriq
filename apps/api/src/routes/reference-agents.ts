@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { GridMarketContextReader } from "@spotriq/market-context";
 import type { PancakeSwapReader } from "@spotriq/protocol-pancakeswap";
 import type { VenusReader } from "@spotriq/protocol-venus";
+import type { BscNetwork } from "@spotriq/domain";
 import {
   assessReferenceAgentIdentityBinding,
   getReferenceAgentDefinition,
@@ -13,6 +14,29 @@ import {
   type ReferenceAgentSlug,
 } from "@spotriq/reference-agents";
 
+
+function objectValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function requestNetwork(body: unknown): BscNetwork | undefined {
+  const envelope = objectValue(body);
+  const params = objectValue(envelope?.params);
+  const directInput = objectValue(params?.input);
+  const direct = directInput?.network;
+  if (direct === "mainnet" || direct === "testnet") return direct;
+  const message = objectValue(params?.message);
+  const parts = Array.isArray(message?.parts) ? message!.parts : [];
+  for (const partValue of parts) {
+    const part = objectValue(partValue);
+    const data = objectValue(part?.data);
+    const subject = objectValue(data?.subject);
+    const network = subject?.network ?? objectValue(data?.input)?.network;
+    if (network === "mainnet" || network === "testnet") return network;
+  }
+  return undefined;
+}
+
 export async function registerReferenceAgentRoutes(
   app: FastifyInstance,
   input: {
@@ -20,6 +44,7 @@ export async function registerReferenceAgentRoutes(
     pancakeSwap: PancakeSwapReader;
     venus: VenusReader;
     marketContext: GridMarketContextReader;
+    runtimeByNetwork?: Partial<Record<BscNetwork, { pancakeSwap: PancakeSwapReader; venus: VenusReader; marketContext: GridMarketContextReader }>>;
     identityBindings?: Partial<Record<ReferenceAgentSlug, ReferenceAgentIdentityBinding>>;
   },
 ): Promise<void> {
@@ -55,11 +80,13 @@ export async function registerReferenceAgentRoutes(
   app.post<{ Params: { slug: string }; Body: unknown }>("/v1/reference-agents/:slug/a2a", async (request, reply) => {
     const definition = getReferenceAgentDefinition(request.params.slug);
     if (!definition) return reply.code(404).send({ jsonrpc: "2.0", id: null, error: { code: -32004, message: "Unknown Spotriq reference agent." } });
-    const response = await handleReferenceAgentJsonRpc(request.params.slug, request.body, {
+    const network = requestNetwork(request.body);
+    const runtime = (network ? input.runtimeByNetwork?.[network] : undefined) ?? {
       pancakeSwap: input.pancakeSwap,
       venus: input.venus,
       marketContext: input.marketContext,
-    });
+    };
+    const response = await handleReferenceAgentJsonRpc(request.params.slug, request.body, runtime);
     return reply.type("application/json").send(response);
   });
 }

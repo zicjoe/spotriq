@@ -426,8 +426,10 @@ function readinessFor(
   runtimeEndpoints: ServiceRuntimeEndpoint[],
   permissionProfile: PermissionProfile,
   testCoverage: MarketplaceServiceTestCoverage = emptyMarketplaceTestCoverage(serviceId),
+  referenceObservationChainId?: AgentRegistryChainId,
 ): ReadinessSnapshot {
   const reference = isReferenceAgent(agent);
+  const observationChainId = reference ? (referenceObservationChainId ?? agent.identity.chainId) : agent.identity.chainId;
   const verification = agent.canonicalVerification?.state ?? "NOT_CHECKED";
   const machineEndpoint = runtimeEndpoints.some((endpoint) => endpoint.machineCallable);
   const reachabilityTests = testCoverage.tests.filter((test) => test.code === "ENDPOINT_REACHABILITY");
@@ -451,10 +453,12 @@ function readinessFor(
     {
       code: "BSC_NETWORK",
       label: "BSC network",
-      state: agent.identity.chainId === 56 ? "PASS" : "WARN",
+      state: reference ? "PASS" : agent.identity.chainId === 56 ? "PASS" : "WARN",
       requiredForActivation: true,
       detail: reference
-        ? (agent.identity.chainId === 56 ? "First-party reference identity is associated with BSC Mainnet; the runtime remains separately permission-gated." : "First-party reference identity is registered on BSC Testnet; production financial activation remains unavailable.")
+        ? (observationChainId === 56
+          ? `This first-party service supports BSC Mainnet read-only observation (chain 56). Its canonical identity is independently evidenced on chain ${agent.identity.chainId}; Mainnet financial execution remains disabled.`
+          : `This first-party service supports BSC Testnet read-only observation (chain 97). Its canonical identity is independently evidenced on chain ${agent.identity.chainId}.`)
         : (agent.identity.chainId === 56 ? "Identity is registered on BSC Mainnet." : "Identity is registered on BSC Testnet; production activation remains unavailable."),
     },
     {
@@ -527,10 +531,10 @@ function readinessFor(
   const allRequiredPass = required.every((check) => check.state === "PASS");
   const state: ReadinessSnapshot["state"] = agent.canonicalVerification?.state === "MISMATCH" || agent.active === false
     ? "SUSPENDED"
-    : agent.identity.chainId === 97
-      ? "TESTNET_ONLY"
-      : reference
-        ? runtimeFailed ? "OFFLINE" : testCoverage.coverage === "FAIL" ? "DEGRADED" : "LIMITED"
+    : reference
+      ? runtimeFailed ? "OFFLINE" : testCoverage.coverage === "FAIL" ? "DEGRADED" : "LIMITED"
+      : agent.identity.chainId === 97
+        ? "TESTNET_ONLY"
         : allRequiredPass
           ? "READY"
           : runtimeFailed
@@ -551,8 +555,8 @@ function readinessFor(
       "Marketplace Test Lab verifies bounded runtime contracts and advertised machine capability; it does not execute financial actions or establish profitability.",
       reference
         ? (verification === "VERIFIED"
-          ? "The first-party runtime has passed canonical ERC-8004 reconciliation, but commercial hiring/activation remains a separate gate and is disabled in this release."
-          : "A first-party runtime cannot become activation-eligible until its public service is registered/reconciled through ERC-8004 and later commercial activation gates exist.")
+          ? "The first-party runtime has passed canonical ERC-8004 reconciliation. FREE read-only commercial activation is supported independently from financial activation, permission, and execution authority."
+          : "The first-party runtime may support FREE read-only observation, but its public ERC-8004 identity remains unreconciled; identity evidence stays separate from commercial activation and financial authority.")
         : "A service cannot become Ready unless identity, active state, endpoint declaration/reachability, explicit permission profile and marketplace tests all pass independently.",
       "Readiness is operational eligibility, not a prediction of financial performance or profitability.",
     ],
@@ -656,7 +660,10 @@ export function normalizeMarketplaceService(agent: DiscoveredAgent, category: Se
 }
 
 function applyTestCoverageToRecord(record: MarketplaceServiceRecord, coverage: MarketplaceServiceTestCoverage): MarketplaceServiceRecord {
-  const readiness = readinessFor(record.identity, record.service.serviceId, record.service.runtimeEndpoints ?? [], record.permissionProfile, coverage);
+  const readiness = readinessFor(
+    record.identity, record.service.serviceId, record.service.runtimeEndpoints ?? [], record.permissionProfile, coverage,
+    isReferenceAgent(record.identity) ? record.offer.terms?.chainId : undefined,
+  );
   const listingStatus: AgentListing["status"] = readiness.state === "SUSPENDED"
     ? "SUSPENDED"
     : readiness.state === "READY"
@@ -671,7 +678,9 @@ function applyTestCoverageToRecord(record: MarketplaceServiceRecord, coverage: M
     service: {
       ...record.service,
       readiness: readiness.state,
-      readinessNote: readiness.reasons[0],
+      readinessNote: isReferenceAgent(record.identity) && record.offer.terms?.chainId === 56
+        ? `BSC Mainnet read-only observation is supported; canonical identity remains separate on chain ${record.identity.identity.chainId}. Mainnet financial execution is disabled.`
+        : readiness.reasons[0],
       marketplaceActivationEligible: Boolean(readiness.activationEligible),
       readinessSnapshotId: readiness.readinessSnapshotId,
       evidenceSummary: {
@@ -1209,7 +1218,7 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
       limitations: [
         "Spotriq actively searches the registry for each supported financial category instead of relying on a generic newest-agents page.",
         "External identities need a supported operator metadata hint to become AgentService candidates; targeted search relevance alone remains a discovery lead. First-party reference services are explicit catalog supply, not inferred registry claims.",
-        "First-party reference services remain visible across the BSC marketplace even when their current ERC-8004 identity is TESTNET_ONLY; each record exposes its own identity chain and readiness state explicitly.",
+        "First-party reference services expose identity-chain evidence separately from their read-only observation network. A Testnet ERC-8004 identity does not imply Mainnet financial execution; Mainnet support is read-only only.",
         "Service candidates remain non-activatable until canonical verification, runtime reachability, explicit authority, and marketplace tests satisfy readiness gates.",
       ],
     };

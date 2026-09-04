@@ -24,7 +24,7 @@ GET /v1/reference-agents
 
 The judge/ecosystem package lives under `docs/public/` and includes the architecture/trust-boundary brief, BNB integration map, demo playbook, adoption-evidence guide, security/operations brief, screenshot checklist and final submission checklist. `pnpm capture:public-launch-evidence` records timestamped machine-readable production proof without fabricating screenshots or video.
 
-Network policy remains explicit: BSC Mainnet (`56`) may be used for ERC-8004 discovery; transactional/authority/reference-agent development remains BSC Testnet (`97`). **v0.39 does not approve BSC Mainnet financial execution.**
+Network policy remains explicit: BSC Mainnet (`56`) is used for ERC-8004 discovery **and supported real read-only Smart Money/reference-agent observation**; financial authority/execution development remains BSC Testnet (`97`). **v0.39 does not approve BSC Mainnet financial execution.**
 
 Spotriq is a pnpm monorepo containing the Figma-derived consumer frontend plus the backend, worker, BSC chain, PancakeSwap protocol adapter, Smart Money Check engine, evidence, agent-registry, domain, API-contract, and PostgreSQL foundations for the real financial-agent marketplace.
 
@@ -131,6 +131,16 @@ http://localhost:3001/v1/grid/pools/0xPANCAKE_V3_POOL/context
 
 The Grid context layer reads supported PancakeSwap V3 current pool state and available onchain oracle observations for 1h, 6h, and 24h windows. Spotriq uses a deterministic, versioned classifier to describe directional/range context. It does **not** call TWAP dispersion realised volatility, predict profitability, infer capital size, or infer the user's risk tolerance. If required pool oracle history is unavailable, the result is `INSUFFICIENT_HISTORY` / Could Not Assess rather than a guessed regime.
 
+
+## Production-testing BSC Mainnet read-only core
+
+The production-testing build now lets Smart Money Check explicitly choose **BSC Mainnet — Real read-only (56)** or **BSC Testnet — Sandbox (97)**. Mainnet mode reads only the supported public wallet/protocol state; it does not request token approval, create a financial PermissionGrant, sign or submit a transaction, or dispatch Mainnet financial execution.
+
+The first-party reference services separate **identity network** from **observation network**. A reference service may have its canonically verified ERC-8004 identity on BSC Testnet while its FREE read-only Offer explicitly supports observations on both chain 56 and chain 97. Quote creation freezes the selected observation chain and activation-bound runtime tasks route their PancakeSwap/Venus/Grid reads to that chain.
+
+No new secret or hosted wallet-service account is required. The API can use the existing configured Mainnet RPC override when present and otherwise retains the chain adapter's public BSC fallback posture. Financial execution remains hard-gated to chain 97.
+
+Validation: `pnpm verify:mainnet-read-only`.
 
 ## Live Smart Money Check
 

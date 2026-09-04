@@ -149,6 +149,7 @@ export interface CapabilityResponse {
   adoptionFeedbackEnabled: boolean;
   adoptionAdminReportEnabled: boolean;
   adoptionAnalyticsFinancialTruthAuthority: boolean;
+  bscMainnetReadOnlyObservationEnabled: boolean;
   bscMainnetFinancialExecutionApproved: boolean;
   smartMoneyPersistence: "postgres" | "memory";
   notes: string[];
@@ -250,6 +251,8 @@ export interface VenusMarketCatalogResponse {
 export interface StartSmartMoneyCheckRequest {
   walletAddress: string;
   walletControl?: import("@spotriq/domain").WalletControlState;
+  /** Read-only observation network. Mainnet never grants financial execution authority. */
+  network?: import("@spotriq/domain").BscNetwork;
 }
 
 export interface SmartMoneyCheckResponse {
@@ -342,6 +345,8 @@ export interface CreateCommercialQuoteRequest {
   offerId?: string;
   buyerAddress: string;
   buyerChainId: number;
+  /** Optional service observation chain for a multi-network FREE read-only Offer. */
+  serviceChainId?: number;
   idempotencyKey: string;
 }
 export interface CommercialQuoteResponse { quote: import("@spotriq/domain").CommercialQuote; }

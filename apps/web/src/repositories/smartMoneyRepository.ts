@@ -1,5 +1,6 @@
 import type { ApiEnvelope, FindingServiceMatchesResponse, SmartMoneyCheckResponse, StartSmartMoneyCheckRequest } from "@spotriq/api-contracts";
 import type { CheckSession, Finding, FindingServiceMatchPage, SmartMoneyPortfolioSnapshot, WalletControlState } from "../domain/types";
+import type { BscNetwork } from "@spotriq/domain";
 import { apiRequest } from "../api/client";
 
 function unwrap<T>(value: ApiEnvelope<T>): T { return value.data; }
@@ -11,15 +12,15 @@ export interface SmartMoneyCheckView {
 }
 
 export interface SmartMoneyRepository {
-  startCheck(walletAddress: string, walletControl?: WalletControlState): Promise<SmartMoneyCheckView>;
+  startCheck(walletAddress: string, walletControl?: WalletControlState, network?: BscNetwork): Promise<SmartMoneyCheckView>;
   getCheckStatus(checkSessionId: string): Promise<CheckSession>;
   getCheck(checkSessionId: string): Promise<SmartMoneyCheckView>;
   getFindingMatches(checkSessionId: string, findingId: string, limit?: number): Promise<FindingServiceMatchPage>;
 }
 
 export class ApiSmartMoneyRepository implements SmartMoneyRepository {
-  async startCheck(walletAddress: string, walletControl: WalletControlState = "WATCH_ONLY") {
-    const payload: StartSmartMoneyCheckRequest = { walletAddress, walletControl };
+  async startCheck(walletAddress: string, walletControl: WalletControlState = "WATCH_ONLY", network: BscNetwork = "mainnet") {
+    const payload: StartSmartMoneyCheckRequest = { walletAddress, walletControl, network };
     return unwrap(await apiRequest<ApiEnvelope<SmartMoneyCheckResponse>>("/v1/checks", {
       method: "POST",
       body: JSON.stringify(payload),

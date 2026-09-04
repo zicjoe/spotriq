@@ -162,3 +162,14 @@ API: `POST /v1/analytics/events`, `POST /v1/analytics/feedback`, authenticated `
 Acceptance traffic is separated from real `PRODUCT` traffic. Raw wallet addresses are rejected from telemetry. Session IDs are SHA-256 hashed server-side.
 
 New gate: `pnpm verify:adoption-analytics`. Private baseline capture: `pnpm capture:adoption-baseline`.
+
+
+## v0.39 production-testing BSC Mainnet read-only truth
+
+Spotriq now supports an explicit **BSC Mainnet read-only observation** mode for the core buyer journey without approving BSC Mainnet financial execution. Smart Money Check can read supported chain-56 wallet/protocol state and persist the observed network/chain with its evidence. BSC Testnet chain 97 remains the authority/execution development and testing network.
+
+The four first-party reference services publish FREE read-only observation support for both chain 56 and chain 97. The immutable Quote freezes one selected observation chain; the resulting Activation carries that service chain into the reference-agent task subject so protocol reads are routed to the matching network. The service's ERC-8004 identity chain remains a separate identity fact and must not be presented as the service observation network.
+
+`Connect Wallet ≠ Hire ≠ Activation ≠ PermissionGrant ≠ Execution`. Mainnet read-only Activation grants no wallet signing, token approval, PermissionGrant, transaction dispatch, or financial execution authority. `@spotriq/financial-execution-adapters` still requires both API and Activation service chain 97, and controlled execution remains sealed to BSC Testnet.
+
+Production-testing gate: `pnpm verify:mainnet-read-only`. This is a v0.39 production-testing capability correction/extension, not an implicit v0.40 milestone or Mainnet financial-execution approval.

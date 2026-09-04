@@ -191,6 +191,8 @@ export interface ServiceOffer {
   state: "UNDECLARED" | "AVAILABLE" | "UNAVAILABLE";
   pricing?: PricingModel;
   terms?: CommercialOfferTerms;
+  /** Explicit observation networks supported by a FREE read-only service. This is not financial execution authority. */
+  readOnlyObservationChainIds?: AgentRegistryChainId[];
   source: "operator-claimed" | "marketplace-observed";
   note: string;
 }
@@ -514,6 +516,9 @@ export interface CheckSession {
   checkSessionId: string;
   walletAddress: string;
   walletControl: WalletControlState;
+  /** Observation network selected for this read-only Smart Money Check. */
+  network?: BscNetwork;
+  chainId?: 56 | 97;
   state: "CREATED" | "SCANNING" | "PARTIAL" | "COMPLETED" | "FAILED" | "STALE";
   createdAt: string;
   updatedAt?: string;

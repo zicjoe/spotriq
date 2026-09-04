@@ -13,6 +13,7 @@ import type {
   SmartMoneyCheckEvent,
   SmartMoneyPortfolioSnapshot,
   WalletControlState,
+  BscNetwork,
   VenusPoolPositionSnapshot,
   YieldOpportunitySnapshot,
 } from "@spotriq/domain";
@@ -30,6 +31,7 @@ export const SMART_MONEY_REBALANCING_METHOD = {
 export interface StartSmartMoneyCheckInput {
   walletAddress: string;
   walletControl?: WalletControlState;
+  network?: BscNetwork;
 }
 
 export interface SmartMoneyCheckSnapshot {
@@ -417,14 +419,14 @@ export class PostgresSmartMoneyStore implements SmartMoneyStore {
       `insert into check_sessions(check_session_id, wallet_address, wallet_control, state, coverage, created_at, updated_at, completed_at, failure_reason)
        values($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9)
        on conflict (check_session_id) do update set state=excluded.state, coverage=excluded.coverage, updated_at=excluded.updated_at, completed_at=excluded.completed_at, failure_reason=excluded.failure_reason`,
-      [session.checkSessionId, session.walletAddress, session.walletControl, session.state, JSON.stringify({ sourceProgress: session.sourceProgress, coverage: session.coverage }), session.createdAt, session.updatedAt ?? session.createdAt, session.completedAt ?? null, session.failureReason ?? null],
+      [session.checkSessionId, session.walletAddress, session.walletControl, session.state, JSON.stringify({ sourceProgress: session.sourceProgress, coverage: session.coverage, network: session.network, chainId: session.chainId }), session.createdAt, session.updatedAt ?? session.createdAt, session.completedAt ?? null, session.failureReason ?? null],
     );
   }
 
   async getSession(checkSessionId: string): Promise<CheckSession | undefined> {
     const result = await this.db.query<{
       check_session_id: string; wallet_address: string; wallet_control: WalletControlState; state: CheckSession["state"];
-      coverage: { sourceProgress?: CheckSourceProgress[]; coverage?: SmartMoneyCheckCoverage } | null;
+      coverage: { sourceProgress?: CheckSourceProgress[]; coverage?: SmartMoneyCheckCoverage; network?: BscNetwork; chainId?: 56 | 97 } | null;
       created_at: string | Date; updated_at: string | Date | null; completed_at: string | Date | null; failure_reason: string | null;
     }>(`select check_session_id,wallet_address,wallet_control,state,coverage,created_at,updated_at,completed_at,failure_reason from check_sessions where check_session_id=$1`, [checkSessionId]);
     const row = result.rows[0];
@@ -433,6 +435,8 @@ export class PostgresSmartMoneyStore implements SmartMoneyStore {
       checkSessionId: row.check_session_id,
       walletAddress: row.wallet_address,
       walletControl: row.wallet_control,
+      network: row.coverage?.network,
+      chainId: row.coverage?.chainId,
       state: row.state,
       createdAt: asDateString(row.created_at)!,
       updatedAt: asDateString(row.updated_at ?? undefined),
@@ -632,11 +636,14 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
   };
 
   async function startCheck(input: StartSmartMoneyCheckInput): Promise<CheckSession> {
+    if (input.network && input.network !== options.chain.network) throw new Error(`Smart Money engine network mismatch: requested ${input.network}, engine is ${options.chain.network}.`);
     const createdAt = now().toISOString();
     const session: CheckSession = {
       checkSessionId: `check_${idFactory()}`,
       walletAddress: assertWalletAddress(input.walletAddress),
       walletControl: input.walletControl ?? "WATCH_ONLY",
+      network: options.chain.network,
+      chainId: options.chain.definition.chainId as 56 | 97,
       state: "CREATED",
       createdAt,
       updatedAt: createdAt,
@@ -644,7 +651,7 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
       coverage: defaultCoverage(),
     };
     await store.createSession(session);
-    await publish(session.checkSessionId, "check.created", undefined, { walletAddress: session.walletAddress, walletControl: session.walletControl });
+    await publish(session.checkSessionId, "check.created", undefined, { walletAddress: session.walletAddress, walletControl: session.walletControl, network: session.network, chainId: session.chainId });
     return session;
   }
 

@@ -8,6 +8,7 @@ test("public adoption manifest preserves product and network truth", () => {
   assert.equal(manifest.release.acceptedThrough, "0.39.0");
   assert.equal(manifest.release.status, "ADOPTION_MEASUREMENT_ACTIVE");
   assert.equal(manifest.networks.discovery.chainId, 56);
+  assert.equal(manifest.networks.readOnlyObservation.chainId, 56);
   assert.equal(manifest.networks.transactionalDevelopment.chainId, 97);
   assert.equal(manifest.networks.bscMainnetFinancialExecutionApproved, false);
 });

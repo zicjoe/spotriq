@@ -50,6 +50,7 @@ Fastify API ───────────────► PostgreSQL
 
 ## Network policy
 
-- BSC Mainnet (`chainId=56`) may be used for real ERC-8004 marketplace discovery.
-- BSC Testnet (`chainId=97`) remains the transactional/authority/reference-agent development network.
-- v0.38 does **not** approve BSC Mainnet financial execution.
+- BSC Mainnet (`chainId=56`) is used for real ERC-8004 marketplace discovery and supported real **read-only** Smart Money/reference-agent observation.
+- BSC Testnet (`chainId=97`) remains the financial authority/execution development and controlled-transaction testing network.
+- Reference-service ERC-8004 identity chain remains separate from its read-only observation chain.
+- v0.39 production testing does **not** approve BSC Mainnet financial execution.

@@ -157,7 +157,7 @@ const ERC8183_ABI = [
 
 function normalizedAddress(value:string,label="address"):string { const v=value.trim().toLowerCase(); if(!/^0x[0-9a-f]{40}$/.test(v)) throw new CommercialError(`${label} must be a valid EVM address.`,"INVALID_INPUT"); return v; }
 function nonempty(value:string,label:string,max=256):string { const v=value.trim(); if(!v||v.length>max) throw new CommercialError(`${label} is required and must be at most ${max} characters.`,"INVALID_INPUT"); return v; }
-function chainId(value:number):AgentRegistryChainId { if(value!==56&&value!==97) throw new CommercialError("buyerChainId must be 56 or 97.","INVALID_INPUT"); return value; }
+function chainId(value:number):AgentRegistryChainId { if(value!==56&&value!==97) throw new CommercialError("BSC chainId must be 56 or 97.","INVALID_INPUT"); return value; }
 function canonical(value:unknown):string { const stable=(v:unknown):unknown=>Array.isArray(v)?v.map(stable):v&&typeof v==="object"?Object.fromEntries(Object.entries(v as Record<string,unknown>).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>[k,stable(x)])):v; return JSON.stringify(stable(value)); }
 function sha(value:string):string{return `sha256:${createHash("sha256").update(value).digest("hex")}`;}
 function deterministicId(prefix:string,...parts:string[]):string{return `${prefix}:${createHash("sha256").update(parts.join("\u001f")).digest("hex").slice(0,32)}`;}
@@ -166,6 +166,15 @@ function termsHash(terms:CommercialOfferTerms):string{return sha(canonical(terms
 function isPaymentRequired(terms:CommercialOfferTerms):boolean{return terms.paymentRail!=="FREE" || !numericZero(terms.price.amountRaw ?? terms.price.amount);}
 function isPermissionRequired(terms:CommercialOfferTerms):boolean{return terms.scope.financialAuthorityRequired || terms.scope.walletSigningRequired;}
 function currentQuoteState(q:CommercialQuote,now:Date):CommercialQuote{return new Date(q.expiresAt).getTime()<=now.getTime()?{...q,state:"EXPIRED"}:q;}
+
+function termsForObservationChain(offer:ServiceOffer, terms:CommercialOfferTerms, requestedChainId:AgentRegistryChainId|undefined):CommercialOfferTerms {
+  if(requestedChainId===undefined||requestedChainId===terms.chainId)return structuredClone(terms);
+  const supported=offer.readOnlyObservationChainIds??[];
+  if(terms.serviceType!=="READ_ONLY_SERVICE"||terms.paymentRail!=="FREE"||terms.scope.walletSigningRequired||terms.scope.financialAuthorityRequired||!supported.includes(requestedChainId)){
+    throw new CommercialError(`This Offer does not support read-only observation on BSC chain ${requestedChainId}.`,"NETWORK_MISMATCH");
+  }
+  return {...structuredClone(terms),chainId:requestedChainId};
+}
 
 function validateOffer(offer:ServiceOffer):CommercialOfferTerms {
   if(offer.state!=="AVAILABLE"||!offer.terms) throw new CommercialError("This AgentService does not currently publish a structured available commercial Offer.","OFFER_NOT_FOUND");
@@ -242,7 +251,7 @@ export function createErc8183PaymentAdapter(options:{chain:BscChainReader}):Comm
 
 export interface CommercialEngine {
   listOffers(serviceId:string):Promise<ServiceOffer[]>;
-  createQuote(input:{serviceId:string;offerId?:string;buyerAddress:string;buyerChainId:number;idempotencyKey:string}):Promise<CommercialQuote>;
+  createQuote(input:{serviceId:string;offerId?:string;buyerAddress:string;buyerChainId:number;serviceChainId?:number;idempotencyKey:string}):Promise<CommercialQuote>;
   getQuote(quoteId:string):Promise<CommercialQuote>;
   createHire(input:{quoteId:string;buyerAddress:string;idempotencyKey:string}):Promise<CommercialHire>;
   getHire(hireId:string):Promise<CommercialHire>;
@@ -266,13 +275,17 @@ export function createCommercialEngine(options:{marketplace:MarketplaceSupplyRea
   async function getHire(id:string):Promise<CommercialHire>{const h=await store.getHire(nonempty(id,"hireId",1024));if(!h)throw new CommercialError("Commercial Hire not found.","HIRE_NOT_FOUND");return h;}
   async function getActivation(id:string):Promise<MarketplaceActivation>{const a=await store.getActivation(nonempty(id,"activationId",1024));if(!a)throw new CommercialError("Marketplace Activation not found.","ACTIVATION_NOT_FOUND");return a;}
 
-  async function createQuote(input:{serviceId:string;offerId?:string;buyerAddress:string;buyerChainId:number;idempotencyKey:string}):Promise<CommercialQuote>{
+  async function createQuote(input:{serviceId:string;offerId?:string;buyerAddress:string;buyerChainId:number;serviceChainId?:number;idempotencyKey:string}):Promise<CommercialQuote>{
     const buyer=normalizedAddress(input.buyerAddress,"buyerAddress"), buyerChain=chainId(input.buyerChainId), key=nonempty(input.idempotencyKey,"idempotencyKey",160), serviceId=nonempty(input.serviceId,"serviceId",1024);
+    const requestedServiceChain = input.serviceChainId === undefined ? undefined : chainId(input.serviceChainId);
     const prior=await store.findQuoteByIdempotency(buyer,key);
-    if(prior){if(prior.serviceId!==serviceId||prior.buyerChainId!==buyerChain||(input.offerId&&prior.offerId!==input.offerId))throw new CommercialError("This quote idempotency key was already used for different commercial input.","IDEMPOTENCY_CONFLICT");return currentQuoteState(prior,now());}
+    if(prior){
+      if(prior.serviceId!==serviceId||prior.buyerChainId!==buyerChain||(input.offerId&&prior.offerId!==input.offerId)||(requestedServiceChain!==undefined&&prior.termsSnapshot.chainId!==requestedServiceChain))throw new CommercialError("This quote idempotency key was already used for different commercial input.","IDEMPOTENCY_CONFLICT");
+      return currentQuoteState(prior,now());
+    }
     const record=await marketplace.getService(serviceId); const offer=await resolveOffer(serviceId,record);
     if(input.offerId&&input.offerId!==offer.offerId)throw new CommercialError("The requested Offer does not belong to this AgentService.","OFFER_NOT_FOUND");
-    const terms=validateOffer(offer);
+    const terms=termsForObservationChain(offer,validateOffer(offer),requestedServiceChain);
     if(isPaymentRequired(terms)&&buyerChain!==terms.chainId)throw new CommercialError(`Paid Offer settlement requires buyer chain ${terms.chainId}; received ${buyerChain}.`,"NETWORK_MISMATCH");
     const quotedAt=now(); const expiresAt=new Date(quotedAt.getTime()+terms.quoteValiditySeconds*1000).toISOString(); const hash=termsHash(terms);
     const quoteId=deterministicId("quote",buyer,key);
@@ -334,7 +347,7 @@ export function createCommercialEngine(options:{marketplace:MarketplaceSupplyRea
     const prior=await store.getActivationForHire(hire.hireId); if(prior)return prior;
     const quote=await getQuote(hire.quoteId),record=await marketplace.getService(hire.serviceId),currentOffer=await resolveOffer(hire.serviceId,record);
     if(currentOffer.offerId!==hire.offerId)throw new CommercialError("The hired Offer is no longer the current Offer for this service.","OFFER_STALE");
-    const currentTerms=validateOffer(currentOffer);
+    const currentTerms=termsForObservationChain(currentOffer,validateOffer(currentOffer),quote.termsSnapshot.chainId);
     if(termsHash(currentTerms)!==quote.termsHash)throw new CommercialError("The service Offer changed after this Quote was accepted. Request a fresh Quote before activation.","OFFER_STALE");
     requireCommercialServiceReady(record,quote.termsSnapshot,currentOffer);
     if(hire.paymentRequired){const p=await store.getLatestPaymentForHire(hire.hireId);if(!p||p.state!=="VERIFIED")throw new CommercialError("Independent payment/funding evidence is required before activation.","PAYMENT_REQUIRED");}
@@ -344,7 +357,7 @@ export function createCommercialEngine(options:{marketplace:MarketplaceSupplyRea
     const claim=await store.claimActivationIdempotency(buyer,key,hire.hireId,activationId,activatedAt);
     if(claim.hireId!==hire.hireId||claim.activationId!==activationId)throw new CommercialError("This activation idempotency key was concurrently claimed for a different Hire.","IDEMPOTENCY_CONFLICT");
     const evidence=createEvidenceEnvelope({subjectType:"marketplace_activation",subjectId:activationId,metric:"commercial.activation",value:"ACTIVE_READ_ONLY",provenance:"marketplace-observed",source:DATA_SOURCES.MARKETPLACE,sourceRef:hire.hireId,observedAt:activatedAt,confidence:"high",method:EVIDENCE_METHODS.COMMERCIAL_ACTIVATION,methodInputs:[hire.hireId,quote.termsHash,record.readiness.readinessSnapshotId],limitation:"This activation proves a Spotriq read-only service relationship only. It grants no wallet signing, fund movement, strategy execution, or autonomous transaction authority."});
-    const activation:MarketplaceActivation={activationId,hireId:hire.hireId,quoteId:hire.quoteId,serviceId:hire.serviceId,buyerAddress:buyer,buyerChainId:hire.buyerChainId,serviceChainId:quote.termsSnapshot.chainId,state:"ACTIVE",activationKind:"READ_ONLY_SERVICE_RELATIONSHIP",termsSnapshot:quote.termsSnapshot,termsHash:quote.termsHash,paymentRequired:hire.paymentRequired,paymentEvidenceId:hire.paymentEvidenceId,permissionRequired:false,walletSigningAuthorityGranted:false,financialExecutionAuthorityGranted:false,idempotencyKey:key,activatedAt,updatedAt:activatedAt,methodVersion:COMMERCIAL_KERNEL_METHOD,evidence:[evidence],limitations:["This activates a read-only Spotriq service relationship. It does not grant wallet signing or transaction authority.","Activation is separate from ServiceTask invocation, AgentAction, blockchain Transaction, and financial Outcome.",...(quote.termsSnapshot.chainId===97?["The activated reference relationship is TESTNET_ONLY for its current ERC-8004/service acceptance context."]:[])]};
+    const activation:MarketplaceActivation={activationId,hireId:hire.hireId,quoteId:hire.quoteId,serviceId:hire.serviceId,buyerAddress:buyer,buyerChainId:hire.buyerChainId,serviceChainId:quote.termsSnapshot.chainId,state:"ACTIVE",activationKind:"READ_ONLY_SERVICE_RELATIONSHIP",termsSnapshot:quote.termsSnapshot,termsHash:quote.termsHash,paymentRequired:hire.paymentRequired,paymentEvidenceId:hire.paymentEvidenceId,permissionRequired:false,walletSigningAuthorityGranted:false,financialExecutionAuthorityGranted:false,idempotencyKey:key,activatedAt,updatedAt:activatedAt,methodVersion:COMMERCIAL_KERNEL_METHOD,evidence:[evidence],limitations:["This activates a read-only Spotriq service relationship. It does not grant wallet signing or transaction authority.","Activation is separate from ServiceTask invocation, AgentAction, blockchain Transaction, and financial Outcome.",...(quote.termsSnapshot.chainId===56?["BSC Mainnet is observation-only for this Activation. Financial execution remains disabled on chain 56."]:[])]};
     await store.saveActivation(activation); const updatedHire:CommercialHire={...hire,state:"ACTIVATED",activationId,paymentEvidenceId:hire.paymentEvidenceId,updatedAt:activatedAt}; await store.saveHire(updatedHire); return activation;
   }
 

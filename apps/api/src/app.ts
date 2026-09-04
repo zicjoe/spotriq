@@ -106,15 +106,31 @@ export interface BuildServerOptions {
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
   const config = options.config ?? loadServerConfig();
+  // The configured chain remains the authority/execution development chain.  Mainnet
+  // observation is a separate read-only capability and must never silently switch the
+  // financial execution spine away from BSC Testnet.
   const chain = options.chain ?? createBscChainAdapter({
     network: config.bscNetwork,
     primaryRpcUrl: config.bscRpcPrimary,
     secondaryRpcUrl: config.bscRpcSecondary,
     timeoutMs: config.bscRpcTimeoutMs,
   });
+  const mainnetChain = config.bscNetwork === "mainnet"
+    ? chain
+    : createBscChainAdapter({ network: "mainnet", primaryRpcUrl: config.agentRegistryMainnetRpc, timeoutMs: config.bscRpcTimeoutMs });
+  const testnetChain = config.bscNetwork === "testnet"
+    ? chain
+    : createBscChainAdapter({ network: "testnet", primaryRpcUrl: config.agentRegistryTestnetRpc, timeoutMs: config.bscRpcTimeoutMs });
+
   const pancakeSwap = options.pancakeSwap ?? createPancakeSwapAdapter({ chain });
   const venus = options.venus ?? createVenusAdapter({ chain });
   const marketContext = options.marketContext ?? createGridMarketContextEngine({ chain, pancakeSwap });
+  const mainnetPancakeSwap = options.pancakeSwap ?? (config.bscNetwork === "mainnet" ? pancakeSwap : createPancakeSwapAdapter({ chain: mainnetChain }));
+  const mainnetVenus = options.venus ?? (config.bscNetwork === "mainnet" ? venus : createVenusAdapter({ chain: mainnetChain }));
+  const mainnetMarketContext = options.marketContext ?? (config.bscNetwork === "mainnet" ? marketContext : createGridMarketContextEngine({ chain: mainnetChain, pancakeSwap: mainnetPancakeSwap }));
+  const testnetPancakeSwap = options.pancakeSwap ?? (config.bscNetwork === "testnet" ? pancakeSwap : createPancakeSwapAdapter({ chain: testnetChain }));
+  const testnetVenus = options.venus ?? (config.bscNetwork === "testnet" ? venus : createVenusAdapter({ chain: testnetChain }));
+  const testnetMarketContext = options.marketContext ?? (config.bscNetwork === "testnet" ? marketContext : createGridMarketContextEngine({ chain: testnetChain, pancakeSwap: testnetPancakeSwap }));
   const dbPoolOptions = {
     max: config.databasePoolMax,
     idleTimeoutMs: config.databaseIdleTimeoutMs,
@@ -134,12 +150,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         },
       }
     : undefined;
-  const registryMainnetChain = config.bscNetwork === "mainnet"
-    ? chain
-    : createBscChainAdapter({ network: "mainnet", primaryRpcUrl: config.agentRegistryMainnetRpc, timeoutMs: config.bscRpcTimeoutMs });
-  const registryTestnetChain = config.bscNetwork === "testnet"
-    ? chain
-    : createBscChainAdapter({ network: "testnet", primaryRpcUrl: config.agentRegistryTestnetRpc, timeoutMs: config.bscRpcTimeoutMs });
+  const registryMainnetChain = mainnetChain;
+  const registryTestnetChain = testnetChain;
   const agentRegistryStore = sqlDatabase
     ? new PostgresAgentRegistryStore(sqlDatabase)
     : new MemoryAgentRegistryStore();
@@ -201,6 +213,15 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     ? new PostgresSmartMoneyStore(sqlDatabase)
     : new MemorySmartMoneyStore();
   const smartMoney = options.smartMoney ?? createSmartMoneyEngine({ chain, pancakeSwap, venus, marketContext, store: smartMoneyStore });
+  // Both observation engines share the same durable store. GET/status/matching can use
+  // the default engine because those operations are store-backed; only the POST runner
+  // needs the network-specific protocol readers.
+  const smartMoneyMainnet = options.smartMoney ?? (config.bscNetwork === "mainnet"
+    ? smartMoney
+    : createSmartMoneyEngine({ chain: mainnetChain, pancakeSwap: mainnetPancakeSwap, venus: mainnetVenus, marketContext: mainnetMarketContext, store: smartMoneyStore }));
+  const smartMoneyTestnet = options.smartMoney ?? (config.bscNetwork === "testnet"
+    ? smartMoney
+    : createSmartMoneyEngine({ chain: testnetChain, pancakeSwap: testnetPancakeSwap, venus: testnetVenus, marketContext: testnetMarketContext, store: smartMoneyStore }));
   const jobIntentStore = sqlDatabase
     ? new PostgresJobIntentStore(sqlDatabase)
     : new MemoryJobIntentStore();
@@ -501,6 +522,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       adoptionFeedbackEnabled: true,
       adoptionAdminReportEnabled: Boolean(config.adminDiagnosticsToken),
       adoptionAnalyticsFinancialTruthAuthority: false,
+      bscMainnetReadOnlyObservationEnabled: true,
       bscMainnetFinancialExecutionApproved: false,
       smartMoneyPersistence: database ? "postgres" : "memory",
       notes: [
@@ -510,6 +532,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
         "Canonical BSC blocks, transactions, native balances, and requested ERC-20 balances now return evidence envelopes.",
         "PancakeSwap V3 and Infinity CL current-state reads normalize concentrated-liquidity positions with evidence-backed range state.",
         database ? "Smart Money Check sessions, portfolio snapshots, evidence, findings, and events persist in PostgreSQL." : "Smart Money Check uses in-memory persistence until DATABASE_URL is configured; configure Railway PostgreSQL for durable sessions.",
+        "Smart Money Check can now observe supported real BSC Mainnet state (chain 56) or BSC Testnet state (chain 97). Mainnet observation is read-only and does not enable PermissionGrant creation, signing, transaction dispatch, or financial execution.",
         "Smart Money Check generates deterministic Rebalancing findings from supported PancakeSwap positions, Health findings from Venus lending state, and Yield findings from wallet-relevant Venus supply markets.",
         "Yield current rates are base Venus supply APY derived from onchain supplyRatePerBlock; incentives, estimated net yield, and realised performance remain separate and are not fabricated.",
         "Venus protocol shortfall is canonical for current liquidation eligibility; Spotriq health factor is a derived explanation and incomplete inputs never become Healthy.",
@@ -565,14 +588,22 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await registerPancakeSwapRoutes(app, pancakeSwap);
   await registerVenusRoutes(app, venus);
   await registerMarketContextRoutes(app, marketContext);
-  await registerCheckRoutes(app, smartMoney, marketplaceSupply);
+  await registerCheckRoutes(app, smartMoney, marketplaceSupply, { mainnet: smartMoneyMainnet, testnet: smartMoneyTestnet });
   await registerAgentRoutes(app, agentRegistry, config.agentDiscoveryChainId);
   await registerMarketplaceRoutes(app, marketplaceSupply, config.agentDiscoveryChainId);
   await registerCommercialRoutes(app, commercial, permissionCheckout);
   await registerPaymentRailRoutes(app, chain);
   await registerPermissionCheckoutRoutes(app, permissionCheckout);
   await registerFinancialExecutionAdapterRoutes(app, financialExecutionAdapters);
-  await registerReferenceAgentRoutes(app, { publicBaseUrl: config.publicApiBaseUrl, pancakeSwap, venus, marketContext, identityBindings: referenceIdentityBindings });
+  await registerReferenceAgentRoutes(app, {
+    publicBaseUrl: config.publicApiBaseUrl,
+    pancakeSwap, venus, marketContext,
+    runtimeByNetwork: {
+      mainnet: { pancakeSwap: mainnetPancakeSwap, venus: mainnetVenus, marketContext: mainnetMarketContext },
+      testnet: { pancakeSwap: testnetPancakeSwap, venus: testnetVenus, marketContext: testnetMarketContext },
+    },
+    identityBindings: referenceIdentityBindings,
+  });
   await registerJobIntentRoutes(app, smartMoney, marketplaceSupply, jobIntents);
   await registerServiceTaskRoutes(app, serviceTasks, jobIntents, commercial);
   await registerAuthorityRoutes(app, authority, jobIntents, marketplaceSupply);

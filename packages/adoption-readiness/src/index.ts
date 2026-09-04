@@ -25,7 +25,8 @@ export interface PublicAdoptionManifest {
   };
   networks: {
     discovery: { network: "BSC Mainnet"; chainId: 56; purpose: "ERC-8004 marketplace discovery" };
-    transactionalDevelopment: { network: "BSC Testnet"; chainId: 97; purpose: "authority/execution/reference-agent development" };
+    readOnlyObservation: { network: "BSC Mainnet"; chainId: 56; purpose: "real Smart Money and supported reference-agent read-only observation" };
+    transactionalDevelopment: { network: "BSC Testnet"; chainId: 97; purpose: "authority/execution development and testnet observation" };
     bscMainnetFinancialExecutionApproved: false;
   };
   integrations: AdoptionIntegration[];
@@ -78,11 +79,12 @@ export function buildPublicAdoptionManifest(): PublicAdoptionManifest {
     },
     networks: {
       discovery: { network: "BSC Mainnet", chainId: 56, purpose: "ERC-8004 marketplace discovery" },
-      transactionalDevelopment: { network: "BSC Testnet", chainId: 97, purpose: "authority/execution/reference-agent development" },
+      readOnlyObservation: { network: "BSC Mainnet", chainId: 56, purpose: "real Smart Money and supported reference-agent read-only observation" },
+      transactionalDevelopment: { network: "BSC Testnet", chainId: 97, purpose: "authority/execution development and testnet observation" },
       bscMainnetFinancialExecutionApproved: false,
     },
     integrations: [
-      { code: "BSC", label: "BNB Smart Chain", state: "LIVE", role: "Canonical chain/evidence substrate for marketplace discovery and testnet financial development.", boundary: "Discovery network and execution/reference network remain explicitly separate." },
+      { code: "BSC", label: "BNB Smart Chain", state: "LIVE", role: "Canonical chain/evidence substrate for Mainnet discovery/read-only financial observation and Testnet authority/execution development.", boundary: "BSC Mainnet read-only observation is explicitly separate from BSC Mainnet financial execution, which remains unapproved." },
       { code: "ERC8004", label: "ERC-8004 identity", state: "LIVE", role: "Canonical agent identity discovery and owner verification.", boundary: "Registry identity is not Marketplace readiness, commercial state, PermissionGrant, execution or outcome.", officialReference: OFFICIAL.bnbAgentSdk },
       { code: "BNB_AGENT_STUDIO", label: "BNB Agent Studio", state: "NORMALIZED", role: "Operator-declared deployment posture reconciled against canonical identity, A2A registration and Test Lab evidence.", boundary: "Studio deployment does not override identity/readiness/payment/permission/execution/outcome and Spotriq does not run the Studio CLI or ingest Studio wallet secrets.", officialReference: OFFICIAL.agentStudioCli },
       { code: "ERC8183", label: "ERC-8183 commerce", state: "RECONCILIATION_ONLY", role: "Provider-neutral paid-commercial adapter observes job/escrow state.", boundary: "Commerce/payment remains distinct from Hire, Activation, PermissionGrant and financial execution.", officialReference: OFFICIAL.bnbAgentSdk },
