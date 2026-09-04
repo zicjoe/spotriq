@@ -544,3 +544,8 @@ v0.38 improves public inspectability without changing product doctrine. The adop
 ## v0.40 production-evidence drift correction — agent supply
 
 Production use showed that bounded legacy 8004scan searches were too shallow for the intended BSC marketplace. v0.40 corrects this without weakening domain boundaries: current semantic discovery spans the upstream BSC index, multi-query recall broadens candidate discovery, machine-callable declarations are retained, and deterministic qualification stages prioritize investigation. AgentIdentity remains distinct from AgentService; search relevance and 8004scan reputation remain External signals rather than readiness/trust.
+
+
+## v0.41 production-evidence drift correction — external-agent readability
+
+Production use showed a new UX drift: Spotriq had become better at discovering BSC supply, but the default external-service presentation increasingly resembled an ERC-8004 developer explorer rather than a financial-agent marketplace. v0.41 corrects presentation without weakening evidence. Buyer cards lead with financial job, use-now status, verified evidence and unknowns; registry IDs, machine endpoints, qualification stages and external reputation remain available in an expandable evidence layer. Synthetic sample services no longer compete with live supply in normal Explore.

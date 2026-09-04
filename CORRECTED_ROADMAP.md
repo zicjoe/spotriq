@@ -1,7 +1,7 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-09-02  
-**Current implementation:** v0.40.0  
+**Current implementation:** v0.41.0  
 **Current phase:** Production testing + adoption validation + production measurement
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
@@ -222,3 +222,21 @@ Production testing established that the buyer lifecycle and Mainnet read-only co
 `External reputation ≠ Spotriq trust score` and `Search relevance ≠ Capability proof` remain locked.
 
 Acceptance: `API build → web typecheck/build → pnpm check → deploy → verify:supply-quality → inspect real BSC semantic discovery and qualify at least one external machine-callable financial candidate when available.`
+
+
+## v0.41.0 — External Agent Buyer Interpretation + Production Explore UX
+
+**Status: IMPLEMENTED FROM PRODUCTION EVIDENCE; deployment acceptance pending.**
+
+Production use of v0.40 showed that supply depth improved but external BSC agent information was still too registry/developer-oriented for a normal financial buyer. This milestone changes presentation, not evidence truth.
+
+- hide legacy synthetic service cards from normal production Explore while retaining explicit demo/development access;
+- reuse the clearer sample-card visual hierarchy for real reference/external AgentServices using only real evidence;
+- answer buyer-facing questions first: what the service does, why it appears, whether it can be used now, what Spotriq verified, and what remains unknown;
+- separate Ready to use services from Being evaluated candidates and BSC agent discoveries;
+- translate technical states into buyer language while keeping raw ERC-8004/A2A/MCP/readiness/reputation detail behind expandable evidence;
+- preserve `External reputation ≠ Spotriq trust score`, `Search relevance ≠ Capability proof`, `AgentIdentity ≠ AgentService`, and `AI explains. Deterministic systems decide.`
+
+No database migration is required. BSC Mainnet financial execution remains disabled.
+
+Acceptance: `API build → web typecheck/build → pnpm verify:buyer-agent-ux → pnpm check → deploy → inspect real external-agent cards with a fresh buyer.`

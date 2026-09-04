@@ -241,3 +241,8 @@ Implemented from production evidence. Spotriq now targets the current official 8
 ### v0.40.0 Railway build correction
 
 Production deployment exposed a strict TypeScript contract mismatch in the new 8004scan normalization path: indexed service metadata was represented as a partial `AgentRegistrationFile` even though the canonical registration type also requires `registrations` and `supportedTrust`. The indexed discovery path now uses a service-only structural view (`Pick<AgentRegistrationFile, "services">`) so Spotriq can derive discovery hints from indexed MCP/A2A/service declarations without fabricating canonical registration fields. The v0.40 supply verifier now rejects reintroduction of the partial-registration construction.
+
+
+## v0.41.0 External Agent Buyer Interpretation + Production Explore UX
+
+Implemented from production UX evidence after v0.40. Normal Explore now excludes synthetic legacy AgentServices, retains them only in explicit demo/development mode, and presents real reference/external services through buyer-readable cards. Evaluated services are separated into Ready to use and Being evaluated; raw BSC identities remain Discovery only. Technical ERC-8004, endpoint, qualification, readiness and external-reputation details are preserved behind evidence expansion. No migration is required and Mainnet financial execution remains disabled.

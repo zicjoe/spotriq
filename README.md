@@ -788,3 +788,12 @@ Private reporting is available through `/v1/admin/adoption-analytics` behind `SP
 ## v0.40 supply quality
 
 Spotriq now searches the current 8004scan semantic index with multiple financial-category queries and applies a deterministic qualification funnel. The complete ERC-8004 universe remains discovery; only evidence-backed candidates become marketplace services. External reputation remains External evidence, never a Spotriq trust score.
+
+
+## v0.41 external-agent buyer UX
+
+Spotriq now presents real BSC financial-agent supply in a buyer-first hierarchy rather than exposing registry/developer terminology as the primary card experience. Evaluated services answer what they do, why they appear, whether they are usable now, what Spotriq verified and what remains unknown. Technical ERC-8004/A2A/MCP/qualification/external-reputation evidence remains expandable.
+
+Normal production Explore excludes legacy synthetic sample services. To inspect the old synthetic cards deliberately for development/visual-regression work, use `?demo=samples`; they remain explicitly labelled `Synthetic data`. No synthetic performance metric is reused as live evidence.
+
+Validation: `pnpm verify:buyer-agent-ux`.

@@ -1,7 +1,7 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.40.0  
-**Implementation status:** v0.40.0 Marketplace Supply Discovery + Qualification implemented from production evidence that agent supply depth/quality was the primary adoption bottleneck; v0.39 remains the accepted analytics baseline.  
+**Current implementation release:** v0.41.0  
+**Implementation status:** v0.41.0 External Agent Buyer Interpretation + Production Explore UX implemented from production evidence that real BSC agent cards were too technical to evaluate; v0.40 supply discovery remains intact and v0.39 remains the accepted analytics baseline.  
 **Last state update:** 2026-09-03  
 **Repository role:** concise present-state map; current repository remains implementation truth.
 
@@ -83,7 +83,7 @@ The preflight includes foundation, wallet architecture, strengthened wallet-sess
 
 The v0.39 acceptance gates have passed. Continue to use `pnpm verify:adoption-analytics` after relevant production changes and capture private baselines only from real deployed state.
 
-## Evidence-driven v0.40 milestone
+## Evidence-driven v0.40.0 — Marketplace Supply Discovery + Qualification
 
 Production testing showed buyer flows working while external agent supply was shallow and low-confidence. v0.40 updates Spotriq to the current 8004scan API, uses multi-query semantic discovery against the BSC agent universe, captures machine-callable service declarations when indexed, and introduces a deterministic qualification funnel. Search relevance and external reputation remain discovery signals only; canonical identity, runtime tests, readiness and authority are independent gates.
 
@@ -94,3 +94,10 @@ Run Spotriq with real user/operator cohorts and capture a production baseline. T
 ### Production-testing Smart Money completion hotfix
 
 The production scan completion path is hardened against missed/buffered SSE terminal events. The web scan view now uses a lightweight `/v1/checks/:checkSessionId/status` watchdog roughly every 0.9 seconds while SSE remains the low-latency path. The API SSE route also reconciles persisted events/session state every second so process-local subscriptions are not a single point of failure. Independent normalized portfolio child writes are persisted concurrently and the terminal compatibility/session finalization avoids redundant session/finding round-trips. The final UI stage is labelled `Preparing findings & agent matches` because actual Finding → AgentService ranking remains on-demand after financial findings exist.
+
+
+## Evidence-driven v0.41.0 — External Agent Buyer Interpretation + Production Explore UX
+
+Production testing of v0.40 established that broader BSC supply could be discovered, but real ERC-8004/8004scan service cards exposed registry/developer state more clearly than buyer meaning. v0.41 keeps the raw evidence while making the default marketplace layer answer four buyer questions: what does this service do, why is Spotriq showing it, can I use it now, and what remains unknown.
+
+Normal production Explore no longer mixes synthetic legacy sample services into live supply. Sample cards remain available only in explicit demo/development mode (`?demo=samples`) and remain visibly synthetic. Evaluated services are separated into Ready to use and Being evaluated; broader ERC-8004 identities remain BSC agent discoveries / Discovery only. Technical identity, endpoint, qualification and external-reputation evidence moves behind an expandable evidence view. No universal trust/performance score is introduced.

@@ -1,7 +1,7 @@
 {
   "name": "spotriq",
   "private": true,
-  "version": "0.40.0",
+  "version": "0.41.0",
   "packageManager": "pnpm@10.14.0",
   "type": "module",
   "scripts": {
@@ -15,7 +15,7 @@
     "check": "pnpm verify && pnpm typecheck && pnpm test && pnpm build",
     "db:migrate": "pnpm --filter @spotriq/db migrate",
     "db:health": "pnpm --filter @spotriq/db health",
-    "verify": "node scripts/verify-foundation.mjs && node scripts/verify-wallet-connectivity.mjs && node scripts/verify-wallet-session-lifecycle.mjs && node scripts/verify-core-runtime-flow.mjs && node scripts/verify-smart-money-completion.mjs && node scripts/verify-smart-money-persistence.mjs && node scripts/verify-mainnet-read-only.mjs && node scripts/verify-supply-quality.mjs",
+    "verify": "node scripts/verify-foundation.mjs && node scripts/verify-wallet-connectivity.mjs && node scripts/verify-wallet-session-lifecycle.mjs && node scripts/verify-core-runtime-flow.mjs && node scripts/verify-smart-money-completion.mjs && node scripts/verify-smart-money-persistence.mjs && node scripts/verify-mainnet-read-only.mjs && node scripts/verify-supply-quality.mjs && node scripts/verify-buyer-agent-ux.mjs",
     "verify:reference-acceptance": "node scripts/verify-reference-acceptance.mjs",
     "verify:commercial-acceptance": "node scripts/verify-commercial-acceptance.mjs",
     "verify:activation-parity": "node scripts/verify-activation-parity.mjs",
@@ -43,7 +43,8 @@
     "verify:smart-money-completion": "node scripts/verify-smart-money-completion.mjs",
     "verify:smart-money-persistence": "node scripts/verify-smart-money-persistence.mjs",
     "verify:mainnet-read-only": "node scripts/verify-mainnet-read-only.mjs",
-    "verify:supply-quality": "node scripts/verify-supply-quality.mjs"
+    "verify:supply-quality": "node scripts/verify-supply-quality.mjs",
+    "verify:buyer-agent-ux": "node scripts/verify-buyer-agent-ux.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

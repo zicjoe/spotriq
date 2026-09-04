@@ -274,11 +274,11 @@ for (const marker of ["AI explains. Deterministic systems decide.", "RangeKeeper
   if (!foundationDoctrine.includes(marker)) throw new Error(`Spotriq foundation doctrine is missing ${marker}.`);
 }
 const projectState = await readFile(path.join(root, "PROJECT_STATE.md"), "utf8");
-if (!projectState.includes("v0.39 ✅") || !projectState.includes("v0.40.0") || !projectState.includes("Marketplace Supply Discovery + Qualification")) {
-  throw new Error("PROJECT_STATE.md must record accepted v0.39 and the evidence-driven v0.40 Marketplace Supply Discovery + Qualification milestone.");
+if (!projectState.includes("v0.39 ✅") || !projectState.includes("v0.40.0") || !projectState.includes("Marketplace Supply Discovery + Qualification") || !projectState.includes("v0.41.0") || !projectState.includes("External Agent Buyer Interpretation")) {
+  throw new Error("PROJECT_STATE.md must record accepted v0.39 plus the evidence-driven v0.40 supply and v0.41 external-agent buyer interpretation milestones.");
 }
 const correctedRoadmap = await readFile(path.join(root, "CORRECTED_ROADMAP.md"), "utf8");
-for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation", "v0.32.0 — Deeper BNB Agent Studio Integration", "v0.33.0 — Grounded AI Explanation Layer", "v0.34.0 — Agent Advantage Measurement + Report", "v0.35.0 — Observability + Marketplace/System Health", "v0.36.0 — Security + Failure Injection Hardening", "v0.37.0 — Production Hardening + Scale Readiness", "v0.38.0 — Ecosystem Adoption + Judge/Public Launch Readiness", "v0.39.0 — Production Analytics + Adoption Feedback Loop"]) {
+for (const marker of ["v0.22.0", "v0.23.0", "v0.24.0", "v0.25.0 — Permission Checkout + Scoped Financial Authority Parity", "v0.26.0 — Four-Category Financial Execution Adapter Parity", "v0.27.0 — Four-Category Activity + Outcome Parity", "v0.28.0 — My Agents + Switching/Revocation + Marketplace UX Completion", "v0.29.0 — Smart Money Plans + Compatibility/Conflict Handling", "v0.30.0 — Operator Supply Lifecycle + Workspace", "v0.31.0 — Paid Commercial Rails + ERC-8183 / x402 / B402 Reconciliation", "v0.32.0 — Deeper BNB Agent Studio Integration", "v0.33.0 — Grounded AI Explanation Layer", "v0.34.0 — Agent Advantage Measurement + Report", "v0.35.0 — Observability + Marketplace/System Health", "v0.36.0 — Security + Failure Injection Hardening", "v0.37.0 — Production Hardening + Scale Readiness", "v0.38.0 — Ecosystem Adoption + Judge/Public Launch Readiness", "v0.39.0 — Production Analytics + Adoption Feedback Loop", "v0.40.0 — Marketplace Supply Discovery + Qualification", "v0.41.0 — External Agent Buyer Interpretation + Production Explore UX"]) {
   if (!correctedRoadmap.includes(marker)) throw new Error(`Corrected roadmap is missing ${marker}.`);
 }
 
@@ -385,8 +385,8 @@ for (const route of ["/v1/registry/status", "/v1/agents", "/v1/agents/search", "
   if (!agentRoutes.includes(route)) throw new Error(`Missing agent discovery route ${route}.`);
 }
 const agentRegistryUi = await readFile(path.join(root, "apps/web/src/repositories/agentRegistryRepository.ts"), "utf8");
-if (!agentRegistryUi.includes("ApiAgentRegistryRepository") || !appUi.includes("Live ERC-8004 registry discoveries") || !appUi.includes("activation blocked")) {
-  throw new Error("Explore must preserve a distinct live ERC-8004 discovery surface without presenting discovered identities as activatable services.");
+if (!agentRegistryUi.includes("ApiAgentRegistryRepository") || !appUi.includes("BSC agent discoveries") || !appUi.includes("Discovery only")) {
+  throw new Error("Explore must preserve a distinct BSC/ERC-8004 discovery surface without presenting discovered identities as hireable services.");
 }
 if (!appUi.includes('category === "all"\n    ? registryAgents') || !appUi.includes("with recognized financial metadata hints")) {
   throw new Error("Explore All must render returned live registry identities without requiring a financial metadata hint.");
@@ -404,11 +404,11 @@ for (const route of ["/v1/marketplace/status", "/v1/listings", "/v1/services", "
   if (!marketplaceRoutes.includes(route)) throw new Error(`Missing marketplace supply route ${route}.`);
 }
 const marketplaceUiRepo = await readFile(path.join(root, "apps/web/src/repositories/marketplaceSupplyRepository.ts"), "utf8");
-if (!marketplaceUiRepo.includes("ApiMarketplaceSupplyRepository") || !marketplaceUiRepo.includes("runTests") || !appUi.includes("Live financial services") || !appUi.includes("Financial activation gated") || !appUi.includes("Run Test Lab")) {
-  throw new Error("Explore must render live first-party/external service candidates separately from legacy samples and keep financial activation independently gated.");
+if (!marketplaceUiRepo.includes("ApiMarketplaceSupplyRepository") || !marketplaceUiRepo.includes("runTests") || !appUi.includes("Evaluated financial services") || !appUi.includes("Not available to hire yet") || !appUi.includes("Run Test Lab")) {
+  throw new Error("Explore must render buyer-readable evaluated services, keep unqualified candidates unavailable to hire, and preserve Marketplace Test Lab controls.");
 }
-if (!appUi.includes("Targeted financial supply discovery") || !appUi.includes("Discovery lead only · not a service claim")) {
-  throw new Error("Explore must expose targeted financial search coverage and keep search-only leads separate from normalized services.");
+if (!appUi.includes("How Spotriq searched the BSC agent universe") || !appUi.includes("Discovery only · financial capability not established")) {
+  throw new Error("Explore must preserve inspectable financial search coverage while keeping search-only identities separate from normalized services.");
 }
 const domain = await readFile(path.join(root, "packages/domain/src/index.ts"), "utf8");
 for (const marker of ["MarketplaceFinancialDiscovery", "FinancialSupplySearchRun", "FinancialSupplyLead", "FinancialSupplyDiscoveryMatch", "FindingCompatibilityContext", "FindingServiceCompatibilityCheck", "FindingServiceMatch", "FindingServiceMatchPage"]) {
@@ -709,7 +709,7 @@ for (const route of ["/v1/reference-agents", "/v1/reference-agents/:slug/.well-k
 if (!marketplaceSupply.includes("referenceServices") || !marketplaceSupply.includes("MARKETPLACE_REFERENCE") || !marketplaceSupply.includes("liveReferenceAgentSupply")) {
   throw new Error("Marketplace supply must integrate first-party reference services through the existing readiness pipeline.");
 }
-if (!appUi.includes("Live reference service") || !appUi.includes("Payment ≠ permission ≠ activation ≠ execution")) {
+if (!appUi.includes("Spotriq reference") || !appUi.includes("Payment ≠ permission ≠ activation ≠ execution")) {
   throw new Error("Explore must label first-party reference services truthfully and preserve identity/activation separation.");
 }
 if (!apiApp.includes("liveReferenceAgentSupplyEnabled: true") || !apiApp.includes("referenceAgentRuntimeEnabled: true")) {
@@ -967,7 +967,7 @@ for (const marker of ["same-service switch", "BLOCKED", "/my-agents", "/switches
   if (!myAgentsVerifier.includes(marker)) throw new Error(`v0.28 live verifier is missing ${marker}.`);
 }
 if (rootManifest.scripts?.["verify:my-agents"] !== "node scripts/verify-my-agents.mjs") throw new Error("Root package.json must expose pnpm verify:my-agents.");
-if (!apiApp.includes('version: "0.40.0"')) throw new Error("API metadata must report v0.40.0.");
+if (!apiApp.includes('version: "0.41.0"')) throw new Error("API metadata must report v0.41.0.");
 
 
 // v0.29 — Smart Money Plans + Compatibility/Conflict Handling.
@@ -1005,7 +1005,7 @@ for (const marker of ["NO_SHARED_EXECUTION", "INDEPENDENT_PER_SERVICE", "/plans"
 }
 if (legacyMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes("listPlans()") || legacyApiMarketplaceRepo.includes('apiRequest<SmartMoneyPlanTemplate[]>("/v1/plans")')) throw new Error("Legacy marketplace repositories must not reuse the persisted /v1/plans namespace for mock plan templates.");
 if (rootManifest.scripts?.["verify:smart-money-plans"] !== "node scripts/verify-smart-money-plans.mjs") throw new Error("Root package.json must expose pnpm verify:smart-money-plans.");
-if (!apiApp.includes('version: "0.40.0"')) throw new Error("API metadata must report v0.40.0.");
+if (!apiApp.includes('version: "0.41.0"')) throw new Error("API metadata must report v0.41.0.");
 
 
 
@@ -1222,7 +1222,7 @@ for (const marker of ["Production proof", "Permission boundary", "Agent Advantag
 for (const marker of ["final demo video URL", "public frontend URL", "GitHub repository URL", "These external values are intentionally not fabricated"]) if (!submissionChecklist.includes(marker)) throw new Error(`v0.38 submission checklist is missing ${marker}.`);
 if (rootManifest.scripts?.["verify:adoption-readiness"] !== "node scripts/verify-adoption-readiness.mjs") throw new Error("Root package.json must expose pnpm verify:adoption-readiness.");
 if (rootManifest.scripts?.["capture:public-launch-evidence"] !== "node scripts/capture-public-launch-evidence.mjs") throw new Error("Root package.json must expose pnpm capture:public-launch-evidence.");
-if (!apiApp.includes('version: "0.40.0"') || !workerV037.includes('version: "0.40.0"')) throw new Error("API and worker release metadata must report v0.40.0.");
+if (!apiApp.includes('version: "0.41.0"') || !workerV037.includes('version: "0.41.0"')) throw new Error("API and worker release metadata must report v0.41.0.");
 if (!gitignore.includes("artifacts/*.json")) throw new Error("Generated public launch evidence must be ignored by default to avoid accidental canonicalization.");
 
 
@@ -1250,7 +1250,7 @@ for (const marker of ["spotriq.adoption-baseline@1.0.0", "/v1/admin/adoption-ana
 for (const marker of ["Domain facts remain authoritative", "Acceptance traffic", "raw wallet", "Agent Advantage", "not financial truth"]) if (!adoptionAnalyticsDoc.includes(marker)) throw new Error(`v0.39 analytics documentation is missing ${marker}.`);
 if (rootManifest.scripts?.["verify:adoption-analytics"] !== "node scripts/verify-adoption-analytics.mjs") throw new Error("Root package.json must expose pnpm verify:adoption-analytics.");
 if (rootManifest.scripts?.["capture:adoption-baseline"] !== "node scripts/capture-adoption-baseline.mjs") throw new Error("Root package.json must expose pnpm capture:adoption-baseline.");
-if (!apiApp.includes('version: "0.40.0"') || !workerV037.includes('version: "0.40.0"')) throw new Error("API and worker release metadata must report v0.40.0.");
+if (!apiApp.includes('version: "0.41.0"') || !workerV037.includes('version: "0.41.0"')) throw new Error("API and worker release metadata must report v0.41.0.");
 if (!apiApp.includes("PostgresAdoptionAnalyticsStore") || !apiApp.includes("MemoryAdoptionAnalyticsStore") || !apiApp.includes("registerAdoptionAnalyticsRoutes")) throw new Error("v0.39 analytics engine is not wired into the API.");
 
 async function collectPackageJson(directory) {
@@ -1268,8 +1268,8 @@ const manifests = await collectPackageJson(root);
 if (manifests.length !== 40) throw new Error(`v0.39 expects 40 repository package manifests, found ${manifests.length}.`);
 for (const manifestPath of manifests) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== "0.40.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.40.0.`);
+  if (manifest.version !== "0.41.0") throw new Error(`${path.relative(root, manifestPath)} must be version 0.41.0.`);
 }
 
-console.log("Spotriq foundation + accepted v0.22–v0.39 baseline + evidence-driven v0.40 Marketplace Supply Discovery + Qualification verification passed.");
+console.log("Spotriq foundation + accepted v0.22–v0.39 baseline + evidence-driven v0.40 supply + v0.41 External Agent Buyer Interpretation verification passed.");
 

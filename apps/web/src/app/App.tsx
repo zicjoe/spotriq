@@ -100,6 +100,34 @@ const PERMISSION_CONFIG: Record<PermissionIntensity, { label: string; color: str
   unknown: { label: "Authority undeclared", color: "text-[#6b7d99]", bars: 0 },
 };
 
+type BuyerServiceState = "AVAILABLE" | "TESTED" | "EVALUATING" | "LIMITED";
+
+function buyerServiceState(record: MarketplaceServiceRecord): BuyerServiceState {
+  const machineCallable = (record.service.runtimeEndpoints ?? []).some((endpoint) => endpoint.machineCallable);
+  const tests = (record.readiness.checks ?? []).find((check) => check.code === "MARKETPLACE_TESTS")?.state;
+  const identityVerified = record.identity.canonicalVerification?.state === "VERIFIED";
+  const freeReadOnlyOffer = record.offer.state === "AVAILABLE"
+    && record.offer.terms?.commercialModel === "FREE"
+    && record.offer.terms.serviceType === "READ_ONLY_SERVICE"
+    && record.offer.terms.availability === "AVAILABLE";
+  if (freeReadOnlyOffer && machineCallable && tests === "PASS" && identityVerified) return "AVAILABLE";
+  if (machineCallable && tests === "PASS") return "TESTED";
+  if (machineCallable || identityVerified) return "EVALUATING";
+  return "LIMITED";
+}
+
+function buyerServiceStateCopy(state: BuyerServiceState): { label: string; variant: "green" | "teal" | "amber" | "muted"; summary: string } {
+  if (state === "AVAILABLE") return { label: "Available", variant: "green", summary: "Spotriq has enough current evidence to offer this service for its declared read-only scope." };
+  if (state === "TESTED") return { label: "Tested", variant: "teal", summary: "Spotriq has successfully tested the declared runtime, but the service is not currently offered for hire here." };
+  if (state === "EVALUATING") return { label: "Being evaluated", variant: "amber", summary: "Some useful evidence exists, but Spotriq still needs additional runtime, commercial, or authority evidence before normal activation." };
+  return { label: "Limited", variant: "muted", summary: "Spotriq found a financial-service candidate, but important evidence is still missing." };
+}
+
+function exploreSampleModeEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("demo") === "samples";
+}
+
 const FINDING_CONFIG: Record<FindingState, { label: string; color: string; bg: string; icon: typeof AlertTriangle }> = {
   "needs-attention": { label: "Needs Attention", color: "text-[#f59e0b]", bg: "border-[#f59e0b]/20 bg-[#f59e0b]/5", icon: AlertTriangle },
   opportunity: { label: "Opportunity", color: "text-[#2dd4bf]", bg: "border-[#2dd4bf]/20 bg-[#2dd4bf]/5", icon: TrendingUp },
@@ -701,6 +729,7 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
   const [poolAddress,setPoolAddress]=useState("");
   const [capitalAsset,setCapitalAsset]=useState("");
   const [capitalAmount,setCapitalAmount]=useState("");
+  const [evidenceOpen,setEvidenceOpen]=useState(false);
   const [activationActivityBundle,setActivationActivityBundle]=useState<ActivationActivityOutcomeBundle>();
   useEffect(()=>{
     let cancelled=false;
@@ -708,67 +737,85 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
     void activationActivityOutcomesRepository.sync(activation.activationId).then(bundle=>{if(!cancelled)setActivationActivityBundle(bundle);}).catch(()=>{if(!cancelled)setActivationActivityBundle(undefined);});
     return()=>{cancelled=true;};
   },[activation?.activationId,activation?.state,runtimeState?.latestTask?.updatedAt]);
+
   const isReference = service.origin === "REFERENCE" || record.identity.sourceKind === "MARKETPLACE_REFERENCE" || record.identity.identity.namespace === "marketplace";
   const failedOrUnknown = (record.readiness.checks ?? []).filter((check) => check.state !== "PASS");
   const machineEndpoints = (service.runtimeEndpoints ?? []).filter((endpoint) => endpoint.machineCallable);
   const marketplaceTestCheck = (record.readiness.checks ?? []).find((check) => check.code === "MARKETPLACE_TESTS");
-  const testLabel = marketplaceTestCheck?.state === "PASS" ? "Latest tests passed" : marketplaceTestCheck?.state === "FAIL" ? "Tests failed" : marketplaceTestCheck?.state === "WARN" ? "Partial coverage" : "Not run";
-  const testClass = marketplaceTestCheck?.state === "PASS" ? "text-[#4ade80]" : marketplaceTestCheck?.state === "FAIL" ? "text-[#f87171]" : "text-[#f59e0b]";
+  const buyerState = buyerServiceState(record);
+  const buyerStateCopy = buyerServiceStateCopy(buyerState);
+  const identityState = record.identity.canonicalVerification?.state;
+  const identityValue = identityState === "VERIFIED" ? "Verified" : identityState === "MISMATCH" ? "Mismatch" : "Not verified";
+  const testValue = marketplaceTestCheck?.state === "PASS" ? "Passed" : marketplaceTestCheck?.state === "FAIL" ? "Failed" : marketplaceTestCheck?.state === "WARN" ? "Partial" : "Not tested";
+  const authorityValue = record.permissionProfile.executionMode === "READ_ONLY" ? "Read-only" : record.permissionProfile.executionMode === "UNDECLARED" ? "Unknown" : record.permissionProfile.executionMode.replaceAll("_", " ").toLowerCase();
+  const priceValue = record.offer.terms?.commercialModel === "FREE" ? "Free" : record.offer.state === "AVAILABLE" ? "Available" : "Not provided";
+  const verifiedFacts = [
+    identityState === "VERIFIED" ? "Onchain ERC-8004 identity" : undefined,
+    marketplaceTestCheck?.state === "PASS" ? "Declared runtime through Marketplace Test Lab" : undefined,
+  ].filter((value): value is string => Boolean(value));
+  const unknowns = [
+    identityState !== "VERIFIED" ? "Canonical onchain identity" : undefined,
+    machineEndpoints.length === 0 ? "Machine-callable runtime" : undefined,
+    marketplaceTestCheck?.state !== "PASS" ? "Runtime reliability in Spotriq Test Lab" : undefined,
+    record.permissionProfile.executionMode === "UNDECLARED" ? "Wallet permission requirements" : undefined,
+    record.offer.state !== "AVAILABLE" ? "Pricing and commercial availability" : undefined,
+  ].filter((value): value is string => Boolean(value));
+  const protocolPhrase = service.supportedProtocols.length ? ` for ${service.supportedProtocols.join(", ")}` : "";
+  const whyShown = isReference
+    ? `Spotriq maintains this first-party ${CATEGORY_LABELS[service.category]} reference service so the category has a real machine-callable baseline.`
+    : `Registry metadata indicates a ${CATEGORY_LABELS[service.category]} service${protocolPhrase}. Spotriq treats that as a candidate signal, not proof of performance.`;
+  const canHireReadOnly = Boolean(onHireFreeReadOnly && record.offer.state === "AVAILABLE" && record.offer.terms?.commercialModel === "FREE" && record.offer.terms.serviceType === "READ_ONLY_SERVICE");
+
   return (
-    <Card className="p-4 space-y-3 border-[#2dd4bf]/15 bg-[#2dd4bf]/[0.025]">
+    <Card className="p-5 space-y-4 border-[#2dd4bf]/15 bg-[#2dd4bf]/[0.025]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-[#dde3ef] truncate">{service.name}</span>
+            <span className="font-semibold text-[#dde3ef] truncate">{service.name}</span>
             <CategoryPill category={service.category} />
-            <Badge variant="teal">{isReference ? "Live reference service" : "Normalized service"}</Badge>
+            {isReference && <Badge variant="teal">Spotriq reference</Badge>}
           </div>
-          <div className="text-[11px] text-[#6b7d99] font-mono mt-1">{isReference ? `Spotriq first-party · ${record.identity.canonicalVerification?.state === "VERIFIED" ? `ERC-8004 #${record.identity.identity.agentId} verified` : "ERC-8004 identity not reconciled"} · ${record.listing.status}` : `ERC-8004 #${record.identity.identity.agentId} · ${record.listing.status}`}</div>
-          {isReference && <div className="flex flex-wrap gap-1.5 mt-2"><Badge variant="muted">Identity: BSC {record.identity.identity.chainId === 56 ? "Mainnet" : "Testnet"}</Badge><Badge variant="teal">Observation: Mainnet + Testnet</Badge><Badge variant="muted">Mainnet execution: disabled</Badge></div>}
+          <p className="text-sm text-[#9aacc4] mt-2 line-clamp-2">{service.description}</p>
         </div>
-        <ReadinessPill state={service.readiness} />
+        <Badge variant={buyerStateCopy.variant}>{buyerStateCopy.label}</Badge>
       </div>
 
-      <p className="text-xs text-[#6b7d99] line-clamp-2">{service.description}</p>
-
-      <div className="grid grid-cols-2 gap-3 text-xs pt-2 border-t border-white/6">
+      <div className="rounded-lg border border-white/6 bg-black/10 px-3.5 py-3 space-y-2">
         <div>
-          <div className="text-[#6b7d99] mb-0.5">Runtime</div>
-          <div className={machineEndpoints.length ? "text-[#dde3ef]" : "text-[#f59e0b]"}>{machineEndpoints.length ? `${machineEndpoints.length} machine endpoint${machineEndpoints.length > 1 ? "s" : ""}` : "No A2A/MCP endpoint"}</div>
-          <div className="text-[10px] text-[#6b7d99]">{isReference ? "First-party versioned runtime declaration" : "Operator-supplied registration metadata"}</div>
+          <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99]">Why Spotriq is showing it</div>
+          <div className="text-xs text-[#9aacc4] mt-1">{whyShown}</div>
         </div>
-        <div>
-          <div className="text-[#6b7d99] mb-0.5">Authority</div>
-          <div className={isReference ? "text-[#4ade80]" : "text-[#f59e0b]"}>{isReference ? "Read-only declared" : "Undeclared"}</div>
-          <div className="text-[10px] text-[#6b7d99]">{isReference ? "No wallet signing authority in this read-only activation" : "Permission profile required"}</div>
-        </div>
-        <div>
-          <div className="text-[#6b7d99] mb-0.5">Commercial terms</div>
-          <div className={record.offer.terms?.commercialModel === "FREE" ? "text-[#4ade80]" : "text-[#9aacc4]"}>{record.offer.terms?.commercialModel === "FREE" ? "Free read-only offer" : record.offer.state === "AVAILABLE" ? "Offer available" : "Not declared"}</div>
-          <div className="text-[10px] text-[#6b7d99]">{record.offer.terms ? `${record.offer.terms.serviceType.replaceAll("_", " ")} · ${record.offer.terms.paymentRail}` : "No inferred pricing"}</div>
-        </div>
-        <div>
-          <div className="text-[#6b7d99] mb-0.5">Marketplace tests</div>
-          <div className={testClass}>{testLabel}</div>
-          <div className="text-[10px] text-[#6b7d99]">{service.evidenceSummary.testsPassed} check{service.evidenceSummary.testsPassed === 1 ? "" : "s"} passed · task launch re-validates Test Lab freshness · no financial execution</div>
+        <div className="pt-2 border-t border-white/6">
+          <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99]">Can I use it now?</div>
+          <div className={cn("text-xs mt-1", buyerState === "AVAILABLE" ? "text-[#86efac]" : buyerState === "TESTED" ? "text-[#5eead4]" : "text-[#d6a04a]")}>{buyerStateCopy.summary}</div>
         </div>
       </div>
 
-      {service.supportedProtocols.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {service.supportedProtocols.map((protocol) => <Badge key={protocol} variant="muted">{protocol} · {isReference ? "first-party" : "claimed"}</Badge>)}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4 pt-1">
+        <MetricItem label="Onchain identity" value={identityValue} provenance="external" />
+        <MetricItem label="Spotriq runtime test" value={testValue} sub={`${service.evidenceSummary.testsPassed} check${service.evidenceSummary.testsPassed === 1 ? "" : "s"} passed`} provenance={marketplaceTestCheck?.state === "PASS" ? "marketplace-observed" : undefined} />
+        <MetricItem label="Wallet authority" value={authorityValue} sub={record.permissionProfile.executionMode === "UNDECLARED" ? "Not yet declared" : "Declared service scope"} provenance={record.permissionProfile.executionMode === "UNDECLARED" ? undefined : "operator-claimed"} />
+        <MetricItem label="Pricing" value={priceValue} sub={record.offer.terms ? record.offer.terms.serviceType.replaceAll("_", " ").toLowerCase() : "No inferred pricing"} provenance={record.offer.state === "AVAILABLE" ? record.offer.source : undefined} />
+      </div>
+
+      {(service.supportedProtocols.length > 0 || isReference) && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {service.supportedProtocols.map((protocol) => <Badge key={protocol} variant="muted">{protocol}{isReference ? "" : " · declared"}</Badge>)}
+          {isReference && <Badge variant="muted">Mainnet execution: disabled</Badge>}
         </div>
       )}
 
-      <div className="rounded-md border border-white/6 bg-white/[0.02] px-3 py-2">
-        <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-1">Financial / execution readiness gates</div>
-        <div className="space-y-1">
-          {failedOrUnknown.slice(0, 3).map((check) => (
-            <div key={check.code} className="flex items-start gap-2 text-[11px] text-[#8090a8]">
-              <span className={cn("mt-1 w-1.5 h-1.5 rounded-full shrink-0", check.state === "FAIL" ? "bg-[#f87171]" : "bg-[#f59e0b]")} />
-              <span>{check.label}: {check.detail}</span>
-            </div>
-          ))}
+      <div className="grid md:grid-cols-2 gap-3">
+        <div className="rounded-md border border-[#4ade80]/15 bg-[#4ade80]/[0.025] px-3 py-3">
+          <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-2">What Spotriq verified</div>
+          {verifiedFacts.length ? <div className="space-y-1.5">{verifiedFacts.map((fact)=><div key={fact} className="flex items-start gap-2 text-[11px] text-[#9aacc4]"><CheckCircle2 className="w-3.5 h-3.5 text-[#4ade80] shrink-0 mt-0.5"/><span>{fact}</span></div>)}</div> : <div className="text-[11px] text-[#8090a8]">No buyer-critical capability evidence has been independently verified yet.</div>}
+        </div>
+        <div className="rounded-md border border-[#f59e0b]/15 bg-[#f59e0b]/[0.02] px-3 py-3">
+          <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-2">Still unknown</div>
+          <div className="space-y-1.5">
+            {unknowns.slice(0,4).map((item)=><div key={item} className="flex items-start gap-2 text-[11px] text-[#9aacc4]"><AlertCircle className="w-3.5 h-3.5 text-[#f59e0b] shrink-0 mt-0.5"/><span>{item}</span></div>)}
+            <div className="flex items-start gap-2 text-[11px] text-[#8090a8]"><Info className="w-3.5 h-3.5 text-[#6b7d99] shrink-0 mt-0.5"/><span>Discovery/readiness evidence does not establish future financial performance.</span></div>
+          </div>
         </div>
       </div>
 
@@ -787,8 +834,26 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
         {activationActivityBundle && <div className="rounded border border-[#2dd4bf]/15 bg-[#2dd4bf]/[0.035] px-2.5 py-2"><div className="flex items-center gap-2"><span className="text-[#dde3ef]">Activity & Outcomes</span><Badge variant={activationActivityBundle.outcome.state==="FAILED"?"amber":"teal"}>{activationActivityBundle.outcome.state.replaceAll("_"," ")}</Badge></div><div className="mt-1 text-[#8090a8]">{activationActivityBundle.activity.length} reconciled event{activationActivityBundle.activity.length===1?"":"s"} · technical observation: {activationActivityBundle.outcome.technicalObservation.state}</div><div className="mt-1 text-[#f59e0b]">Financial outcome: {activationActivityBundle.outcome.financialOutcome.value}</div><div className="mt-1 text-[#6b7d99]">{activationActivityBundle.outcome.financialOutcome.detail}</div></div>}
       </div>}
 
+      <div className="rounded-md border border-white/6 bg-white/[0.015] overflow-hidden">
+        <button onClick={()=>setEvidenceOpen((value)=>!value)} className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left text-xs text-[#9aacc4] hover:bg-white/[0.025]">
+          <span className="flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5 text-[#2dd4bf]"/> View technical evidence</span>
+          {evidenceOpen?<ChevronUp className="w-3.5 h-3.5"/>:<ChevronDown className="w-3.5 h-3.5"/>}
+        </button>
+        {evidenceOpen && <div className="px-3 pb-3 border-t border-white/6 space-y-3">
+          <div className="grid sm:grid-cols-2 gap-3 pt-3 text-[11px]">
+            <div><div className="text-[#6b7d99]">Registry identity</div><div className="text-[#dde3ef] font-mono break-all mt-0.5">{record.identity.identity.namespace === "eip155" ? `ERC-8004 #${record.identity.identity.agentId} · chain ${record.identity.identity.chainId}` : record.identity.identity.identifier}</div></div>
+            <div><div className="text-[#6b7d99]">Qualification stage</div><div className="text-[#dde3ef] font-mono mt-0.5">{record.qualification?.stage?.replaceAll("_"," ") ?? "NOT RECORDED"}</div></div>
+            <div><div className="text-[#6b7d99]">Listing state</div><div className="text-[#dde3ef] font-mono mt-0.5">{record.listing.status}</div></div>
+            <div><div className="text-[#6b7d99]">External feedback</div><div className="text-[#dde3ef] mt-0.5">{record.identity.externalReputation.totalFeedbacks} record{record.identity.externalReputation.totalFeedbacks===1?"":"s"} · 8004scan External</div></div>
+          </div>
+          {machineEndpoints.length > 0 && <div><div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-1.5">Declared agent interfaces</div><div className="space-y-1">{machineEndpoints.map((endpoint)=><div key={`${endpoint.name}-${endpoint.endpoint}`} className="text-[11px] text-[#8090a8]"><span className="text-[#dde3ef]">{endpoint.interactionKind}</span> · operator supplied · <span className="font-mono break-all">{endpoint.endpoint}</span></div>)}</div></div>}
+          {failedOrUnknown.length > 0 && <div><div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-1.5">Readiness gaps</div><div className="space-y-1">{failedOrUnknown.slice(0,5).map((check)=><div key={check.code} className="flex items-start gap-2 text-[11px] text-[#8090a8]"><span className={cn("mt-1 w-1.5 h-1.5 rounded-full shrink-0",check.state==="FAIL"?"bg-[#f87171]":"bg-[#f59e0b]")}/><span>{check.label}: {check.detail}</span></div>)}</div></div>}
+          <div className="text-[10px] text-[#52637b]">External reputation, registry identity, service declarations, Marketplace Test Lab and financial outcomes remain separate evidence classes. No universal trust or profitability score is inferred. For activation-bound read-only tasks, task launch re-validates Test Lab freshness before real invocation.</div>
+        </div>}
+      </div>
+
       <div className="flex items-center justify-between pt-1 gap-3">
-        <div className="text-[11px] text-[#6b7d99]">{isReference ? "Payment ≠ permission ≠ activation ≠ execution" : "Identity ≠ service readiness · deterministic gates"}</div>
+        <div className="text-[11px] text-[#6b7d99]">{isReference ? "Payment ≠ permission ≠ activation ≠ execution" : "Discovery ≠ verified capability ≠ readiness"}</div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <Btn variant="ghost" size="sm" onClick={onInspect} disabled={inspecting || testing || hiring} className="text-[#2dd4bf]">
             {inspecting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Checking</> : <><ShieldCheck className="w-3.5 h-3.5" /> Check readiness</>}
@@ -796,11 +861,11 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
           <Btn variant="teal-outline" size="sm" onClick={onRunTests} disabled={testing || inspecting || hiring || machineEndpoints.length === 0}>
             {testing ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Testing</> : <><FlaskConical className="w-3.5 h-3.5" /> Run Test Lab</>}
           </Btn>
-          {onHireFreeReadOnly && record.offer.terms?.commercialModel === "FREE" && record.offer.terms.serviceType === "READ_ONLY_SERVICE" ? (
+          {canHireReadOnly ? (
             activation ? <Badge variant={activation.state==="ACTIVE"?"green":"muted"}>{activation.state==="ACTIVE"?"Read-only active":"Relationship revoked"}</Badge> : <Btn variant="primary" size="sm" onClick={onHireFreeReadOnly} disabled={Boolean(hiring || inspecting || testing)}>
               {hiring ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Activating</> : <><Wallet className="w-3.5 h-3.5" /> Hire free read-only</>}
             </Btn>
-          ) : <Badge variant="muted">Financial activation gated</Badge>}
+          ) : <Badge variant="muted">Not available to hire yet</Badge>}
         </div>
       </div>
     </Card>
@@ -808,7 +873,7 @@ function LiveServiceCandidateCard({ record, onInspect, inspecting, onRunTests, t
 }
 
 function FindingServiceMatchCard({ match, onInspect, inspecting, onRunTests, testing, onPrepareJob, preparingJob }: { match: FindingServiceMatch; onInspect: () => void; inspecting: boolean; onRunTests: () => void; testing: boolean; onPrepareJob?: () => void; preparingJob?: boolean }) {
-  const tierLabel = match.tier === "EXACT_CONTEXT" ? "Exact structured context" : match.tier === "CONTEXT_COMPATIBLE" ? "Context compatible" : "Category match";
+  const tierLabel = match.tier === "EXACT_CONTEXT" ? "Strong context match" : match.tier === "CONTEXT_COMPATIBLE" ? "Compatible with this finding" : "Category match";
   const tierVariant = match.tier === "EXACT_CONTEXT" ? "green" as const : match.tier === "CONTEXT_COMPATIBLE" ? "teal" as const : "muted" as const;
   const contextChecks = match.checks.filter((check) => ["CATEGORY", "PROTOCOL", "ASSET", "PAIR"].includes(check.code));
   return (
@@ -817,22 +882,24 @@ function FindingServiceMatchCard({ match, onInspect, inspecting, onRunTests, tes
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-semibold text-[#dde3ef]">#{match.rank} matched service</span>
+              <span className="text-sm font-semibold text-[#dde3ef]">#{match.rank} best match for this finding</span>
               <Badge variant={tierVariant}>{tierLabel}</Badge>
-              <Badge variant={match.activationEligible ? "green" : "amber"}>{match.activationEligible ? "Activation eligible" : "Activation gated"}</Badge>
+              <Badge variant={match.activationEligible ? "green" : "amber"}>{match.activationEligible ? "Available for its declared scope" : "Not available yet"}</Badge>
             </div>
             <p className="text-[11px] text-[#8090a8] mt-1 max-w-3xl">{match.explanation}</p>
           </div>
-          <span className="text-[10px] font-mono text-[#52637b] shrink-0">Deterministic rank</span>
         </div>
-        <div className="flex flex-wrap gap-1.5 mt-3">
-          {contextChecks.map((check) => (
-            <span key={check.code} className={cn("text-[10px] px-2 py-1 rounded border", check.state === "PASS" ? "text-[#4ade80] border-[#4ade80]/20 bg-[#4ade80]/5" : check.state === "FAIL" ? "text-[#f87171] border-[#f87171]/20 bg-[#f87171]/5" : "text-[#9aacc4] border-white/8 bg-white/[0.025]")}>
-              {check.label}: {check.state}
-            </span>
-          ))}
+        <div className="mt-3">
+          <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-1.5">Why it matches</div>
+          <div className="flex flex-wrap gap-1.5">
+            {contextChecks.map((check) => (
+              <span key={check.code} className={cn("text-[10px] px-2 py-1 rounded border", check.state === "PASS" ? "text-[#4ade80] border-[#4ade80]/20 bg-[#4ade80]/5" : check.state === "FAIL" ? "text-[#f87171] border-[#f87171]/20 bg-[#f87171]/5" : "text-[#9aacc4] border-white/8 bg-white/[0.025]") }>
+                {check.state === "PASS" ? `${check.label} matches` : check.state === "FAIL" ? `${check.label} conflicts` : `${check.label} not established`}
+              </span>
+            ))}
+          </div>
+          {match.strengths.length > 0 && <p className="text-[11px] text-[#6b7d99] mt-2">{match.strengths.slice(0, 3).join(" ")}</p>}
         </div>
-        {match.strengths.length > 0 && <p className="text-[11px] text-[#6b7d99] mt-2">Why it ranks here: {match.strengths.slice(0, 3).join(" ")}</p>}
       </div>
       <div className="p-3 space-y-3">
         <LiveServiceCandidateCard record={match.service} onInspect={onInspect} inspecting={inspecting} onRunTests={onRunTests} testing={testing} />
@@ -850,71 +917,67 @@ function FindingServiceMatchCard({ match, onInspect, inspecting, onRunTests, tes
 }
 
 function DiscoveredAgentCard({ agent, onVerify, verifying }: { agent: DiscoveredAgent; onVerify: () => void; verifying: boolean }) {
+  const [evidenceOpen,setEvidenceOpen]=useState(false);
   const verification = agent.canonicalVerification;
   const verified = verification?.state === "VERIFIED";
   const mismatch = verification?.state === "MISMATCH";
+  const machineServices = agent.registrationServices.filter((service) => /^(a2a|mcp|erc[-_ ]?8183|oasf)$/i.test(service.name.trim()));
+  const categoryLabel = agent.categoryHints.length > 0 ? agent.categoryHints.map((hint)=>CATEGORY_LABELS[hint.category]).join(" · ") : "No recognized financial category";
+  const primaryCategory = agent.categoryHints[0]?.category;
   return (
-    <Card className="p-4 space-y-3 border-[#a78bfa]/15 bg-[#a78bfa]/[0.025]">
+    <Card className="p-5 space-y-4 border-[#a78bfa]/15 bg-[#a78bfa]/[0.02]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-[#dde3ef] truncate">{agent.name}</span>
-            <Badge variant="purple">ERC-8004</Badge>
-            <Badge variant="muted">Discovered</Badge>
+            <span className="font-semibold text-[#dde3ef] truncate">{agent.name}</span>
+            {primaryCategory && <CategoryPill category={primaryCategory}/>} 
           </div>
-          <div className="text-[11px] text-[#6b7d99] font-mono mt-1">BSC #{agent.identity.agentId}</div>
+          <p className="text-sm text-[#9aacc4] mt-2 line-clamp-2">{agent.description || "No buyer-facing description was supplied in the current registry metadata."}</p>
         </div>
-        {verification && (
-          <span className={cn("text-[11px] font-medium", verified ? "text-[#4ade80]" : mismatch ? "text-[#f87171]" : "text-[#f59e0b]") }>
-            {verified ? "Onchain identity confirmed" : mismatch ? "Identity mismatch" : "Verification unavailable"}
-          </span>
-        )}
+        <Badge variant="muted">Discovery only</Badge>
       </div>
 
-      <p className="text-xs text-[#6b7d99] line-clamp-2">{agent.description}</p>
-
-      {agent.categoryHints.length > 0 ? (
-        <div className="space-y-1.5">
-          <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99]">Registry metadata hints · not tested capability</div>
-          <div className="flex flex-wrap gap-1.5">
-            {agent.categoryHints.slice(0, 4).map((hint) => (
-              <span key={hint.category} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-white/[0.035] border border-white/6 text-[#9aacc4]">
-                {CATEGORY_LABELS[hint.category]} <span className="text-[#6b7d99]">· Operator supplied</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="text-[11px] rounded-md px-3 py-2 border border-white/6 bg-white/[0.02] text-[#8090a8]">
-          No recognized Spotriq financial-category hint in this identity's current registry metadata. The identity remains visible because registry discovery is broader than marketplace readiness.
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/6 text-xs">
+      <div className="rounded-lg border border-[#a78bfa]/15 bg-[#a78bfa]/[0.025] px-3.5 py-3 space-y-2">
         <div>
-          <div className="text-[#6b7d99] mb-0.5">External feedback</div>
-          <div className="text-[#dde3ef] font-mono">{agent.externalReputation.totalFeedbacks}</div>
-          <div className="text-[10px] text-[#6b7d99]">8004scan · external</div>
+          <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99]">Why it appears</div>
+          <div className="text-xs text-[#9aacc4] mt-1">8004scan returned this BSC identity during registry discovery{agent.categoryHints.length ? ` and its metadata contains ${categoryLabel} signals` : ""}. Search relevance is not a capability claim.</div>
         </div>
-        <div>
-          <div className="text-[#6b7d99] mb-0.5">Marketplace service</div>
-          <div className="text-[#9aacc4]">{agent.categoryHints.length > 0 ? "Candidate normalizable" : "No candidate category"}</div>
-          <div className="text-[10px] text-[#6b7d99]">{agent.categoryHints.length > 0 ? "Readiness-gated · activation blocked" : "Identity remains discovery-only"}</div>
+        <div className="pt-2 border-t border-white/6">
+          <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99]">Can I use it now?</div>
+          <div className="text-xs text-[#d6a04a] mt-1">No — this registry identity is not itself a hireable Spotriq service. If it qualifies, a separate evaluated service card appears above.</div>
         </div>
       </div>
 
-      {verification?.limitations?.length ? (
-        <div className={cn("text-[11px] rounded-md px-3 py-2 border", mismatch ? "text-[#fca5a5] border-[#f87171]/20 bg-[#f87171]/5" : "text-[#8090a8] border-white/6 bg-white/[0.02]") }>
-          {verification.limitations[0]}
-        </div>
-      ) : null}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+        <MetricItem label="Financial fit" value={agent.categoryHints.length ? "Candidate" : "Unknown"} sub={categoryLabel} provenance={agent.categoryHints.length ? "operator-claimed" : undefined}/>
+        <MetricItem label="Onchain identity" value={verified ? "Verified" : mismatch ? "Mismatch" : "Not verified"} provenance="external"/>
+        <MetricItem label="Agent interface" value={machineServices.length ? "Declared" : "Not found"} sub={machineServices.length ? `${machineServices.length} machine-callable declaration${machineServices.length===1?"":"s"}` : "No A2A/MCP/ERC-8183 signal"} provenance={machineServices.length ? "operator-claimed" : undefined}/>
+        <MetricItem label="External feedback" value={`${agent.externalReputation.totalFeedbacks}`} sub="8004scan · External" provenance="external"/>
+      </div>
+
+      <div className="rounded-md border border-white/6 bg-white/[0.015] overflow-hidden">
+        <button onClick={()=>setEvidenceOpen((value)=>!value)} className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left text-xs text-[#9aacc4] hover:bg-white/[0.025]">
+          <span className="flex items-center gap-2"><Shield className="w-3.5 h-3.5 text-[#a78bfa]"/> View registry evidence</span>
+          {evidenceOpen?<ChevronUp className="w-3.5 h-3.5"/>:<ChevronDown className="w-3.5 h-3.5"/>}
+        </button>
+        {evidenceOpen && <div className="px-3 pb-3 border-t border-white/6 space-y-3">
+          <div className="grid sm:grid-cols-2 gap-3 pt-3 text-[11px]">
+            <div><div className="text-[#6b7d99]">Registry identity</div><div className="text-[#dde3ef] font-mono mt-0.5">ERC-8004 #{agent.identity.agentId} · chain {agent.identity.chainId}</div></div>
+            <div><div className="text-[#6b7d99]">Identity verification</div><div className={cn("mt-0.5",verified?"text-[#4ade80]":mismatch?"text-[#f87171]":"text-[#f59e0b]")}>{verified?"Canonical owner/backlink consistent":mismatch?"Canonical identity mismatch":verification?"Verification unavailable":"Not checked yet"}</div></div>
+            <div><div className="text-[#6b7d99]">External score</div><div className="text-[#dde3ef] mt-0.5">{agent.externalReputation.totalScore ?? "Not provided"} · External evidence</div></div>
+            <div><div className="text-[#6b7d99]">x402</div><div className="text-[#dde3ef] mt-0.5">{agent.x402Support ? "Declared" : "Not declared"}</div></div>
+          </div>
+          {agent.categoryHints.length > 0 && <div><div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-1.5">Operator-supplied financial hints</div><div className="flex flex-wrap gap-1.5">{agent.categoryHints.slice(0,4).map((hint)=><Badge key={hint.category} variant="muted">{CATEGORY_LABELS[hint.category]} · {hint.confidence}</Badge>)}</div></div>}
+          {agent.registrationServices.length > 0 && <div><div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-1.5">Declared interfaces</div><div className="space-y-1">{agent.registrationServices.slice(0,6).map((service)=><div key={`${service.name}-${service.endpoint}`} className="text-[11px] text-[#8090a8]"><span className="text-[#dde3ef]">{service.name}</span> · operator supplied · <span className="font-mono break-all">{service.endpoint}</span></div>)}</div></div>}
+          {verification?.limitations?.length ? <div className={cn("text-[11px] rounded-md px-3 py-2 border",mismatch?"text-[#fca5a5] border-[#f87171]/20 bg-[#f87171]/5":"text-[#8090a8] border-white/6 bg-white/[0.02]")}>{verification.limitations[0]}</div> : null}
+          <div className="text-[10px] text-[#52637b]">Registry identity and external reputation are not proof of financial capability, safety, profitability, or Spotriq readiness.</div>
+        </div>}
+      </div>
 
       <div className="flex items-center justify-between pt-1">
-        <div className="flex items-center gap-1.5 text-[11px] text-[#a78bfa]">
-          <Radio className="w-3.5 h-3.5" /> Live registry discovery
-        </div>
+        <div className="flex items-center gap-1.5 text-[11px] text-[#a78bfa]"><Radio className="w-3.5 h-3.5"/> BSC agent discovery</div>
         <Btn variant="ghost" size="sm" onClick={onVerify} disabled={verifying} className="text-[#a78bfa]">
-          {verifying ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Verifying</> : verification ? <><ShieldCheck className="w-3.5 h-3.5" /> Recheck identity</> : <><Shield className="w-3.5 h-3.5" /> Verify identity</>}
+          {verifying ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/> Verifying</> : verification ? <><ShieldCheck className="w-3.5 h-3.5"/> Recheck identity</> : <><Shield className="w-3.5 h-3.5"/> Verify identity</>}
         </Btn>
       </div>
     </Card>
@@ -938,6 +1001,7 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
   const [supplyDiscovery, setSupplyDiscovery] = useState<MarketplaceFinancialDiscovery>();
   const [supplyLoading, setSupplyLoading] = useState(true);
   const [supplyError, setSupplyError] = useState<string>();
+  const [discoveryDetailsOpen, setDiscoveryDetailsOpen] = useState(false);
   const [inspectingServiceId, setInspectingServiceId] = useState<string>();
   const [testingServiceId, setTestingServiceId] = useState<string>();
   const [matchPage, setMatchPage] = useState<FindingServiceMatchPage>();
@@ -972,7 +1036,10 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
   const liveReferenceNames = new Set(serviceCandidates
     .filter((record) => record.service.origin === "REFERENCE" || record.identity.sourceKind === "MARKETPLACE_REFERENCE")
     .map((record) => record.service.name.toLowerCase()));
-  const visibleSampleServices = filtered.filter((service) => !liveReferenceNames.has(service.name.toLowerCase()));
+  const sampleMode = exploreSampleModeEnabled();
+  const visibleSampleServices = sampleMode ? filtered.filter((service) => !liveReferenceNames.has(service.name.toLowerCase())) : [];
+  const availableServiceCandidates = visibleServiceCandidates.filter((record) => buyerServiceState(record) === "AVAILABLE");
+  const evaluatingServiceCandidates = visibleServiceCandidates.filter((record) => buyerServiceState(record) !== "AVAILABLE");
 
   const loadRegistry = useCallback(async (semanticQuery?: string) => {
     setRegistryLoading(true);
@@ -1346,41 +1413,41 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
           )}
 
           {fromFinding && getActiveCheckMode() === "example" && (
-            <div className="mb-6 p-4 rounded-lg border border-white/6 bg-white/[0.02] text-xs text-[#6b7d99]">Live compatibility ranking is intentionally available only for live Smart Money Check findings. The reference services below remain sample data and are not presented as live matched supply.</div>
+            <div className="mb-6 p-4 rounded-lg border border-white/6 bg-white/[0.02] text-xs text-[#6b7d99]">Live compatibility ranking is intentionally available only for live Smart Money Check findings. Evaluated services below remain independent live supply and are not presented as matched to an example finding.</div>
           )}
 
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-[#6b7d99]">{visibleSampleServices.length} legacy sample services</span>
-              <Badge variant="muted">Sample data</Badge>
-            </div>
-            <button onClick={() => setFilterOpen(f => !f)} className="md:hidden flex items-center gap-1.5 text-sm text-[#9aacc4]">
-              <Filter className="w-4 h-4" /> Filters
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            {visibleSampleServices.map(s => (
-              <AgentCard key={s.serviceId} service={s}
-                onView={() => navigate("agent", { agentId: s.serviceId })}
-                onCompare={() => toggleCompare(s.serviceId)}
-                compareSelected={compareIds.includes(s.serviceId)}
-              />
-            ))}
-            {visibleSampleServices.length === 0 && (
-              <div className="p-6 rounded-lg border border-white/6 bg-card text-sm text-[#6b7d99]">Legacy sample cards are hidden when their live first-party reference service is available. Use the live financial services section below.</div>
-            )}
-          </div>
+          {sampleMode && (
+            <section className="mb-8 rounded-xl border border-[#f59e0b]/15 bg-[#f59e0b]/[0.02] p-4">
+              <div className="flex items-center justify-between mb-4 gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-[#dde3ef]">Demo sample services</span>
+                  <Badge variant="amber">Synthetic data</Badge>
+                  <span className="text-xs text-[#6b7d99]">{visibleSampleServices.length} visible</span>
+                </div>
+                <span className="text-[10px] text-[#6b7d99]">Explicit demo mode only · never mixed into normal production Explore</span>
+              </div>
+              <div className="space-y-4">
+                {visibleSampleServices.map(s => (
+                  <AgentCard key={s.serviceId} service={s}
+                    onView={() => navigate("agent", { agentId: s.serviceId })}
+                    onCompare={() => toggleCompare(s.serviceId)}
+                    compareSelected={compareIds.includes(s.serviceId)}
+                  />
+                ))}
+                {visibleSampleServices.length === 0 && <div className="p-4 rounded-lg border border-white/6 bg-card text-sm text-[#6b7d99]">No synthetic sample card remains after the current category/search filter.</div>}
+              </div>
+            </section>
+          )}
 
 
           <section className="mt-10 pt-8 border-t border-white/8">
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-lg font-semibold text-[#dde3ef]">Live financial services</h2>
-                  <Badge variant="teal">Reference + external supply</Badge>
+                  <h2 className="text-lg font-semibold text-[#dde3ef]">Evaluated financial services</h2>
+                  <Badge variant="teal">Buyer view</Badge>
                 </div>
-                <p className="text-xs text-[#6b7d99] max-w-2xl">Spotriq combines four real first-party callable reference services with external ERC-8004 supply. Accepted reference services can now be hired as FREE read-only relationships, while financial execution remains independently gated by runtime, identity, permission and authority evidence.</p>
+                <p className="text-xs text-[#6b7d99] max-w-2xl">Spotriq translates reference and external BSC agent evidence into buyer-facing service cards: what the service does, why it appears, whether it can be used now, what Spotriq verified, and what remains unknown. Technical ERC-8004/A2A/MCP evidence stays available on demand.</p>
               </div>
               <button onClick={() => void loadSupply(searchText)} disabled={supplyLoading} className="text-xs text-[#2dd4bf] flex items-center gap-1.5 shrink-0 disabled:opacity-50">
                 <RefreshCw className={cn("w-3.5 h-3.5", supplyLoading && "animate-spin")} /> Refresh
@@ -1394,44 +1461,41 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
             )}
 
             {supplyDiscovery && (
-              <div className="mb-4 rounded-lg border border-[#2dd4bf]/15 bg-[#2dd4bf]/[0.025] p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Target className="w-4 h-4 text-[#2dd4bf]" />
-                      <span className="text-sm font-medium text-[#dde3ef]">{supplyDiscovery.mode === "TARGETED" ? "Targeted financial supply discovery" : "User-directed financial discovery"}</span>
-                      <Badge variant="purple">External search relevance</Badge>
+              <div className="mb-4 rounded-lg border border-white/7 bg-white/[0.015] overflow-hidden">
+                <button onClick={()=>setDiscoveryDetailsOpen((value)=>!value)} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/[0.02]">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Target className="w-4 h-4 text-[#2dd4bf] shrink-0" />
+                    <div>
+                      <div className="text-sm font-medium text-[#dde3ef]">How Spotriq searched the BSC agent universe</div>
+                      <div className="text-[11px] text-[#6b7d99] mt-0.5">{supplyDiscovery.leads.length} unique candidate identit{supplyDiscovery.leads.length===1?"y":"ies"} surfaced · search relevance is not capability proof</div>
                     </div>
-                    <p className="text-[11px] text-[#6b7d99] mt-1 max-w-3xl">Search relevance helps Spotriq find candidate identities deeper in the registry. It never becomes capability proof by itself; promotion still requires a matching operator-supplied financial metadata hint.</p>
                   </div>
-                  <span className="text-[11px] text-[#6b7d99] shrink-0">{supplyDiscovery.leads.length} unique leads</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
-                  {supplyDiscovery.searches.map((run, index) => (
-                    <div key={`${run.category ?? "query"}-${index}`} className="rounded-md border border-white/6 bg-white/[0.02] px-3 py-2">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="text-[11px] font-medium text-[#9aacc4]">{run.category ? CATEGORY_LABELS[run.category] : "Registry search"}</span>
-                        <span className={cn("text-[10px] font-mono", run.state === "COMPLETE" ? "text-[#4ade80]" : run.state === "PARTIAL" ? "text-[#f59e0b]" : "text-[#f87171]")}>{run.state}</span>
+                  <div className="flex items-center gap-2 shrink-0"><Badge variant="purple">External discovery</Badge>{discoveryDetailsOpen?<ChevronUp className="w-4 h-4 text-[#6b7d99]"/>:<ChevronDown className="w-4 h-4 text-[#6b7d99]"/>}</div>
+                </button>
+                {discoveryDetailsOpen && <div className="px-4 pb-4 border-t border-white/6 space-y-3">
+                  <p className="text-[11px] text-[#6b7d99] pt-3 max-w-3xl">Spotriq uses semantic search to find likely financial identities, then independently checks whether metadata supports a financial category and whether a service can be normalized. This search layer cannot establish runtime capability, readiness, safety or profitability.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+                    {supplyDiscovery.searches.map((run, index) => (
+                      <div key={`${run.category ?? "query"}-${index}`} className="rounded-md border border-white/6 bg-white/[0.02] px-3 py-2">
+                        <div className="flex items-center justify-between gap-2 mb-1"><span className="text-[11px] font-medium text-[#9aacc4]">{run.category ? CATEGORY_LABELS[run.category] : "Registry search"}</span><span className={cn("text-[10px] font-mono", run.state === "COMPLETE" ? "text-[#4ade80]" : run.state === "PARTIAL" ? "text-[#f59e0b]" : "text-[#f87171]")}>{run.state}</span></div>
+                        <div className="text-[11px] text-[#6b7d99]">{run.returned} search results</div>
+                        <div className="text-[11px] text-[#9aacc4]">{run.matchingCapabilityHints} financial metadata signals · {run.normalizedServices} service candidates</div>
                       </div>
-                      <div className="text-[11px] text-[#6b7d99]">{run.returned} search results</div>
-                      <div className="text-[11px] text-[#9aacc4]">{run.matchingCapabilityHints} metadata-backed · {run.normalizedServices} normalized</div>
-                    </div>
-                  ))}
-                </div>
-                {supplyDiscovery.leads.some((lead) => lead.promotedServiceIds.length === 0) && (
-                  <div className="pt-2 border-t border-white/6">
-                    <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-2">Search-relevant leads · capability not established</div>
+                    ))}
+                  </div>
+                  {supplyDiscovery.leads.some((lead) => lead.promotedServiceIds.length === 0) && <div className="pt-2 border-t border-white/6">
+                    <div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99] mb-2">Search-relevant identities that did not become services</div>
                     <div className="flex flex-wrap gap-2">
                       {supplyDiscovery.leads.filter((lead) => lead.promotedServiceIds.length === 0).slice(0, 6).map((lead) => (
                         <div key={lead.identity.discoveryId} className="rounded-md border border-white/6 bg-white/[0.02] px-2.5 py-2 min-w-[180px] max-w-[280px]">
                           <div className="text-[11px] text-[#dde3ef] truncate">{lead.identity.name}</div>
                           <div className="text-[10px] text-[#6b7d99] mt-0.5">{lead.matches.map((match) => match.category ? CATEGORY_LABELS[match.category] : "Search").join(" · ")}</div>
-                          <div className="text-[10px] text-[#f59e0b] mt-1">Discovery lead only · not a service claim</div>
+                          <div className="text-[10px] text-[#f59e0b] mt-1">Discovery only · financial capability not established</div>
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  </div>}
+                </div>}
               </div>
             )}
 
@@ -1441,38 +1505,51 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
               </div>
             ) : (
               <>
-                <div className="flex items-center gap-2 text-[11px] text-[#6b7d99] mb-3">
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#6b7d99] mb-4">
                   <ShieldCheck className="w-3.5 h-3.5 text-[#2dd4bf]" />
-                  <span>{serviceCandidates.length} live marketplace service{serviceCandidates.length === 1 ? "" : "s"}</span>
-                  <span>·</span><span>{serviceCandidates.filter((record) => record.service.marketplaceActivationEligible).length} financial-execution eligible</span>
-                  <span>·</span><span>{serviceCandidates.filter((record) => record.readiness.checks?.find((check) => check.code === "MARKETPLACE_TESTS")?.state === "PASS").length} contract-tested</span>
+                  <span>{visibleServiceCandidates.length} evaluated service{visibleServiceCandidates.length === 1 ? "" : "s"}</span>
+                  <span>·</span><span>{availableServiceCandidates.length} available now</span>
+                  <span>·</span><span>{visibleServiceCandidates.filter((record) => record.readiness.checks?.find((check) => check.code === "MARKETPLACE_TESTS")?.state === "PASS").length} runtime-tested</span>
+                  <span>·</span><span>0 universal trust scores</span>
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {visibleServiceCandidates.map((record) => (
-                    <LiveServiceCandidateCard
-                      key={record.service.serviceId}
-                      record={record}
-                      onInspect={() => void inspectServiceCandidate(record.service.serviceId)}
-                      inspecting={inspectingServiceId === record.service.serviceId}
-                      onRunTests={() => void runServiceTests(record.service.serviceId)}
-                      testing={testingServiceId === record.service.serviceId}
-                      onHireFreeReadOnly={() => void hireFreeReadOnly(record)}
-                      hiring={commercialBusyServiceId === record.service.serviceId}
-                      activation={commercialActivations[record.service.serviceId]}
-                      control={activationControls[record.service.serviceId]}
-                      runtimeState={activationRuntimeStates[record.service.serviceId]}
-                      runtimeBusy={runtimeBusyServiceId===record.service.serviceId}
-                      onRunActivationTask={(input)=>void runActivationTask(record,input)}
-                      onRevokeActivation={()=>void revokeCommercialActivation(record)}
-                      commercialError={commercialErrors[record.service.serviceId]}
-                    />
-                  ))}
-                </div>
+
+                {availableServiceCandidates.length > 0 && <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-3"><CheckCircle2 className="w-4 h-4 text-[#4ade80]"/><h3 className="text-sm font-medium text-[#dde3ef]">Ready to use</h3><span className="text-[11px] text-[#6b7d99]">Hireable for the declared scope</span></div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    {availableServiceCandidates.map((record) => (
+                      <LiveServiceCandidateCard key={record.service.serviceId} record={record}
+                        onInspect={() => void inspectServiceCandidate(record.service.serviceId)} inspecting={inspectingServiceId === record.service.serviceId}
+                        onRunTests={() => void runServiceTests(record.service.serviceId)} testing={testingServiceId === record.service.serviceId}
+                        onHireFreeReadOnly={() => void hireFreeReadOnly(record)} hiring={commercialBusyServiceId === record.service.serviceId}
+                        activation={commercialActivations[record.service.serviceId]} control={activationControls[record.service.serviceId]}
+                        runtimeState={activationRuntimeStates[record.service.serviceId]} runtimeBusy={runtimeBusyServiceId===record.service.serviceId}
+                        onRunActivationTask={(input)=>void runActivationTask(record,input)} onRevokeActivation={()=>void revokeCommercialActivation(record)}
+                        commercialError={commercialErrors[record.service.serviceId]} />
+                    ))}
+                  </div>
+                </div>}
+
+                {evaluatingServiceCandidates.length > 0 && <div>
+                  <div className="flex items-center gap-2 mb-3"><FlaskConical className="w-4 h-4 text-[#f59e0b]"/><h3 className="text-sm font-medium text-[#dde3ef]">Being evaluated</h3><span className="text-[11px] text-[#6b7d99]">Financial candidates with incomplete evidence</span></div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    {evaluatingServiceCandidates.map((record) => (
+                      <LiveServiceCandidateCard key={record.service.serviceId} record={record}
+                        onInspect={() => void inspectServiceCandidate(record.service.serviceId)} inspecting={inspectingServiceId === record.service.serviceId}
+                        onRunTests={() => void runServiceTests(record.service.serviceId)} testing={testingServiceId === record.service.serviceId}
+                        onHireFreeReadOnly={() => void hireFreeReadOnly(record)} hiring={commercialBusyServiceId === record.service.serviceId}
+                        activation={commercialActivations[record.service.serviceId]} control={activationControls[record.service.serviceId]}
+                        runtimeState={activationRuntimeStates[record.service.serviceId]} runtimeBusy={runtimeBusyServiceId===record.service.serviceId}
+                        onRunActivationTask={(input)=>void runActivationTask(record,input)} onRevokeActivation={()=>void revokeCommercialActivation(record)}
+                        commercialError={commercialErrors[record.service.serviceId]} />
+                    ))}
+                  </div>
+                </div>}
+
                 {visibleServiceCandidates.length === 0 && !supplyError && (
                   <div className="p-5 rounded-lg border border-white/6 bg-card text-xs text-[#6b7d99]">
                     {category === "all"
-                      ? "Current semantic discovery did not find a metadata-backed Spotriq financial service candidate in the returned ranked subsets. Search-relevant leads may still appear above, but relevance alone is not promoted into a capability claim."
-                      : `No normalized ${CATEGORY_LABELS[category]} service candidate is present in the current semantic discovery result. This reflects registry metadata coverage, not a claim that no such agent exists.`}
+                      ? "Current semantic discovery did not establish a buyer-facing financial service candidate in the returned ranked subsets. Search-relevant BSC identities may still appear below, but relevance alone is not promoted into a service claim."
+                      : `No evaluated ${CATEGORY_LABELS[category]} service candidate is present in the current semantic discovery result. This reflects current registry metadata/evidence coverage, not a claim that no such agent exists.`}
                   </div>
                 )}
               </>
@@ -1483,10 +1560,10 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-lg font-semibold text-[#dde3ef]">Live ERC-8004 registry discoveries</h2>
-                  <Badge variant="purple">External</Badge>
+                  <h2 className="text-lg font-semibold text-[#dde3ef]">BSC agent discoveries</h2>
+                  <Badge variant="purple">Discovery only</Badge>
                 </div>
-                <p className="text-xs text-[#6b7d99] max-w-2xl">Real BSC Mainnet identities discovered through 8004scan. Registry identity and external feedback are evidence, not proof of financial capability. Identities with supported financial hints can now be normalized into readiness-gated service candidates above; identities without those hints remain discovery-only. No registry-derived service is activatable until required gates pass.</p>
+                <p className="text-xs text-[#6b7d99] max-w-2xl">Broader BSC identities discovered through 8004scan. These cards explain why an identity appears and whether Spotriq has enough evidence to turn it into a financial service. Registry identity, metadata and external feedback remain discovery evidence—not capability, safety, profitability, or readiness proof.</p>
               </div>
               <button onClick={() => void loadRegistry(searchText)} disabled={registryLoading} className="text-xs text-[#a78bfa] flex items-center gap-1.5 shrink-0 disabled:opacity-50">
                 <RefreshCw className={cn("w-3.5 h-3.5", registryLoading && "animate-spin")} /> Refresh
@@ -1495,7 +1572,7 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
 
             {registryError && (
               <div className="mb-4 p-3 rounded-lg border border-[#f59e0b]/20 bg-[#f59e0b]/5 text-xs text-[#d6a04a]">
-                Live registry source unavailable: {registryError} First-party reference services and legacy samples above remain independently available.
+                Live registry source unavailable: {registryError} Evaluated first-party services above remain independently available.
               </div>
             )}
 

@@ -177,3 +177,8 @@ Production-testing gate: `pnpm verify:mainnet-read-only`. This is a v0.39 produc
 ## Evidence-driven v0.40 supply milestone
 
 The current implementation is v0.40.0 Marketplace Supply Discovery + Qualification. It was justified by real production testing after v0.39: buyer lifecycle and Mainnet read-only flows worked, while external agent supply depth and quality were insufficient. The implementation source remains this repository. 8004scan is External indexed discovery, ERC-8004 onchain verification is separate canonical identity evidence, Marketplace Test Lab is separate runtime evidence, and none of these alone becomes a Spotriq trust/profitability claim.
+
+
+## Evidence-driven v0.41 buyer-interpretation milestone
+
+The current implementation is v0.41.0 External Agent Buyer Interpretation + Production Explore UX. It is layered directly on v0.40 supply discovery/qualification. Real ERC-8004 identities and service candidates remain authoritative structured evidence; v0.41 changes how that evidence is presented to buyers. Synthetic legacy AgentService cards are excluded from normal production Explore and remain available only through explicit demo/development mode. Technical evidence remains inspectable and is never replaced by an AI-generated trust, safety or profitability conclusion.
