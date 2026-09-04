@@ -15,7 +15,7 @@
     "check": "pnpm verify && pnpm typecheck && pnpm test && pnpm build",
     "db:migrate": "pnpm --filter @spotriq/db migrate",
     "db:health": "pnpm --filter @spotriq/db health",
-    "verify": "node scripts/verify-foundation.mjs && node scripts/verify-wallet-connectivity.mjs && node scripts/verify-wallet-session-lifecycle.mjs && node scripts/verify-core-runtime-flow.mjs && node scripts/verify-smart-money-completion.mjs",
+    "verify": "node scripts/verify-foundation.mjs && node scripts/verify-wallet-connectivity.mjs && node scripts/verify-wallet-session-lifecycle.mjs && node scripts/verify-core-runtime-flow.mjs && node scripts/verify-smart-money-completion.mjs && node scripts/verify-smart-money-persistence.mjs",
     "verify:reference-acceptance": "node scripts/verify-reference-acceptance.mjs",
     "verify:commercial-acceptance": "node scripts/verify-commercial-acceptance.mjs",
     "verify:activation-parity": "node scripts/verify-activation-parity.mjs",
@@ -40,7 +40,8 @@
     "verify:wallet-session": "node scripts/verify-wallet-session-lifecycle.mjs",
     "preflight:production-testing": "pnpm verify && pnpm --filter @spotriq/web typecheck && pnpm --filter @spotriq/web build && pnpm --filter @spotriq/api build",
     "verify:core-runtime-flow": "node scripts/verify-core-runtime-flow.mjs",
-    "verify:smart-money-completion": "node scripts/verify-smart-money-completion.mjs"
+    "verify:smart-money-completion": "node scripts/verify-smart-money-completion.mjs",
+    "verify:smart-money-persistence": "node scripts/verify-smart-money-persistence.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

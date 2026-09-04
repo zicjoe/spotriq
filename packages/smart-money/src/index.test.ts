@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { BscChainReader } from "@spotriq/chain";
-import type { EvidenceEnvelope, GridMarketContextSnapshot, PancakeSwapClPositionSnapshot, VenusPoolPositionSnapshot, YieldOpportunitySnapshot } from "@spotriq/domain";
+import type { EvidenceEnvelope, GridMarketContextSnapshot, PancakeSwapClPositionSnapshot, SmartMoneyPortfolioSnapshot, VenusPoolPositionSnapshot, YieldOpportunitySnapshot } from "@spotriq/domain";
 import type { PancakeSwapReader } from "@spotriq/protocol-pancakeswap";
 import type { GridMarketContextReader } from "@spotriq/market-context";
 import type { VenusReader } from "@spotriq/protocol-venus";
-import { createGridFinding, createYieldFinding, createHealthFinding, createRebalancingFinding, createSmartMoneyEngine, MemorySmartMoneyStore } from "./index.js";
+import { createGridFinding, createYieldFinding, createHealthFinding, createRebalancingFinding, createSmartMoneyEngine, MemorySmartMoneyStore, PostgresSmartMoneyStore } from "./index.js";
 
 const observedAt = "2026-08-19T04:00:00.000Z";
 const evidence: EvidenceEnvelope = {
@@ -241,6 +241,21 @@ test("Smart Money Check keeps partial financial coverage explicit while enabling
   const events = await engine.listEvents(session.checkSessionId);
   assert.ok(events.some((event) => event.type === "finding.created"));
   assert.equal(events.at(-1)?.type, "check.completed");
+
+  const failingStore = new class extends MemorySmartMoneyStore {
+    override async savePortfolio(): Promise<void> {
+      throw new Error("duplicate key value violates unique constraint");
+    }
+  }();
+  const failingEngine = createSmartMoneyEngine({ chain, pancakeSwap: pancake, venus, marketContext, store: failingStore, now: () => new Date(observedAt), idFactory: (() => { let i = 100; return () => String(++i); })() });
+  const failingSession = await failingEngine.startCheck({ walletAddress: "0x2222222222222222222222222222222222222222" });
+  await assert.rejects(() => failingEngine.runCheck(failingSession.checkSessionId), /duplicate key value/i);
+  const terminalFailure = await failingEngine.getSession(failingSession.checkSessionId);
+  assert.equal(terminalFailure?.state, "FAILED");
+  assert.match(terminalFailure?.failureReason ?? "", /finalization failed/i);
+  assert.equal(terminalFailure?.sourceProgress?.find((item) => item.key === "agent_compatibility")?.state, "FAILED");
+  const failureEvents = await failingEngine.listEvents(failingSession.checkSessionId);
+  assert.equal(failureEvents.at(-1)?.type, "check.failed");
 });
 
 
@@ -258,3 +273,33 @@ test("Yield finding keeps current APY separate from realised or guaranteed retur
   assert.match(finding?.summary ?? "", /does not mean the funds should be supplied/i);
   assert.doesNotMatch(`${finding?.headline} ${finding?.summary}`, /guaranteed|guarantee future|realised return of/i);
 });
+
+test("Postgres yield snapshot persistence scopes stable Venus opportunity ids to each portfolio observation", async () => {
+  const queries: Array<{ text: string; values?: unknown[] }> = [];
+  const db = {
+    async query<Row = Record<string, unknown>>(text: string, values?: unknown[]) {
+      queries.push({ text, values });
+      return { rows: [] as Row[], rowCount: 1 };
+    },
+  };
+  const store = new PostgresSmartMoneyStore(db);
+  const opportunity: YieldOpportunitySnapshot = {
+    opportunityId: "venus:pool:vtoken:wallet", protocol: "Venus", network: "testnet", chainId: 97, poolKind: "CORE", poolName: "Core Pool", comptroller: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", vToken: "0xcccccccccccccccccccccccccccccccccccccccc",
+    underlying: { address: "0xdddddddddddddddddddddddddddddddddddddddd", symbol: "tBNB", decimals: 18, isNative: true }, walletBalanceRaw: "500000000000000", walletBalanceFormatted: "0.0005", existingSupplyUnderlyingRaw: "0", existingSupplyFormatted: "0", currentSupplyRatePerBlockRaw: "1000000", currentSupplyApyPercent: "23.444", currentRateType: "CURRENT_PROTOCOL_APY", blockNumber: "100", observedAt, evidence: [evidence],
+    coverage: { walletBalance: "AVAILABLE", existingSupply: "AVAILABLE", currentRate: "AVAILABLE", incentives: "NOT_SUPPORTED", estimatedNet: "NOT_SUPPORTED", realisedYield: "NOT_SUPPORTED" }, limitations: [],
+  };
+  const makePortfolio = (portfolioSnapshotId: string, checkSessionId: string): SmartMoneyPortfolioSnapshot => ({
+    portfolioSnapshotId, checkSessionId, walletAddress: "0x2222222222222222222222222222222222222222", network: "testnet", chainId: 97, blockNumber: "100", observedAt,
+    yieldOpportunities: [opportunity], pancakeSwapPositions: [], venusPositions: [], gridMarketContexts: [], coverage: { walletAssets: "PARTIAL", pancakeSwapPositions: "PARTIAL", venusPositions: "AVAILABLE", yieldOpportunities: "AVAILABLE", marketContext: "AVAILABLE", agentCompatibility: "AVAILABLE", notes: [] },
+  });
+
+  await store.savePortfolio(makePortfolio("portfolio_first", "check_first"));
+  await store.savePortfolio(makePortfolio("portfolio_second", "check_second"));
+
+  const yieldInserts = queries.filter((query) => query.text.includes("insert into yield_opportunity_snapshots"));
+  assert.equal(yieldInserts.length, 2);
+  assert.equal(yieldInserts[0]?.values?.[0], "portfolio_first:yield:venus:pool:vtoken:wallet");
+  assert.equal(yieldInserts[1]?.values?.[0], "portfolio_second:yield:venus:pool:vtoken:wallet");
+  assert.notEqual(yieldInserts[0]?.values?.[0], yieldInserts[1]?.values?.[0]);
+});
+

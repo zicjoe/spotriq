@@ -462,12 +462,19 @@ export class PostgresSmartMoneyStore implements SmartMoneyStore {
       this.db.query(`delete from lending_position_snapshots where portfolio_snapshot_id=$1`, [snapshot.portfolioSnapshotId]),
     ]);
 
-    const yieldWrites = (snapshot.yieldOpportunities ?? []).map((opportunity) => this.db.query(
-      `insert into yield_opportunity_snapshots(
-        yield_opportunity_snapshot_id,portfolio_snapshot_id,check_session_id,wallet_address,protocol,pool_kind,pool_name,comptroller,vtoken_address,underlying,wallet_balance_raw,wallet_balance_formatted,existing_supply_underlying_raw,existing_supply_formatted,current_supply_rate_per_block_raw,current_supply_apy_percent,current_rate_type,available_liquidity_raw,coverage,limitations,block_number,observed_at
-      ) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20::jsonb,$21,$22)`,
-      [opportunity.opportunityId,snapshot.portfolioSnapshotId,snapshot.checkSessionId,snapshot.walletAddress,opportunity.protocol,opportunity.poolKind,opportunity.poolName,opportunity.comptroller,opportunity.vToken,JSON.stringify(opportunity.underlying),opportunity.walletBalanceRaw,opportunity.walletBalanceFormatted ?? null,opportunity.existingSupplyUnderlyingRaw,opportunity.existingSupplyFormatted ?? null,opportunity.currentSupplyRatePerBlockRaw,opportunity.currentSupplyApyPercent ?? null,opportunity.currentRateType,opportunity.availableLiquidityRaw ?? null,JSON.stringify(opportunity.coverage),JSON.stringify(opportunity.limitations),opportunity.blockNumber,opportunity.observedAt],
-    ));
+    const yieldWrites = (snapshot.yieldOpportunities ?? []).map((opportunity) => {
+      // opportunityId identifies the live Venus market/wallet context and is intentionally
+      // stable across repeated checks. The normalized persistence row is an observation
+      // snapshot, so its primary key must be scoped to this portfolio snapshot instead of
+      // reusing the stable domain opportunityId (which would collide on the next check).
+      const yieldOpportunitySnapshotId = `${snapshot.portfolioSnapshotId}:yield:${opportunity.opportunityId}`;
+      return this.db.query(
+        `insert into yield_opportunity_snapshots(
+          yield_opportunity_snapshot_id,portfolio_snapshot_id,check_session_id,wallet_address,protocol,pool_kind,pool_name,comptroller,vtoken_address,underlying,wallet_balance_raw,wallet_balance_formatted,existing_supply_underlying_raw,existing_supply_formatted,current_supply_rate_per_block_raw,current_supply_apy_percent,current_rate_type,available_liquidity_raw,coverage,limitations,block_number,observed_at
+        ) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20::jsonb,$21,$22)`,
+        [yieldOpportunitySnapshotId,snapshot.portfolioSnapshotId,snapshot.checkSessionId,snapshot.walletAddress,opportunity.protocol,opportunity.poolKind,opportunity.poolName,opportunity.comptroller,opportunity.vToken,JSON.stringify(opportunity.underlying),opportunity.walletBalanceRaw,opportunity.walletBalanceFormatted ?? null,opportunity.existingSupplyUnderlyingRaw,opportunity.existingSupplyFormatted ?? null,opportunity.currentSupplyRatePerBlockRaw,opportunity.currentSupplyApyPercent ?? null,opportunity.currentRateType,opportunity.availableLiquidityRaw ?? null,JSON.stringify(opportunity.coverage),JSON.stringify(opportunity.limitations),opportunity.blockNumber,opportunity.observedAt],
+      );
+    });
 
     const gridWrites = (snapshot.gridMarketContexts ?? []).map((context) => this.db.query(
       `insert into grid_market_context_snapshots(
@@ -738,7 +745,8 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
       await updateSource(session, "market_context", "FAILED", error instanceof Error ? error.message : "Grid market-context scan failed.");
     }
 
-    const portfolio: SmartMoneyPortfolioSnapshot = {
+    try {
+      const portfolio: SmartMoneyPortfolioSnapshot = {
       portfolioSnapshotId: `portfolio_${idFactory()}`,
       checkSessionId,
       walletAddress: session.walletAddress,
@@ -809,6 +817,34 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
     const findings = await store.listFindings(checkSessionId);
     await publish(checkSessionId, session.state === "FAILED" ? "check.failed" : "check.completed", undefined, { state: session.state, findings: findings.length });
     return { session, portfolio, findings };
+    } catch (error) {
+      // Persistence/finalization failures must never strand a check in SCANNING. The
+      // production UI polls session state as a recovery path, so persist a truthful
+      // terminal failure whenever the database is still reachable, then rethrow so
+      // operational logs retain the underlying error details.
+      const failedAt = now().toISOString();
+      session.sourceProgress = cloneProgress(session.sourceProgress ?? CHECK_SOURCE_TEMPLATE);
+      const finalization = session.sourceProgress.find((candidate) => candidate.key === "agent_compatibility");
+      if (finalization && finalization.state !== "COMPLETED") {
+        finalization.state = "FAILED";
+        finalization.startedAt = finalization.startedAt ?? failedAt;
+        finalization.completedAt = failedAt;
+        finalization.detail = "Spotriq could not persist/finalize this Smart Money Check. Start a fresh check.";
+      }
+      session.state = "FAILED";
+      session.failureReason = "Smart Money Check finalization failed. Start a fresh check.";
+      session.completedAt = failedAt;
+      session.updatedAt = failedAt;
+      session.coverage = coverage;
+      try {
+        await store.updateSession(session);
+        await publish(checkSessionId, "check.failed", undefined, { state: "FAILED", reason: session.failureReason });
+      } catch {
+        // If persistence itself is unavailable, the original error is still rethrown and
+        // logged by the API background runner. Do not replace it with a secondary failure.
+      }
+      throw error;
+    }
   }
 
   return {

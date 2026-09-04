@@ -33,3 +33,20 @@ SSE was treated too strongly as the completion signal. A terminal event could be
 ## Railway API build-contract correction
 
 The Smart Money completion hotfix added `SmartMoneyEngine.getSession()` for lightweight terminal-state reconciliation. The API route tests use injected SmartMoneyEngine mocks, so those mocks must implement the same interface. Production testing exposed a Railway `tsc --noEmit` failure where two mocks had not been updated. They now implement `getSession`, and `verify:smart-money-completion` explicitly guards this compile contract so the packaged release cannot silently reintroduce that mismatch.
+
+## Production persistence collision correction
+
+A later production run provided the exact Railway database error:
+
+`duplicate key value violates unique constraint "yield_opportunity_snapshots_pkey"` (`SQLSTATE 23505`).
+
+The normalized `yield_opportunity_snapshot_id` had incorrectly reused the stable Venus `opportunityId`. That domain id intentionally stays stable for the same wallet + Venus market across repeated Smart Money Checks, while the database table stores historical observations from distinct portfolio/check snapshots. A second check for the same opportunity therefore collided with the first observation.
+
+The persistence model now keeps those identities separate:
+
+- `YieldOpportunitySnapshot.opportunityId` remains the stable domain/context identity;
+- `yield_opportunity_snapshot_id` is scoped to the concrete portfolio observation as `<portfolioSnapshotId>:yield:<opportunityId>`;
+- prior production rows require no destructive cleanup or migration;
+- a persistence/finalization exception now marks the Smart Money Check `FAILED` (and the final progress row `FAILED`) whenever PostgreSQL remains reachable, rather than abandoning the session in `SCANNING` until the UI watchdog fires.
+
+Regression coverage now verifies two separate checks containing the same stable Venus opportunity persist with distinct normalized snapshot primary keys, and verifies a finalization exception reaches a terminal `FAILED` session.
