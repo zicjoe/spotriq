@@ -1631,7 +1631,7 @@ function CheckScanPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState
     { key: "venus", label: "Venus lending positions", status: progress > 2 ? "done" : progress === 2 ? "running" : "queued" },
     { key: "yield", label: "Yield opportunities", status: progress > 3 ? "done" : progress === 3 ? "running" : "queued" },
     { key: "market", label: "Market context", status: progress > 4 ? "done" : progress === 4 ? "running" : "queued" },
-    { key: "agents", label: "Agent compatibility", status: progress > 5 ? "done" : progress === 5 ? "running" : "queued" },
+    { key: "agents", label: "Preparing findings & agent matches", status: progress > 5 ? "done" : progress === 5 ? "running" : "queued" },
   ];
 
   useEffect(() => {
@@ -1648,22 +1648,49 @@ function CheckScanPage({ navigate }: { navigate: (r: Route, p?: Partial<NavState
       return;
     }
     let closed = false;
+    let terminal = false;
+    let refreshInFlight = false;
+    let consecutiveRefreshFailures = 0;
     const refresh = async () => {
+      if (closed || terminal || refreshInFlight) return;
+      refreshInFlight = true;
       try {
-        const snapshot = await smartMoneyRepository.getCheck(checkSessionId);
-        if (!closed) setLiveSources(snapshot.session.sourceProgress ?? []);
+        const session = await smartMoneyRepository.getCheckStatus(checkSessionId);
+        if (closed) return;
+        consecutiveRefreshFailures = 0;
+        setLiveSources(session.sourceProgress ?? []);
+        const lastProgressAt = new Date(session.updatedAt ?? session.createdAt).getTime();
+        const stalled = session.state === "SCANNING" && Number.isFinite(lastProgressAt) && Date.now() - lastProgressAt > 45_000;
+        setError(stalled ? "This Smart Money Check stopped making progress. Start a fresh check rather than waiting indefinitely." : undefined);
+        if (["COMPLETED", "PARTIAL", "FAILED"].includes(session.state)) {
+          terminal = true;
+          navigate("check", { checkPhase: "results" });
+        }
       } catch (cause) {
-        if (!closed) setError(cause instanceof Error ? cause.message : "Could not read Smart Money Check progress.");
+        consecutiveRefreshFailures += 1;
+        // SSE is an optimization, not a single point of failure. Only surface a
+        // progress error after repeated status-read failures; a buffered/missed SSE
+        // event must never leave the scan spinner running indefinitely.
+        if (!closed && consecutiveRefreshFailures >= 3) {
+          setError(cause instanceof Error ? cause.message : "Could not read Smart Money Check progress.");
+        }
+      } finally {
+        refreshInFlight = false;
       }
     };
     void refresh();
+    const watchdog = window.setInterval(() => { void refresh(); }, 900);
     const subscription = subscribeToSmartMoneyCheck(
       checkSessionId,
       (_event: SmartMoneyCheckEvent) => { void refresh(); },
-      () => navigate("check", { checkPhase: "results" }),
-      (cause) => setError(cause instanceof Error ? cause.message : "Realtime scan updates were interrupted."),
+      () => { void refresh(); },
+      () => { /* The status watchdog remains authoritative if SSE is interrupted or buffered. */ },
     );
-    return () => { closed = true; subscription.close(); };
+    return () => {
+      closed = true;
+      window.clearInterval(watchdog);
+      subscription.close();
+    };
   }, [mode, navigate]);
 
   type ScanSourceRow = {

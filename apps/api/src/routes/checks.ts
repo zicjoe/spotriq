@@ -79,6 +79,13 @@ export async function registerCheckRoutes(app: FastifyInstance, smartMoney: Smar
     return reply.send(body);
   });
 
+  app.get<{ Params: { checkSessionId: string } }>("/v1/checks/:checkSessionId/status", async (request, reply) => {
+    const checkSessionId = assertCheckId(request.params.checkSessionId);
+    const session = await smartMoney.getSession(checkSessionId);
+    if (!session) return sendNotFound(reply, request.id, checkSessionId);
+    return reply.send({ data: { session }, meta: { requestId: request.id, generatedAt: generatedAt() } });
+  });
+
   app.get<{ Params: { checkSessionId: string } }>("/v1/checks/:checkSessionId/findings", async (request, reply) => {
     const checkSessionId = assertCheckId(request.params.checkSessionId);
     const data = await smartMoney.getCheck(checkSessionId);
@@ -112,8 +119,8 @@ export async function registerCheckRoutes(app: FastifyInstance, smartMoney: Smar
 
   app.get<{ Params: { checkSessionId: string }; Querystring: { after?: string } }>("/v1/checks/:checkSessionId/events", async (request, reply) => {
     const checkSessionId = assertCheckId(request.params.checkSessionId);
-    const snapshot = await smartMoney.getCheck(checkSessionId);
-    if (!snapshot) return sendNotFound(reply, request.id, checkSessionId);
+    const initialSession = await smartMoney.getSession(checkSessionId);
+    if (!initialSession) return sendNotFound(reply, request.id, checkSessionId);
     const after = request.query.after ? Number(request.query.after) : 0;
     if (!Number.isInteger(after) || after < 0) throw new ApiInputError("after must be a non-negative event sequence.", "INVALID_EVENT_SEQUENCE");
 
@@ -131,33 +138,63 @@ export async function registerCheckRoutes(app: FastifyInstance, smartMoney: Smar
     reply.raw.setHeader("X-Accel-Buffering", "no");
     reply.hijack();
 
+    let lastSequence = after;
+    let ended = false;
+    let polling = false;
     const send = (event: Awaited<ReturnType<typeof smartMoney.listEvents>>[number]) => {
-      if (reply.raw.destroyed) return;
+      if (ended || reply.raw.destroyed || event.sequence <= lastSequence) return;
+      lastSequence = event.sequence;
       reply.raw.write(`id: ${event.sequence}\n`);
       reply.raw.write(`data: ${JSON.stringify({ type: event.type, data: event })}\n\n`);
     };
+    const finish = () => {
+      if (ended) return;
+      ended = true;
+      if (!reply.raw.destroyed) reply.raw.end();
+    };
+    const isTerminal = (state: string) => state === "COMPLETED" || state === "PARTIAL" || state === "FAILED";
 
     for (const event of await smartMoney.listEvents(checkSessionId, after)) send(event);
 
-    const terminal = snapshot.session.state === "COMPLETED" || snapshot.session.state === "PARTIAL" || snapshot.session.state === "FAILED";
-    if (terminal) {
-      reply.raw.end();
+    const currentAfterInitial = await smartMoney.getSession(checkSessionId);
+    if (!currentAfterInitial || isTerminal(currentAfterInitial.state)) {
+      finish();
       return;
     }
 
+    // Keep the low-latency in-process subscription, but do not depend on it.
+    // A background check and an SSE request may land on different API instances,
+    // or a terminal event may race between the initial DB read and subscription.
     const unsubscribe = smartMoney.subscribe(checkSessionId, (event) => {
       send(event);
-      if (event.type === "check.completed" || event.type === "check.failed") {
-        unsubscribe();
-        if (!reply.raw.destroyed) reply.raw.end();
-      }
+      if (event.type === "check.completed" || event.type === "check.failed") finish();
     });
+
+    const poll = async () => {
+      if (ended || polling) return;
+      polling = true;
+      try {
+        for (const event of await smartMoney.listEvents(checkSessionId, lastSequence)) send(event);
+        const current = await smartMoney.getSession(checkSessionId);
+        if (!current || isTerminal(current.state)) finish();
+      } catch (error) {
+        request.log.warn({ err: error, checkSessionId }, "Smart Money Check SSE recovery poll failed");
+      } finally {
+        polling = false;
+      }
+    };
+
+    // Catch an event that completed in the narrow gap between initial read and subscribe.
+    await poll();
+    const recoveryPoll = setInterval(() => { void poll(); }, 1_000);
     const heartbeat = setInterval(() => {
-      if (!reply.raw.destroyed) reply.raw.write(": spotriq-heartbeat\n\n");
+      if (!ended && !reply.raw.destroyed) reply.raw.write(": spotriq-heartbeat\n\n");
     }, 15_000);
     const cleanup = () => {
+      clearInterval(recoveryPoll);
       clearInterval(heartbeat);
       unsubscribe();
+      ended = true;
     };
     request.raw.on("close", cleanup);
     request.raw.on("error", cleanup);

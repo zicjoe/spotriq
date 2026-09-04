@@ -24,8 +24,8 @@ export function subscribeToSmartMoneyCheck(
         try {
           const currentId = getActiveCheckSessionId();
           if (!currentId || currentId !== checkSessionId) return;
-          const snapshot = await smartMoneyRepository.getCheck(checkSessionId);
-          if (["COMPLETED", "PARTIAL", "FAILED"].includes(snapshot.session.state)) {
+          const session = await smartMoneyRepository.getCheckStatus(checkSessionId);
+          if (["COMPLETED", "PARTIAL", "FAILED"].includes(session.state)) {
             if (fallbackTimer !== undefined) window.clearInterval(fallbackTimer);
             fallbackTimer = undefined;
             onTerminal();

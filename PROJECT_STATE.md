@@ -85,3 +85,7 @@ The v0.39 acceptance gates have passed. Continue to use `pnpm verify:adoption-an
 ## Current phase after v0.39 acceptance
 
 Run Spotriq with real user/operator cohorts and capture a production baseline. The next product milestone should be chosen from measured conversion, reliability, supply and feedback evidence rather than invented in advance. Mainnet financial execution remains a separately approved program only.
+
+### Production-testing Smart Money completion hotfix
+
+The production scan completion path is hardened against missed/buffered SSE terminal events. The web scan view now uses a lightweight `/v1/checks/:checkSessionId/status` watchdog roughly every 0.9 seconds while SSE remains the low-latency path. The API SSE route also reconciles persisted events/session state every second so process-local subscriptions are not a single point of failure. Independent normalized portfolio child writes are persisted concurrently and the terminal compatibility/session finalization avoids redundant session/finding round-trips. The final UI stage is labelled `Preparing findings & agent matches` because actual Finding → AgentService ranking remains on-demand after financial findings exist.

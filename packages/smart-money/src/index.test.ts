@@ -232,6 +232,10 @@ test("Smart Money Check keeps partial financial coverage explicit while enabling
   assert.equal(result.session.sourceProgress?.find((item) => item.key === "market_context")?.state, "COMPLETED");
   assert.equal(result.session.sourceProgress?.find((item) => item.key === "agent_compatibility")?.state, "COMPLETED");
   assert.equal(result.session.coverage?.agentCompatibility, "AVAILABLE");
+  const terminalSession = await engine.getSession(session.checkSessionId);
+  assert.equal(terminalSession?.state, "PARTIAL");
+  assert.equal(terminalSession?.sourceProgress?.find((item) => item.key === "agent_compatibility")?.label, "Preparing findings & agent matches");
+  assert.equal(terminalSession?.sourceProgress?.find((item) => item.key === "agent_compatibility")?.state, "COMPLETED");
   assert.ok(result.findings.some((finding) => finding.category === "health" && finding.state === "needs-attention"));
   assert.ok(result.findings.some((finding) => finding.category === "grid" && finding.state === "opportunity"));
   const events = await engine.listEvents(session.checkSessionId);

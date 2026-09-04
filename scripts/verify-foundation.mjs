@@ -429,7 +429,7 @@ const migration0009 = await readFile(path.join(root, "packages/db/migrations/000
 if (!migration0009.includes("marketplace_service_test_runs")) throw new Error("Marketplace Test Lab migration is missing marketplace_service_test_runs.");
 if (!marketplaceRoutes.includes("supply.runTests") || !marketplaceRoutes.includes("app.post")) throw new Error("Marketplace Test Lab POST execution route is missing.");
 if (!checkRoutes.includes("marketplaceSupply.matchFinding") || !checkRoutes.includes("FindingServiceMatchesResponse")) throw new Error("Smart Money Finding → AgentService compatibility API route is missing.");
-if (!smartMoney.includes('agentCompatibility: "AVAILABLE"') || !smartMoney.includes('"agent_compatibility", "COMPLETED"')) throw new Error("Smart Money Check must expose the compatibility handoff as available after findings are generated.");
+if (!smartMoney.includes('agentCompatibility: "AVAILABLE"') || !(smartMoney.includes('"agent_compatibility", "COMPLETED"') || (smartMoney.includes('candidate.key === "agent_compatibility"') && smartMoney.includes('compatibility.state = "COMPLETED"')))) throw new Error("Smart Money Check must expose the compatibility handoff as available after findings are generated.");
 if (!appUi.includes("Best live matches for this finding") || !appUi.includes("fromFinding={nav.fromFinding}") || !appUi.includes("getFindingMatches")) throw new Error("Explore must consume the live Finding handoff and render deterministic matched services.");
 
 

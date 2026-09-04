@@ -66,7 +66,7 @@ const CHECK_SOURCE_TEMPLATE: CheckSourceProgress[] = [
   { key: "venus_positions", label: "Venus lending positions", state: "QUEUED" },
   { key: "yield_opportunities", label: "Yield opportunities", state: "QUEUED" },
   { key: "market_context", label: "Grid market context", state: "QUEUED" },
-  { key: "agent_compatibility", label: "Agent compatibility", state: "QUEUED", detail: "Finding-to-service compatibility is prepared after financial findings are generated." },
+  { key: "agent_compatibility", label: "Preparing findings & agent matches", state: "QUEUED", detail: "Spotriq is finalizing deterministic findings. AgentService compatibility is evaluated on demand after the financial scan." },
 ];
 
 function cloneProgress(progress: CheckSourceProgress[]): CheckSourceProgress[] {
@@ -370,7 +370,7 @@ function defaultCoverage(): SmartMoneyCheckCoverage {
       "Venus Core Pool and Isolated Pool positions are checked onchain. Missing risk inputs are surfaced as partial/could-not-assess rather than Healthy.",
       "Yield scans compare wallet-held or already-supplied assets with supported Venus base supply-rate markets; user risk and liquidity preferences are not inferred.",
       "Grid market context uses supported PancakeSwap V3 onchain oracle averages. TWAP dispersion is not labelled as realised volatility and no profit forecast is made.",
-      "Finding-to-AgentService compatibility is available after the financial scan. Rankings are computed on demand from explicit category/protocol/context rules plus evidence and readiness; they are not profitability recommendations.",
+      "AgentService compatibility is evaluated after the financial scan. Rankings are computed on demand from explicit category/protocol/context rules plus evidence and readiness; they are not profitability recommendations.",
     ],
   };
 }
@@ -452,26 +452,31 @@ export class PostgresSmartMoneyStore implements SmartMoneyStore {
        on conflict (check_session_id) do update set portfolio_snapshot_id=excluded.portfolio_snapshot_id, wallet_address=excluded.wallet_address, observed_at=excluded.observed_at, coverage=excluded.coverage, snapshot=excluded.snapshot`,
       [snapshot.portfolioSnapshotId, snapshot.checkSessionId, snapshot.walletAddress, snapshot.observedAt, JSON.stringify(snapshot.coverage), JSON.stringify(serialize(snapshot))],
     );
-    await this.db.query(`delete from yield_opportunity_snapshots where portfolio_snapshot_id=$1`, [snapshot.portfolioSnapshotId]);
-    for (const opportunity of snapshot.yieldOpportunities ?? []) {
-      await this.db.query(
-        `insert into yield_opportunity_snapshots(
-          yield_opportunity_snapshot_id,portfolio_snapshot_id,check_session_id,wallet_address,protocol,pool_kind,pool_name,comptroller,vtoken_address,underlying,wallet_balance_raw,wallet_balance_formatted,existing_supply_underlying_raw,existing_supply_formatted,current_supply_rate_per_block_raw,current_supply_apy_percent,current_rate_type,available_liquidity_raw,coverage,limitations,block_number,observed_at
-        ) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20::jsonb,$21,$22)`,
-        [opportunity.opportunityId,snapshot.portfolioSnapshotId,snapshot.checkSessionId,snapshot.walletAddress,opportunity.protocol,opportunity.poolKind,opportunity.poolName,opportunity.comptroller,opportunity.vToken,JSON.stringify(opportunity.underlying),opportunity.walletBalanceRaw,opportunity.walletBalanceFormatted ?? null,opportunity.existingSupplyUnderlyingRaw,opportunity.existingSupplyFormatted ?? null,opportunity.currentSupplyRatePerBlockRaw,opportunity.currentSupplyApyPercent ?? null,opportunity.currentRateType,opportunity.availableLiquidityRaw ?? null,JSON.stringify(opportunity.coverage),JSON.stringify(opportunity.limitations),opportunity.blockNumber,opportunity.observedAt],
-      );
-    }
-    await this.db.query(`delete from grid_market_context_snapshots where portfolio_snapshot_id=$1`, [snapshot.portfolioSnapshotId]);
-    for (const context of snapshot.gridMarketContexts ?? []) {
-      await this.db.query(
-        `insert into grid_market_context_snapshots(
-          grid_market_context_snapshot_id,portfolio_snapshot_id,check_session_id,wallet_address,protocol,pool_address,pair_label,token0,token1,fee_pips,current_tick,current_price_token0_in_token1,liquidity_raw,windows,twap_band_low,twap_band_high,twap_dispersion_bps,regime,confidence,wallet_compatibility,coverage,limitations,block_number,observed_at
-        ) values($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18,$19,$20::jsonb,$21::jsonb,$22::jsonb,$23,$24)`,
-        [context.contextId,snapshot.portfolioSnapshotId,snapshot.checkSessionId,snapshot.walletAddress,context.protocol,context.poolAddress,context.pairLabel,JSON.stringify(context.token0),JSON.stringify(context.token1),context.feePips,context.currentTick,context.currentPriceToken0InToken1 ?? null,context.liquidityRaw,JSON.stringify(context.windows),context.twapBandLow ?? null,context.twapBandHigh ?? null,context.twapDispersionBps ?? null,context.regime,context.confidence,JSON.stringify(context.walletCompatibility),JSON.stringify(context.coverage),JSON.stringify(context.limitations),context.blockNumber,context.observedAt],
-      );
-    }
-    await this.db.query(`delete from lending_position_snapshots where portfolio_snapshot_id=$1`, [snapshot.portfolioSnapshotId]);
-    for (const position of snapshot.venusPositions ?? []) {
+
+    // The normalized child snapshots are independent once the portfolio parent exists.
+    // Clear them together and persist the independent families concurrently so remote
+    // PostgreSQL round-trip latency does not serialize the Smart Money finalization.
+    await Promise.all([
+      this.db.query(`delete from yield_opportunity_snapshots where portfolio_snapshot_id=$1`, [snapshot.portfolioSnapshotId]),
+      this.db.query(`delete from grid_market_context_snapshots where portfolio_snapshot_id=$1`, [snapshot.portfolioSnapshotId]),
+      this.db.query(`delete from lending_position_snapshots where portfolio_snapshot_id=$1`, [snapshot.portfolioSnapshotId]),
+    ]);
+
+    const yieldWrites = (snapshot.yieldOpportunities ?? []).map((opportunity) => this.db.query(
+      `insert into yield_opportunity_snapshots(
+        yield_opportunity_snapshot_id,portfolio_snapshot_id,check_session_id,wallet_address,protocol,pool_kind,pool_name,comptroller,vtoken_address,underlying,wallet_balance_raw,wallet_balance_formatted,existing_supply_underlying_raw,existing_supply_formatted,current_supply_rate_per_block_raw,current_supply_apy_percent,current_rate_type,available_liquidity_raw,coverage,limitations,block_number,observed_at
+      ) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20::jsonb,$21,$22)`,
+      [opportunity.opportunityId,snapshot.portfolioSnapshotId,snapshot.checkSessionId,snapshot.walletAddress,opportunity.protocol,opportunity.poolKind,opportunity.poolName,opportunity.comptroller,opportunity.vToken,JSON.stringify(opportunity.underlying),opportunity.walletBalanceRaw,opportunity.walletBalanceFormatted ?? null,opportunity.existingSupplyUnderlyingRaw,opportunity.existingSupplyFormatted ?? null,opportunity.currentSupplyRatePerBlockRaw,opportunity.currentSupplyApyPercent ?? null,opportunity.currentRateType,opportunity.availableLiquidityRaw ?? null,JSON.stringify(opportunity.coverage),JSON.stringify(opportunity.limitations),opportunity.blockNumber,opportunity.observedAt],
+    ));
+
+    const gridWrites = (snapshot.gridMarketContexts ?? []).map((context) => this.db.query(
+      `insert into grid_market_context_snapshots(
+        grid_market_context_snapshot_id,portfolio_snapshot_id,check_session_id,wallet_address,protocol,pool_address,pair_label,token0,token1,fee_pips,current_tick,current_price_token0_in_token1,liquidity_raw,windows,twap_band_low,twap_band_high,twap_dispersion_bps,regime,confidence,wallet_compatibility,coverage,limitations,block_number,observed_at
+      ) values($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18,$19,$20::jsonb,$21::jsonb,$22::jsonb,$23,$24)`,
+      [context.contextId,snapshot.portfolioSnapshotId,snapshot.checkSessionId,snapshot.walletAddress,context.protocol,context.poolAddress,context.pairLabel,JSON.stringify(context.token0),JSON.stringify(context.token1),context.feePips,context.currentTick,context.currentPriceToken0InToken1 ?? null,context.liquidityRaw,JSON.stringify(context.windows),context.twapBandLow ?? null,context.twapBandHigh ?? null,context.twapDispersionBps ?? null,context.regime,context.confidence,JSON.stringify(context.walletCompatibility),JSON.stringify(context.coverage),JSON.stringify(context.limitations),context.blockNumber,context.observedAt],
+    ));
+
+    const lendingWrites = (snapshot.venusPositions ?? []).map(async (position) => {
       const positionId = `${snapshot.portfolioSnapshotId}:venus:${position.comptroller}`;
       await this.db.query(
         `insert into lending_position_snapshots(
@@ -479,15 +484,15 @@ export class PostgresSmartMoneyStore implements SmartMoneyStore {
         ) values($1,$2,$3,$4,'Venus',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18)`,
         [positionId,snapshot.portfolioSnapshotId,snapshot.checkSessionId,snapshot.walletAddress,position.poolKind,position.poolName,position.comptroller,position.oracle ?? null,position.protocolLiquidityRaw,position.protocolShortfallRaw,position.totalBorrowValueUsd1e18 ?? null,position.liquidationAdjustedCollateralUsd1e18 ?? null,position.healthFactor ?? null,position.riskState,JSON.stringify(position.coverage),JSON.stringify(position.limitations),position.blockNumber,position.observedAt],
       );
-      for (const market of position.markets) {
-        await this.db.query(
-          `insert into lending_market_position_snapshots(
-            lending_market_position_snapshot_id,lending_position_snapshot_id,vtoken_address,vtoken_symbol,underlying,collateral_enabled,supplied_vtoken_raw,supplied_underlying_raw,borrow_underlying_raw,exchange_rate_mantissa,collateral_factor_mantissa,liquidation_threshold_mantissa,forced_liquidation_enabled,oracle_price_raw,supplied_value_usd_1e18,borrow_value_usd_1e18,liquidation_adjusted_collateral_usd_1e18
-          ) values($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-          [`${positionId}:${market.vToken}`,positionId,market.vToken,market.vTokenSymbol ?? null,JSON.stringify(market.underlying),market.collateralEnabled,market.suppliedVTokenRaw,market.suppliedUnderlyingRaw,market.borrowUnderlyingRaw,market.exchangeRateMantissa,market.collateralFactorMantissa ?? null,market.liquidationThresholdMantissa ?? null,market.forcedLiquidationEnabled ?? null,market.oraclePriceRaw ?? null,market.suppliedValueUsd1e18 ?? null,market.borrowValueUsd1e18 ?? null,market.liquidationAdjustedCollateralUsd1e18 ?? null],
-        );
-      }
-    }
+      await Promise.all(position.markets.map((market) => this.db.query(
+        `insert into lending_market_position_snapshots(
+          lending_market_position_snapshot_id,lending_position_snapshot_id,vtoken_address,vtoken_symbol,underlying,collateral_enabled,supplied_vtoken_raw,supplied_underlying_raw,borrow_underlying_raw,exchange_rate_mantissa,collateral_factor_mantissa,liquidation_threshold_mantissa,forced_liquidation_enabled,oracle_price_raw,supplied_value_usd_1e18,borrow_value_usd_1e18,liquidation_adjusted_collateral_usd_1e18
+        ) values($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+        [`${positionId}:${market.vToken}`,positionId,market.vToken,market.vTokenSymbol ?? null,JSON.stringify(market.underlying),market.collateralEnabled,market.suppliedVTokenRaw,market.suppliedUnderlyingRaw,market.borrowUnderlyingRaw,market.exchangeRateMantissa,market.collateralFactorMantissa ?? null,market.liquidationThresholdMantissa ?? null,market.forcedLiquidationEnabled ?? null,market.oraclePriceRaw ?? null,market.suppliedValueUsd1e18 ?? null,market.borrowValueUsd1e18 ?? null,market.liquidationAdjustedCollateralUsd1e18 ?? null],
+      )));
+    });
+
+    await Promise.all([...yieldWrites, ...gridWrites, ...lendingWrites]);
   }
 
   async getPortfolio(checkSessionId: string): Promise<SmartMoneyPortfolioSnapshot | undefined> {
@@ -583,6 +588,7 @@ export interface SmartMoneyEngineOptions {
 export interface SmartMoneyEngine {
   startCheck(input: StartSmartMoneyCheckInput): Promise<CheckSession>;
   runCheck(checkSessionId: string): Promise<SmartMoneyCheckSnapshot>;
+  getSession(checkSessionId: string): Promise<CheckSession | undefined>;
   getCheck(checkSessionId: string): Promise<SmartMoneyCheckSnapshot | undefined>;
   listEvents(checkSessionId: string, afterSequence?: number): Promise<SmartMoneyCheckEvent[]>;
   subscribe(checkSessionId: string, listener: (event: SmartMoneyCheckEvent) => void): () => void;
@@ -782,21 +788,33 @@ export function createSmartMoneyEngine(options: SmartMoneyEngineOptions): SmartM
       await publish(checkSessionId, "finding.created", "market_context", { findingId: finding.findingId, category: finding.category, state: finding.state, severity: finding.severity });
     }
 
-    await updateSource(session, "agent_compatibility", "COMPLETED", "Deterministic Finding → AgentService matching is enabled for these findings and is evaluated on demand when you open the matching marketplace handoff.");
-
+    // Finalize the scan in one persisted session update. The former implementation
+    // wrote the session once for the synthetic compatibility row and again for the
+    // terminal state, then re-read findings twice. On a remote PostgreSQL database
+    // those serial round-trips could make an otherwise-finished scan look stuck.
+    const finalizedAt = now().toISOString();
+    session.sourceProgress = cloneProgress(session.sourceProgress ?? CHECK_SOURCE_TEMPLATE);
+    const compatibility = session.sourceProgress.find((candidate) => candidate.key === "agent_compatibility")!;
+    compatibility.state = "COMPLETED";
+    compatibility.startedAt = compatibility.startedAt ?? finalizedAt;
+    compatibility.completedAt = finalizedAt;
+    compatibility.detail = "Financial findings are finalized. Deterministic Finding → AgentService matching is available on demand when you open the marketplace handoff.";
     session.coverage = coverage;
     session.state = coverage.walletAssets === "FAILED" && coverage.pancakeSwapPositions === "FAILED" && coverage.venusPositions === "FAILED" && coverage.yieldOpportunities === "FAILED" && coverage.marketContext === "FAILED" ? "FAILED" : "PARTIAL";
-    session.completedAt = now().toISOString();
-    session.updatedAt = session.completedAt;
+    session.completedAt = finalizedAt;
+    session.updatedAt = finalizedAt;
     if (session.state === "FAILED") session.failureReason = "Wallet, PancakeSwap, Venus health, Yield, and Grid market-context source reads all failed.";
     await store.updateSession(session);
-    await publish(checkSessionId, session.state === "FAILED" ? "check.failed" : "check.completed", undefined, { state: session.state, findings: (await store.listFindings(checkSessionId)).length });
-    return { session, portfolio, findings: await store.listFindings(checkSessionId) };
+    await publish(checkSessionId, "check.source.completed", "agent_compatibility", { state: "COMPLETED", detail: compatibility.detail });
+    const findings = await store.listFindings(checkSessionId);
+    await publish(checkSessionId, session.state === "FAILED" ? "check.failed" : "check.completed", undefined, { state: session.state, findings: findings.length });
+    return { session, portfolio, findings };
   }
 
   return {
     startCheck,
     runCheck,
+    getSession: (checkSessionId) => store.getSession(checkSessionId),
     async getCheck(checkSessionId) {
       const session = await store.getSession(checkSessionId);
       if (!session) return undefined;

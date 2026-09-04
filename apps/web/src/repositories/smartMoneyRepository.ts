@@ -12,6 +12,7 @@ export interface SmartMoneyCheckView {
 
 export interface SmartMoneyRepository {
   startCheck(walletAddress: string, walletControl?: WalletControlState): Promise<SmartMoneyCheckView>;
+  getCheckStatus(checkSessionId: string): Promise<CheckSession>;
   getCheck(checkSessionId: string): Promise<SmartMoneyCheckView>;
   getFindingMatches(checkSessionId: string, findingId: string, limit?: number): Promise<FindingServiceMatchPage>;
 }
@@ -23,6 +24,11 @@ export class ApiSmartMoneyRepository implements SmartMoneyRepository {
       method: "POST",
       body: JSON.stringify(payload),
     }));
+  }
+
+  async getCheckStatus(checkSessionId: string) {
+    const data = unwrap(await apiRequest<ApiEnvelope<{ session: CheckSession }>>(`/v1/checks/${encodeURIComponent(checkSessionId)}/status`));
+    return data.session;
   }
 
   async getCheck(checkSessionId: string) {
