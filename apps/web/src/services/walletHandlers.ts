@@ -32,8 +32,8 @@ type Eip6963ProviderDetail = {
 };
 
 type PreferredWallet =
-  | { kind: "EIP6963"; rdns: string }
-  | { kind: "LEGACY_INJECTED" };
+  | { kind: "EIP6963"; rdns: string; accountFingerprint?: string }
+  | { kind: "LEGACY_INJECTED"; accountFingerprint?: string };
 
 declare global {
   interface Window { ethereum?: Eip1193Provider; }
@@ -50,6 +50,7 @@ let activeProviderId: string | undefined;
 let session: WalletSession | undefined;
 let initialized = false;
 let restoring = false;
+let restoreCycle: Promise<WalletSession | undefined> | undefined;
 
 function parseChainId(value: unknown): 56 | 97 {
   const chainId = typeof value === "string"
@@ -89,8 +90,11 @@ function readPreference(): PreferredWallet | undefined {
   if (!value) return undefined;
   try {
     const parsed = JSON.parse(value) as Partial<PreferredWallet>;
-    if (parsed.kind === "LEGACY_INJECTED") return { kind: "LEGACY_INJECTED" };
-    if (parsed.kind === "EIP6963" && typeof parsed.rdns === "string" && parsed.rdns.length > 0) return { kind: "EIP6963", rdns: parsed.rdns };
+    const accountFingerprint = typeof parsed.accountFingerprint === "string" && /^[0-9a-f]{64}$/.test(parsed.accountFingerprint)
+      ? parsed.accountFingerprint
+      : undefined;
+    if (parsed.kind === "LEGACY_INJECTED") return { kind: "LEGACY_INJECTED", accountFingerprint };
+    if (parsed.kind === "EIP6963" && typeof parsed.rdns === "string" && parsed.rdns.length > 0) return { kind: "EIP6963", rdns: parsed.rdns, accountFingerprint };
   } catch {
     // Invalid local preference is non-authoritative and can be discarded safely.
   }
@@ -98,15 +102,37 @@ function readPreference(): PreferredWallet | undefined {
   return undefined;
 }
 
-function rememberProvider(id: string) {
+async function addressFingerprint(address: string): Promise<string | undefined> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return undefined;
+  const bytes = new TextEncoder().encode(address.toLowerCase());
+  const digest = await subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+async function rememberProvider(id: string, address: string) {
   const store = storage();
   if (!store) return;
+  const accountFingerprint = await addressFingerprint(address);
   if (id === "legacy-injected") {
-    store.setItem(PREFERENCE_KEY, JSON.stringify({ kind: "LEGACY_INJECTED" } satisfies PreferredWallet));
+    store.setItem(PREFERENCE_KEY, JSON.stringify({ kind: "LEGACY_INJECTED", accountFingerprint } satisfies PreferredWallet));
     return;
   }
   const detail = providers.get(id);
-  if (detail?.info.rdns) store.setItem(PREFERENCE_KEY, JSON.stringify({ kind: "EIP6963", rdns: detail.info.rdns } satisfies PreferredWallet));
+  if (detail?.info.rdns) store.setItem(PREFERENCE_KEY, JSON.stringify({ kind: "EIP6963", rdns: detail.info.rdns, accountFingerprint } satisfies PreferredWallet));
+}
+
+async function persistPreferenceFingerprint(preference: PreferredWallet, address: string) {
+  const store = storage();
+  if (!store) return;
+  const accountFingerprint = await addressFingerprint(address);
+  if (!accountFingerprint) return;
+  store.setItem(PREFERENCE_KEY, JSON.stringify({ ...preference, accountFingerprint }));
+}
+
+async function upgradePreferenceFingerprint(preference: PreferredWallet, address: string) {
+  if (preference.accountFingerprint) return;
+  await persistPreferenceFingerprint(preference, address);
 }
 
 function forgetProvider() {
@@ -126,6 +152,8 @@ function wireProviderEvents(provider: Eip1193Provider) {
     try {
       const chain = await provider.request({ method: "eth_chainId" });
       session = { address: assertAddress(accounts[0]), chainId: parseChainId(chain), controlState: "CONNECTED" };
+      const preference = readPreference();
+      if (preference) await persistPreferenceFingerprint(preference, session.address);
     } catch {
       session = undefined;
     }
@@ -148,6 +176,7 @@ function preferenceMatches(id: string, detail?: Eip6963ProviderDetail): boolean 
 }
 
 async function restoreProvider(id: string, provider: Eip1193Provider, detail?: Eip6963ProviderDetail): Promise<WalletSession | undefined> {
+  if (session) return session;
   if (!preferenceMatches(id, detail) || restoreInFlight.has(provider as object)) return session;
   restoreInFlight.add(provider as object);
   restoring = true;
@@ -162,8 +191,11 @@ async function restoreProvider(id: string, provider: Eip1193Provider, detail?: E
       session = undefined;
       return undefined;
     }
+    const address = assertAddress(account);
     const chain = await provider.request({ method: "eth_chainId" });
-    session = { address: assertAddress(account), chainId: parseChainId(chain), controlState: "CONNECTED" };
+    session = { address, chainId: parseChainId(chain), controlState: "CONNECTED" };
+    const preference = readPreference();
+    if (preference) await persistPreferenceFingerprint(preference, address);
     return session;
   } catch {
     session = undefined;
@@ -188,6 +220,63 @@ async function restorePreferredFromKnownProviders(): Promise<WalletSession | und
   return undefined;
 }
 
+async function restoreAuthorizedInjectedFallback(): Promise<WalletSession | undefined> {
+  const preference = readPreference();
+  if (!preference || preference.kind !== "EIP6963" || typeof window === "undefined" || !window.ethereum || session) return session;
+
+  restoring = true;
+  notify();
+  try {
+    const accounts = await window.ethereum.request({ method: "eth_accounts" });
+    const account = Array.isArray(accounts) ? accounts[0] : undefined;
+    if (!account) return undefined;
+    const address = assertAddress(account);
+
+    // A remembered fingerprint prevents a silent refresh fallback from binding
+    // Spotriq to a different injected wallet when multiple extensions coexist.
+    if (preference.accountFingerprint) {
+      const candidateFingerprint = await addressFingerprint(address);
+      if (!candidateFingerprint || candidateFingerprint !== preference.accountFingerprint) return undefined;
+    } else if (providers.size > 0) {
+      // Old v1 preferences without a fingerprint may migrate only when there are
+      // no announced EIP-6963 candidates; otherwise fail closed rather than guess.
+      return undefined;
+    }
+
+    const chain = await window.ethereum.request({ method: "eth_chainId" });
+    activeProvider = window.ethereum;
+    activeProviderId = "legacy-injected";
+    wireProviderEvents(window.ethereum);
+    session = { address, chainId: parseChainId(chain), controlState: "CONNECTED" };
+    await upgradePreferenceFingerprint(preference, address);
+    return session;
+  } catch {
+    return undefined;
+  } finally {
+    restoring = false;
+    notify();
+  }
+}
+
+async function restoreSessionInternal(): Promise<WalletSession | undefined> {
+  if (session) return session;
+  if (restoreCycle) return restoreCycle;
+  restoreCycle = (async () => {
+    const immediate = await restorePreferredFromKnownProviders();
+    if (immediate || !readPreference()) return immediate;
+
+    // Give EIP-6963 wallets a brief opportunity to answer requestProvider. Some
+    // extensions announce asynchronously; others expose only window.ethereum on
+    // reload. The latter is handled by a non-interactive eth_accounts fallback.
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    if (session) return session;
+    const announced = await restorePreferredFromKnownProviders();
+    if (announced) return announced;
+    return restoreAuthorizedInjectedFallback();
+  })().finally(() => { restoreCycle = undefined; });
+  return restoreCycle;
+}
+
 function initializeDiscovery() {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
@@ -197,7 +286,7 @@ function initializeDiscovery() {
     if (!detail?.info?.uuid || !detail.provider) return;
     providers.set(detail.info.uuid, detail);
     notify();
-    if (preferenceMatches(detail.info.uuid, detail)) void restoreProvider(detail.info.uuid, detail.provider, detail);
+    if (!session && preferenceMatches(detail.info.uuid, detail)) void restoreProvider(detail.info.uuid, detail.provider, detail);
   });
 
   window.addEventListener("storage", (event) => {
@@ -210,11 +299,11 @@ function initializeDiscovery() {
       notify();
       return;
     }
-    void restorePreferredFromKnownProviders();
+    void restoreSessionInternal();
   });
 
   window.dispatchEvent(new Event("eip6963:requestProvider"));
-  if (window.ethereum && readPreference()?.kind === "LEGACY_INJECTED") void restoreProvider("legacy-injected", window.ethereum);
+  if (readPreference()) void restoreSessionInternal();
 }
 
 initializeDiscovery();
@@ -237,7 +326,7 @@ async function connectProvider(id?: string): Promise<WalletSession> {
   activeProvider = selected.provider;
   activeProviderId = selected.id;
   wireProviderEvents(selected.provider);
-  rememberProvider(selected.id);
+  await rememberProvider(selected.id, session.address);
   notify();
   return session;
 }
@@ -249,10 +338,11 @@ async function connectProvider(id?: string): Promise<WalletSession> {
  * EIP-1193 `window.ethereum` fallback. It requires no hosted wallet account,
  * project ID, relay plan, or custodial wallet service.
  *
- * The remembered browser preference contains only a provider locator (rdns or
- * legacy marker), never the wallet address. On refresh Spotriq calls
- * `eth_accounts`, which is non-interactive, to reconcile an account the user
- * already approved. It never re-prompts merely because the page reloaded.
+ * The remembered browser preference contains a provider locator plus, where
+ * available, a one-way SHA-256 account fingerprint — never the raw wallet
+ * address. On refresh Spotriq calls `eth_accounts`, which is non-interactive,
+ * to reconcile an account the user already approved. It never re-prompts merely
+ * because the page reloaded, and a fingerprint mismatch fails closed.
  *
  * Connection identifies an account only. It never creates a PermissionGrant,
  * marketplace Activation, payment, transaction, or financial execution authority.
@@ -272,7 +362,7 @@ export const walletHandlers = {
 
   async restoreSession(): Promise<WalletSession | undefined> {
     initializeDiscovery();
-    return restorePreferredFromKnownProviders();
+    return restoreSessionInternal();
   },
 
   async connectWallet(walletId?: string): Promise<WalletSession> {

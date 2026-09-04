@@ -81,6 +81,17 @@ function makeEip6963Window(storage, provider, uuid = "wallet-uuid", rdns = "io.s
   return target;
 }
 
+function makeSilentReloadWindow(storage, provider) {
+  const target = new EventTarget();
+  target.localStorage = storage;
+  target.location = { href: "https://spotriq.example/check" };
+  // Real extensions do not all re-announce EIP-6963 providers after every page
+  // refresh. The authorized injected provider remains available through
+  // window.ethereum, which Spotriq must reconcile without prompting again.
+  target.ethereum = provider;
+  return target;
+}
+
 function makeLegacyWindow(storage, provider) {
   const target = new EventTarget();
   target.localStorage = storage;
@@ -95,7 +106,7 @@ async function importFresh(tag) {
   return import(url.href);
 }
 
-async function flush() { await new Promise((resolve) => setTimeout(resolve, 0)); }
+async function flush(delay = 0) { await new Promise((resolve) => setTimeout(resolve, delay)); }
 
 try {
   // 1. Rejection remains disconnected and stores no preference.
@@ -139,7 +150,30 @@ try {
     assert.deepEqual(restoredProvider.calls.map((call) => call.method), ["eth_accounts", "eth_chainId"]);
   }
 
-  // 4. Account and chain changes reconcile; unsupported chains fail closed.
+  // 4. Reload also restores when the wallet does NOT re-announce EIP-6963.
+  // This reproduces the production refresh regression found during manual testing.
+  {
+    const silentProvider = new MockProvider();
+    globalThis.window = makeSilentReloadWindow(storage, silentProvider);
+    const silentReload = await importFresh("silent-reload");
+    await flush(260);
+    assert.equal(silentReload.walletHandlers.getSession()?.address, ADDRESS1);
+    assert.equal(silentReload.walletHandlers.getSession()?.chainId, 97);
+    assert.deepEqual(silentProvider.calls.map((call) => call.method), ["eth_accounts", "eth_chainId"]);
+    assert.ok(!silentProvider.calls.some((call) => call.method === "eth_requestAccounts"), "Refresh restore must never reopen a wallet approval prompt.");
+  }
+
+  // 5. A silent injected fallback with a different account must fail closed.
+  {
+    const mismatchedProvider = new MockProvider({ accounts: [ADDRESS2] });
+    globalThis.window = makeSilentReloadWindow(storage, mismatchedProvider);
+    const mismatchedReload = await importFresh("silent-mismatch");
+    await flush(260);
+    assert.equal(mismatchedReload.walletHandlers.getSession(), undefined);
+    assert.deepEqual(mismatchedProvider.calls.map((call) => call.method), ["eth_accounts"]);
+  }
+
+  // 6. Account and chain changes reconcile; unsupported chains fail closed.
   {
     restoredProvider.accounts = [ADDRESS2];
     restoredProvider.emit("accountsChanged", [ADDRESS2]);
@@ -155,7 +189,7 @@ try {
     assert.equal(restoredModule.walletHandlers.getSession(), undefined);
   }
 
-  // 5. Explicit Spotriq disconnect removes the restore preference.
+  // 7. Explicit Spotriq disconnect removes the restore preference.
   {
     restoredProvider.chain = "0x61";
     const restored = await restoredModule.walletHandlers.restoreSession();
@@ -165,7 +199,7 @@ try {
     assert.equal(storage.map.size, 0);
   }
 
-  // 6. Reload after explicit disconnect must not silently reconnect.
+  // 8. Reload after explicit disconnect must not silently reconnect.
   {
     const provider = new MockProvider({ accounts: [ADDRESS2] });
     globalThis.window = makeEip6963Window(storage, provider, "after-disconnect");
@@ -175,7 +209,7 @@ try {
     assert.deepEqual(provider.calls.map((call) => call.method), []);
   }
 
-  // 7. Cross-tab preference changes reconcile without wallet prompts.
+  // 9. Cross-tab preference changes reconcile without wallet prompts.
   {
     const tabStorage = new MemoryStorage();
     const tabProvider = new MockProvider();
@@ -203,7 +237,7 @@ try {
     assert.equal(tabModule.walletHandlers.getSession(), undefined);
   }
 
-  // 8. Legacy EIP-1193 fallback receives the same silent-refresh behavior.
+  // 10. Legacy EIP-1193 fallback receives the same silent-refresh behavior.
   {
     const legacyStorage = new MemoryStorage();
     const provider1 = new MockProvider();
@@ -220,7 +254,7 @@ try {
     assert.deepEqual(provider2.calls.map((call) => call.method), ["eth_accounts", "eth_chainId"]);
   }
 
-  console.log("PASS: Spotriq wallet session lifecycle passed rejection, connect, silent refresh, account/chain reconciliation, disconnect, cross-tab reconciliation, privacy, and legacy fallback tests.");
+  console.log("PASS: Spotriq wallet session lifecycle passed rejection, connect, EIP-6963 refresh, non-announcing injected refresh fallback, account-fingerprint mismatch protection, account/chain reconciliation, disconnect, cross-tab reconciliation, privacy, and legacy fallback tests.");
 } finally {
   delete globalThis.window;
   fs.rmSync(tempDir, { recursive: true, force: true });

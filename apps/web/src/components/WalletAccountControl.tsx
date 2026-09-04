@@ -10,11 +10,15 @@ export function WalletAccountControl({ onFallback }: { onFallback: () => void })
   const [restoring, setRestoring] = useState(() => walletHandlers.getSnapshot().restoring);
   const [error, setError] = useState<string>();
 
-  useEffect(() => subscribeWalletConnection((snapshot) => {
-    setSession(snapshot.session);
-    setWallets(snapshot.wallets);
-    setRestoring(snapshot.restoring);
-  }), []);
+  useEffect(() => {
+    const unsubscribe = subscribeWalletConnection((snapshot) => {
+      setSession(snapshot.session);
+      setWallets(snapshot.wallets);
+      setRestoring(snapshot.restoring);
+    });
+    void walletHandlers.restoreSession();
+    return unsubscribe;
+  }, []);
 
   const label = session ? `${session.address.slice(0, 6)}…${session.address.slice(-4)}` : "Connect Wallet";
   const mobileLink = useMemo(() => trustWalletDappLink(), [pickerOpen]);

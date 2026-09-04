@@ -53,7 +53,8 @@ Locked separations remain:
 - `apps/worker` — maintenance queue consumer; financial Smart Money jobs remain `API_INLINE`.
 - PostgreSQL migrations `0001`–`0031`.
 - `@spotriq/adoption-analytics` — privacy-bounded interaction/feedback ingestion plus deterministic domain-funnel reporting.
-- Production-testing wallet hotfix — self-managed EIP-6963 multi-injected-provider discovery plus EIP-1193 fallback provides wallet selection without a hosted wallet-service dependency while preserving Spotriq's separate permission/execution authority model.
+- Production-testing wallet hotfix — self-managed EIP-6963 multi-injected-provider discovery plus EIP-1193 fallback provides wallet selection without a hosted wallet-service dependency while preserving Spotriq's separate permission/execution authority model. A provider locator plus one-way account fingerprint is retained locally so refresh can reconcile with non-interactive `eth_accounts`; a non-announcing injected-provider fallback is fingerprint-checked and fails closed on mismatch.
+- Production-testing core-runtime hotfix — activation-bound read-only tasks automatically refresh stale Marketplace Test Lab evidence before invocation and explicit reruns create a fresh retry attempt instead of replaying a stale failed/completed task.
 
 ## Current v0.39 implementation truth
 
@@ -73,9 +74,11 @@ v0.39 measures what real users/operators do without turning analytics into produ
 
 ## Current validation state
 
-Authoritative local gate:
+Authoritative local gates:
 
-`pnpm --filter @spotriq/api build → pnpm check`
+`pnpm preflight:production-testing → pnpm check`
+
+The preflight includes foundation, wallet architecture, strengthened wallet-session lifecycle and core-runtime-flow verification before web/API builds.
 
 The v0.39 acceptance gates have passed. Continue to use `pnpm verify:adoption-analytics` after relevant production changes and capture private baselines only from real deployed state.
 

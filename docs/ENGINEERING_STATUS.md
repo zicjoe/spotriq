@@ -223,3 +223,13 @@ Current status: implementation candidate complete; do not record v0.38 externall
 New package `@spotriq/adoption-analytics`, migration `0031_production_adoption_analytics.sql`, bounded product/feedback ingestion, authenticated adoption report/export, hidden admin dashboard, acceptance-traffic separation, and private production-baseline capture. Domain lifecycle tables remain authoritative; analytics do not infer financial truth or Agent Advantage.
 
 Current status: externally accepted. Use `pnpm verify:adoption-analytics` after relevant production changes; real production testing/adoption evidence now determines subsequent product work.
+
+
+## Production-testing hotfix composition after v0.39 acceptance
+
+The current production-testing release remains **v0.39.0** and composes the accepted analytics/adoption state with two evidence-driven defect corrections discovered during real buyer testing:
+
+- wallet-session continuity: EIP-6963/EIP-1193 connection remains zero-service and authority-neutral; refresh reconciliation uses non-interactive `eth_accounts`, tolerates extensions that do not re-announce after reload, and protects injected fallback with a one-way account fingerprint;
+- core-runtime continuity: activation-bound read-only tasks refresh stale Test Lab evidence before real invocation and explicit reruns create a fresh retry task rather than replaying stale state.
+
+These hotfixes do not approve BSC Mainnet financial execution and do not collapse wallet connection, Activation, PermissionGrant, execution, transaction, outcome or Agent Advantage boundaries. `pnpm verify` must exercise both wallet-session and core-runtime behavioral verifiers in the same repository before a replacement ZIP is handed off.
