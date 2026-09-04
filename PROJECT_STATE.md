@@ -1,7 +1,7 @@
 # Spotriq Project State
 
-**Current implementation release:** v0.39.0  
-**Implementation status:** v0.39.0 Production Analytics + Adoption Feedback Loop externally accepted; current phase is real production testing, adoption validation and production measurement.  
+**Current implementation release:** v0.40.0  
+**Implementation status:** v0.40.0 Marketplace Supply Discovery + Qualification implemented from production evidence that agent supply depth/quality was the primary adoption bottleneck; v0.39 remains the accepted analytics baseline.  
 **Last state update:** 2026-09-03  
 **Repository role:** concise present-state map; current repository remains implementation truth.
 
@@ -82,6 +82,10 @@ Authoritative local gates:
 The preflight includes foundation, wallet architecture, strengthened wallet-session lifecycle and core-runtime-flow verification before web/API builds.
 
 The v0.39 acceptance gates have passed. Continue to use `pnpm verify:adoption-analytics` after relevant production changes and capture private baselines only from real deployed state.
+
+## Evidence-driven v0.40 milestone
+
+Production testing showed buyer flows working while external agent supply was shallow and low-confidence. v0.40 updates Spotriq to the current 8004scan API, uses multi-query semantic discovery against the BSC agent universe, captures machine-callable service declarations when indexed, and introduces a deterministic qualification funnel. Search relevance and external reputation remain discovery signals only; canonical identity, runtime tests, readiness and authority are independent gates.
 
 ## Current phase after v0.39 acceptance
 

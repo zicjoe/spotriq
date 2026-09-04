@@ -194,7 +194,7 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     bscRpcSecondary: optional(env.BSC_RPC_SECONDARY),
     bscRpcTimeoutMs: parsePositiveInt(env.BSC_RPC_TIMEOUT_MS, 7500, "BSC_RPC_TIMEOUT_MS"),
     agentDiscoveryChainId: parseAgentDiscoveryChainId(env.AGENT_DISCOVERY_CHAIN_ID),
-    scan8004BaseUrl: env.SCAN8004_BASE_URL?.trim() || "https://8004scan.io/api/v1/public",
+    scan8004BaseUrl: env.SCAN8004_BASE_URL?.trim() || "https://api.8004scan.io/api/v1",
     scan8004ApiKey: optional(env.SCAN8004_API_KEY),
     scan8004TimeoutMs: parsePositiveInt(env.SCAN8004_TIMEOUT_MS, 7500, "SCAN8004_TIMEOUT_MS"),
     marketplaceTestTimeoutMs: parsePositiveInt(env.MARKETPLACE_TEST_TIMEOUT_MS, 5000, "MARKETPLACE_TEST_TIMEOUT_MS"),

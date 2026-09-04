@@ -540,3 +540,7 @@ v0.37 advances operational scale/readiness without changing product doctrine. Di
 ## v0.38 alignment note — Ecosystem Adoption + Judge/Public Launch Readiness
 
 v0.38 improves public inspectability without changing product doctrine. The adoption manifest, launch documentation, demo playbook and evidence-capture tooling expose existing truth boundaries rather than creating a new readiness/trust score. External screenshots/video remain external proof and are not fabricated in the repository. BSC Mainnet financial execution remains prohibited without explicit approval.
+
+## v0.40 production-evidence drift correction — agent supply
+
+Production use showed that bounded legacy 8004scan searches were too shallow for the intended BSC marketplace. v0.40 corrects this without weakening domain boundaries: current semantic discovery spans the upstream BSC index, multi-query recall broadens candidate discovery, machine-callable declarations are retained, and deterministic qualification stages prioritize investigation. AgentIdentity remains distinct from AgentService; search relevance and 8004scan reputation remain External signals rather than readiness/trust.

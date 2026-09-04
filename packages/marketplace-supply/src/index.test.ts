@@ -28,7 +28,7 @@ function agent(overrides: Partial<DiscoveredAgent> = {}): DiscoveredAgent {
 
 function registryFor(discovered: DiscoveredAgent): AgentRegistryReader {
   const page: AgentDiscoveryPage = { agents: [discovered], chainId: discovered.identity.chainId, page: 1, limit: 20, total: 1, hasMore: false, source: "8004scan", fetchedAt: new Date().toISOString(), limitations: [] };
-  const status: AgentRegistryStatus = { provider: "8004scan + ERC-8004", defaultDiscoveryChainId: discovered.identity.chainId, apiBaseUrl: "https://8004scan.io/api/v1/public", apiKeyConfigured: false, indexState: "AVAILABLE", canonicalVerification: "ENABLED", registries: [], checkedAt: new Date().toISOString(), limitations: [] };
+  const status: AgentRegistryStatus = { provider: "8004scan + ERC-8004", defaultDiscoveryChainId: discovered.identity.chainId, apiBaseUrl: "https://api.8004scan.io/api/v1", apiKeyConfigured: false, indexState: "AVAILABLE", canonicalVerification: "ENABLED", registries: [], checkedAt: new Date().toISOString(), limitations: [] };
   const feedback: ExternalAgentFeedbackPage = { feedback: [], chainId: discovered.identity.chainId, agentId: discovered.identity.agentId, page: 1, limit: 20, fetchedAt: new Date().toISOString() };
   return {
     getStatus: async () => status,

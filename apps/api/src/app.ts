@@ -307,7 +307,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const agentAdvantage = options.agentAdvantage ?? createAgentAdvantageEngine({ store: agentAdvantageStore, activityOutcomes: activationActivityOutcomes });
   const observabilityStore = sqlDatabase ? new PostgresOperationalHealthStore(sqlDatabase) : new MemoryOperationalHealthStore();
   const observability = options.observability ?? createOperationalHealthEngine({
-    release: "0.39.0",
+    release: "0.40.0",
     chain,
     marketplace: marketplaceSupply,
     referenceServiceIds: referenceServices.map(record => record.service.serviceId),
@@ -387,7 +387,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const status = dependencies.some((dependency) => dependency.state === "unavailable") ? "degraded" : "ok";
     const body: HealthResponse = {
       service: "spotriq-api",
-      version: "0.39.0",
+      version: "0.40.0",
       status,
       environment: config.appEnv,
       network: config.bscNetwork,

@@ -1809,6 +1809,21 @@ export interface MarketplaceListingRecord {
   limitations: string[];
 }
 
+
+export type AgentSupplyQualificationStage =
+  | "DISCOVERED" | "FINANCIAL_CANDIDATE" | "IDENTITY_VERIFIED" | "MACHINE_CALLABLE" | "RUNTIME_TESTED" | "SPOTRIQ_QUALIFIED";
+
+export interface AgentSupplyQualification {
+  stage: AgentSupplyQualificationStage;
+  financialCandidate: boolean;
+  canonicalIdentity: "VERIFIED" | "NOT_VERIFIED" | "MISMATCH" | "UNAVAILABLE";
+  machineCallable: "DECLARED" | "NOT_DECLARED";
+  externalReputation: "PRESENT" | "NONE";
+  marketplaceTests: "PASS" | "PARTIAL" | "FAIL" | "NOT_RUN";
+  priorityReasons: string[];
+  limitations: string[];
+}
+
 export interface MarketplaceServiceRecord {
   identity: DiscoveredAgent;
   listing: AgentListing;
@@ -1820,6 +1835,7 @@ export interface MarketplaceServiceRecord {
   evidence: EvidenceEnvelope[];
   normalizedAt: string;
   limitations: string[];
+  qualification?: AgentSupplyQualification;
 }
 
 export type FinancialSupplyDiscoveryMode = "TARGETED" | "USER_QUERY";
@@ -1845,12 +1861,17 @@ export interface FinancialSupplyDiscoveryMatch {
 
 export interface FinancialSupplyLead {
   identity: DiscoveredAgent;
+  qualification?: AgentSupplyQualification;
   matches: FinancialSupplyDiscoveryMatch[];
   promotedServiceIds: string[];
   note: string;
 }
 
 export interface MarketplaceFinancialDiscovery {
+  upstreamUniverseTotal?: number;
+  discoveredUnique?: number;
+  financialCandidates?: number;
+  machineCallableCandidates?: number;
   methodVersion: string;
   mode: FinancialSupplyDiscoveryMode;
   chainId: AgentRegistryChainId;

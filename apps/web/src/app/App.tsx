@@ -932,6 +932,7 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
   const [registryLoading, setRegistryLoading] = useState(true);
   const [registryError, setRegistryError] = useState<string>();
   const [registrySource, setRegistrySource] = useState<"8004scan" | "cache">("8004scan");
+  const [registryTotal, setRegistryTotal] = useState<number>();
   const [verifyingDiscoveryId, setVerifyingDiscoveryId] = useState<string>();
   const [serviceCandidates, setServiceCandidates] = useState<MarketplaceServiceRecord[]>([]);
   const [supplyDiscovery, setSupplyDiscovery] = useState<MarketplaceFinancialDiscovery>();
@@ -983,6 +984,7 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
         : await agentRegistryRepository.listAgents({ chainId: registryChainId, limit: 8 });
       setRegistryAgents(page.agents);
       setRegistrySource(page.source);
+      setRegistryTotal(page.total);
     } catch (cause) {
       setRegistryError(cause instanceof Error ? cause.message : "Live ERC-8004 discovery is temporarily unavailable.");
     } finally {
@@ -1197,7 +1199,7 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
     <div className="max-w-6xl mx-auto px-6 py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-[#dde3ef] mb-1">Explore BSC financial agents</h1>
-        <p className="text-[#6b7d99] text-sm">Find, evaluate and activate specialist financial agents.</p>
+        <p className="text-[#6b7d99] text-sm">Search the BSC agent universe, then qualify specialist financial services with evidence instead of listing everything as trustworthy.</p>
       </div>
 
       {/* Search bar: local reference-service filtering + live 8004scan semantic discovery on submit; initial load uses standard registry listing */}
@@ -1285,6 +1287,13 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
               <button onClick={() => setCompareIds([])} className="text-xs text-[#6b7d99] ml-auto">Clear</button>
             </div>
           )}
+
+          <div className="mb-6 grid sm:grid-cols-4 gap-3">
+            <div className="rounded-lg border border-white/8 bg-card p-3"><div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99]">BSC agent universe</div><div className="text-xl text-[#dde3ef] mt-1">{registryTotal?.toLocaleString() ?? "—"}</div><div className="text-[10px] text-[#52637b]">8004scan indexed identities · External</div></div>
+            <div className="rounded-lg border border-white/8 bg-card p-3"><div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99]">Discovered now</div><div className="text-xl text-[#dde3ef] mt-1">{supplyDiscovery?.discoveredUnique ?? "—"}</div><div className="text-[10px] text-[#52637b]">Deduped semantic candidates</div></div>
+            <div className="rounded-lg border border-white/8 bg-card p-3"><div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99]">Financial candidates</div><div className="text-xl text-[#dde3ef] mt-1">{supplyDiscovery?.financialCandidates ?? "—"}</div><div className="text-[10px] text-[#52637b]">Metadata-backed · untested</div></div>
+            <div className="rounded-lg border border-white/8 bg-card p-3"><div className="text-[10px] uppercase tracking-wide font-mono text-[#6b7d99]">Machine-callable</div><div className="text-xl text-[#dde3ef] mt-1">{supplyDiscovery?.machineCallableCandidates ?? "—"}</div><div className="text-[10px] text-[#52637b]">Declared endpoint signal</div></div>
+          </div>
 
           {fromFinding && getActiveCheckMode() === "live" && (
             <section className="mb-8 rounded-xl border border-[#2dd4bf]/20 bg-[#2dd4bf]/[0.015] p-4">
@@ -1462,8 +1471,8 @@ function ExplorePage({ navigate, initialCategory, fromFinding }: { navigate: (r:
                 {visibleServiceCandidates.length === 0 && !supplyError && (
                   <div className="p-5 rounded-lg border border-white/6 bg-card text-xs text-[#6b7d99]">
                     {category === "all"
-                      ? "Targeted registry discovery did not find a metadata-backed Spotriq financial service candidate in this bounded search. Search-relevant leads may still appear above, but relevance alone is not promoted into a capability claim."
-                      : `No normalized ${CATEGORY_LABELS[category]} service candidate is present in the current bounded discovery result. This reflects registry metadata coverage, not a claim that no such agent exists.`}
+                      ? "Current semantic discovery did not find a metadata-backed Spotriq financial service candidate in the returned ranked subsets. Search-relevant leads may still appear above, but relevance alone is not promoted into a capability claim."
+                      : `No normalized ${CATEGORY_LABELS[category]} service candidate is present in the current semantic discovery result. This reflects registry metadata coverage, not a claim that no such agent exists.`}
                   </div>
                 )}
               </>

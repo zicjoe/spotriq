@@ -173,3 +173,7 @@ The four first-party reference services publish FREE read-only observation suppo
 `Connect Wallet ≠ Hire ≠ Activation ≠ PermissionGrant ≠ Execution`. Mainnet read-only Activation grants no wallet signing, token approval, PermissionGrant, transaction dispatch, or financial execution authority. `@spotriq/financial-execution-adapters` still requires both API and Activation service chain 97, and controlled execution remains sealed to BSC Testnet.
 
 Production-testing gate: `pnpm verify:mainnet-read-only`. This is a v0.39 production-testing capability correction/extension, not an implicit v0.40 milestone or Mainnet financial-execution approval.
+
+## Evidence-driven v0.40 supply milestone
+
+The current implementation is v0.40.0 Marketplace Supply Discovery + Qualification. It was justified by real production testing after v0.39: buyer lifecycle and Mainnet read-only flows worked, while external agent supply depth and quality were insufficient. The implementation source remains this repository. 8004scan is External indexed discovery, ERC-8004 onchain verification is separate canonical identity evidence, Marketplace Test Lab is separate runtime evidence, and none of these alone becomes a Spotriq trust/profitability claim.

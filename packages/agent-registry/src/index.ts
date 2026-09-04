@@ -68,6 +68,17 @@ interface ScanAgent {
   image_url?: string;
   owner_address?: string;
   supported_protocols?: string[];
+  services?: Array<{ name?: string; endpoint?: string; version?: string; skills?: string[]; domains?: string[] }> | Record<string, unknown>;
+  service_types?: string[];
+  mcp_server?: string;
+  mcp_version?: string;
+  a2a_endpoint?: string;
+  a2a_version?: string;
+  agent_url?: string;
+  is_active?: boolean;
+  active?: boolean;
+  x402_support?: boolean;
+  x402_supported?: boolean;
   total_score?: number;
   star_count?: number;
   total_feedbacks?: number;
@@ -85,7 +96,7 @@ interface ScanFeedback {
 }
 
 interface ScanResponse<T> {
-  success: boolean;
+  success?: boolean;
   data: T;
   meta?: {
     timestamp?: string;
@@ -384,7 +395,18 @@ function normalizeScanAgent(agent: ScanAgent, expectedChainId: AgentRegistryChai
   const registry = ERC8004_REGISTRIES[chainId];
   const description = agent.description?.trim() || "No registry description is currently available.";
   const supportedProtocols = (agent.supported_protocols ?? []).filter((value): value is string => typeof value === "string");
-  const categoryHints = deriveAgentCategoryHints({ name: agent.name, description, supportedProtocols });
+  const indexedServices: AgentRegistrationServiceEndpoint[] = [];
+  if (Array.isArray(agent.services)) {
+    indexedServices.push(...agent.services.flatMap((service) => {
+      if (!service || typeof service.name !== "string" || typeof service.endpoint !== "string") return [];
+      return [{ name: service.name, endpoint: service.endpoint, version: typeof service.version === "string" ? service.version : undefined, skills: Array.isArray(service.skills) ? service.skills.filter((v): v is string => typeof v === "string") : undefined, domains: Array.isArray(service.domains) ? service.domains.filter((v): v is string => typeof v === "string") : undefined }];
+    }));
+  }
+  if (agent.mcp_server) indexedServices.push({ name: "MCP", endpoint: agent.mcp_server, version: agent.mcp_version });
+  if (agent.a2a_endpoint) indexedServices.push({ name: "A2A", endpoint: agent.a2a_endpoint, version: agent.a2a_version });
+  if (agent.agent_url) indexedServices.push({ name: "web", endpoint: agent.agent_url });
+  const indexedRegistration: AgentRegistrationFile | undefined = indexedServices.length ? { services: indexedServices } : undefined;
+  const categoryHints = deriveAgentCategoryHints({ name: agent.name, description, supportedProtocols, registration: indexedRegistration });
   return {
     discoveryId: `erc8004:${chainId}:${tokenId}`,
     identity: {
@@ -400,8 +422,10 @@ function normalizeScanAgent(agent: ScanAgent, expectedChainId: AgentRegistryChai
     ownerAddress: normalizeAddress(agent.owner_address),
     supportedProtocols,
     categoryHints,
+    active: typeof agent.is_active === "boolean" ? agent.is_active : typeof agent.active === "boolean" ? agent.active : undefined,
+    x402Support: typeof agent.x402_supported === "boolean" ? agent.x402_supported : typeof agent.x402_support === "boolean" ? agent.x402_support : undefined,
     supportedTrust: [],
-    registrationServices: [],
+    registrationServices: indexedServices,
     externalReputation: {
       source: "8004scan",
       totalScore: typeof agent.total_score === "number" ? agent.total_score : undefined,
@@ -422,7 +446,7 @@ function normalizeScanAgent(agent: ScanAgent, expectedChainId: AgentRegistryChai
 }
 
 export function createAgentRegistry(options: CreateAgentRegistryOptions): AgentRegistryReader {
-  const apiBaseUrl = (options.apiBaseUrl ?? "https://8004scan.io/api/v1/public").replace(/\/$/, "");
+  const apiBaseUrl = (options.apiBaseUrl ?? "https://api.8004scan.io/api/v1").replace(/\/$/, "");
   const defaultChainId = options.defaultChainId ?? 56;
   const fetchImpl = options.fetchImpl ?? fetch;
   const timeoutMs = options.timeoutMs ?? 15_000;
@@ -440,15 +464,20 @@ export function createAgentRegistry(options: CreateAgentRegistryOptions): AgentR
         headers: options.apiKey ? { "X-API-Key": options.apiKey, accept: "application/json" } : { accept: "application/json" },
         signal: controller.signal,
       });
-      const body = await response.json() as ScanResponse<T>;
-      if (!response.ok || !body.success) {
-        if (response.status === 404) throw new AgentRegistryError("ERC-8004 agent was not found in 8004scan.", "AGENT_NOT_FOUND", false, body);
-        throw new AgentRegistryError(body.error?.message ?? `8004scan request failed with HTTP ${response.status}.`, "INDEX_UNAVAILABLE", response.status === 429 || response.status >= 500, body.error);
+      const raw = await response.json() as any;
+      if (!response.ok || raw?.success === false) {
+        if (response.status === 404) throw new AgentRegistryError("ERC-8004 agent was not found in 8004scan.", "AGENT_NOT_FOUND", false, raw);
+        throw new AgentRegistryError(raw?.error?.message ?? raw?.detail ?? `8004scan request failed with HTTP ${response.status}.`, "INDEX_UNAVAILABLE", response.status === 429 || response.status >= 500, raw?.error ?? raw);
       }
+      const body: ScanResponse<T> = raw?.data !== undefined
+        ? raw as ScanResponse<T>
+        : Array.isArray(raw?.items)
+          ? { data: raw.items as T, meta: { timestamp: new Date().toISOString(), pagination: { limit: raw.limit, total: raw.total, hasMore: typeof raw.total === "number" && typeof raw.offset === "number" && typeof raw.limit === "number" ? raw.offset + raw.limit < raw.total : undefined, page: typeof raw.offset === "number" && typeof raw.limit === "number" && raw.limit > 0 ? Math.floor(raw.offset / raw.limit) + 1 : undefined } } }
+          : { data: raw as T, meta: { timestamp: new Date().toISOString() } };
       const headerNumber = (name: string) => { const value = response.headers.get(name); const parsed = value ? Number(value) : undefined; return Number.isFinite(parsed) ? parsed : undefined; };
       lastRateLimit = {
-        limit: headerNumber("x-ratelimit-limit"),
-        remaining: headerNumber("x-ratelimit-remaining"),
+        limit: headerNumber("x-ratelimit-limit-minute") ?? headerNumber("x-ratelimit-limit"),
+        remaining: headerNumber("x-ratelimit-remaining-minute") ?? headerNumber("x-ratelimit-remaining"),
         resetAt: response.headers.get("x-ratelimit-reset") ?? undefined,
       };
       if (cacheSeconds > 0) responseCache.set(path, { expiresAt: Date.now() + cacheSeconds * 1000, value: body as ScanResponse<unknown> });
@@ -531,7 +560,7 @@ export function createAgentRegistry(options: CreateAgentRegistryOptions): AgentR
     const chainId = input.chainId ?? defaultChainId;
     const page = positiveInt(input.page, 1, 1_000_000);
     const limit = positiveInt(input.limit, 20);
-    const params = new URLSearchParams({ chainId: String(chainId), page: String(page), limit: String(limit), sortBy: "created_at", sortOrder: "desc" });
+    const params = new URLSearchParams({ chain_id: String(chainId), offset: String((page - 1) * limit), limit: String(limit), sort_by: "total_score", sort_order: "desc", is_registered: "true", is_active: "any" });
     if (input.search?.trim()) params.set("search", input.search.trim());
     if (input.protocol?.trim()) params.set("protocol", input.protocol.trim());
     try {
@@ -559,12 +588,17 @@ export function createAgentRegistry(options: CreateAgentRegistryOptions): AgentR
     const limit = positiveInt(input.limit, 20);
     const semanticWeight = input.semanticWeight ?? 0.5;
     if (!Number.isFinite(semanticWeight) || semanticWeight < 0 || semanticWeight > 1) throw new AgentRegistryError("semanticWeight must be between 0 and 1.", "INVALID_INPUT");
-    const params = new URLSearchParams({ q: query.trim(), chainId: String(chainId), limit: String(limit), semanticWeight: String(semanticWeight) });
+    const params = new URLSearchParams({ q: query.trim(), chain_id: String(chainId), limit: String(limit), semantic_weight: String(semanticWeight) });
     try {
-      const response = await scanRequest<ScanAgent[]>(`/agents/search?${params.toString()}`, 45);
-      const agents = response.data.map((agent) => normalizeScanAgent(agent, chainId));
+      const response = await scanRequest<ScanAgent[]>(`/agents/search/semantic?${params.toString()}`, 45);
+      const agents = response.data.flatMap((agent) => {
+        try {
+          const normalized = normalizeScanAgent(agent, chainId);
+          return normalized.identity.chainId === chainId ? [normalized] : [];
+        } catch { return []; }
+      });
       await saveAgentsBestEffort(agents);
-      return { agents, chainId, page: 1, limit, total: agents.length, hasMore: false, source: "8004scan", fetchedAt: response.meta?.timestamp ?? new Date().toISOString(), limitations: ["Semantic search is provided by 8004scan and is External indexed discovery, not Spotriq ranking."] };
+      return { agents, chainId, page: 1, limit, total: response.meta?.pagination?.total ?? agents.length, hasMore: response.meta?.pagination?.hasMore ?? false, source: "8004scan", fetchedAt: response.meta?.timestamp ?? new Date().toISOString(), limitations: ["Semantic search spans the current 8004scan index and returns a ranked subset. It is External indexed discovery, not Spotriq capability or trust ranking."] };
     } catch (error) {
       if (!(error instanceof AgentRegistryError) || error.code !== "INDEX_UNAVAILABLE") throw error;
       const fallback = await listAgents({ chainId, page: 1, limit, search: query.trim() });
@@ -614,8 +648,8 @@ export function createAgentRegistry(options: CreateAgentRegistryOptions): AgentR
     if (!owner) throw new AgentRegistryError("Owner address must be a valid EVM address.", "INVALID_INPUT");
     const page = positiveInt(input.page, 1, 1_000_000);
     const limit = positiveInt(input.limit, 20);
-    const params = new URLSearchParams({ page: String(page), limit: String(limit), sortBy: "created_at", sortOrder: "desc" });
-    const response = await scanRequest<ScanAgent[]>(`/accounts/${owner}/agents?${params.toString()}`, 60);
+    const params = new URLSearchParams({ owner_address: owner, offset: String((page - 1) * limit), limit: String(limit), sort_by: "created_at", sort_order: "desc", is_registered: "true", is_active: "any" });
+    const response = await scanRequest<ScanAgent[]>(`/agents?${params.toString()}`, 60);
     const agents = response.data.flatMap((agent) => {
       try {
         const chainId = asAgentRegistryChainId(agent.chain_id ?? defaultChainId);
@@ -631,7 +665,7 @@ export function createAgentRegistry(options: CreateAgentRegistryOptions): AgentR
     if (!/^\d+$/.test(agentId)) throw new AgentRegistryError("agentId must be numeric.", "INVALID_INPUT");
     const page = positiveInt(input.page, 1, 1_000_000);
     const limit = positiveInt(input.limit, 20);
-    const params = new URLSearchParams({ chainId: String(chainId), tokenId: agentId, page: String(page), limit: String(limit) });
+    const params = new URLSearchParams({ chain_id: String(chainId), token_id: agentId, offset: String((page - 1) * limit), limit: String(limit) });
     const response = await scanRequest<ScanFeedback[]>(`/feedbacks?${params.toString()}`, 60);
     const records = response.data.map((item, index): ExternalAgentFeedbackRecord => ({
       feedbackId: item.id ?? `8004scan:${chainId}:${agentId}:${page}:${index}`,
@@ -661,7 +695,7 @@ export function createAgentRegistry(options: CreateAgentRegistryOptions): AgentR
       checkedAt: new Date().toISOString(),
       lastRateLimit,
       limitations: [
-        "8004scan data is External indexed evidence; canonical identity is verified separately onchain when an agent detail is requested.",
+        "8004scan data is External indexed evidence; Spotriq uses the current api.8004scan.io API and canonical identity is verified separately onchain when an agent detail is requested.",
         "ERC-8004 registration does not prove service functionality, financial performance, safety, or Spotriq readiness.",
         options.apiKey ? "8004scan API key configured." : "No 8004scan API key configured; anonymous public rate limits apply.",
       ],

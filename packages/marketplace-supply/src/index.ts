@@ -6,6 +6,7 @@ import type {
   AgentListing,
   AgentRegistryChainId,
   AgentService,
+  AgentSupplyQualification,
   DiscoveredAgent,
   EvidenceEnvelope,
   Finding,
@@ -40,7 +41,7 @@ export * from "./authority-binding.js";
 
 export const MARKETPLACE_SERVICE_NORMALIZATION_METHOD = "marketplace.agent-service-normalization@1.0.0";
 export const MARKETPLACE_SERVICE_READINESS_METHOD = "marketplace.service-readiness@1.0.0";
-export const FINANCIAL_SUPPLY_DISCOVERY_METHOD = "marketplace.financial-supply-discovery@1.0.0";
+export const FINANCIAL_SUPPLY_DISCOVERY_METHOD = "marketplace.financial-supply-discovery@2.0.0";
 export const FINDING_SERVICE_COMPATIBILITY_METHOD = "marketplace.finding-service-compatibility@1.0.0";
 
 export const FINANCIAL_DISCOVERY_QUERIES: Record<ServiceCategory, string> = {
@@ -48,6 +49,25 @@ export const FINANCIAL_DISCOVERY_QUERIES: Record<ServiceCategory, string> = {
   grid: "grid trading price grid limit order automated trading BNB",
   yield: "Venus yield optimisation lending supply APY BSC",
   health: "Venus health factor liquidation monitoring lending risk BSC",
+};
+
+export const FINANCIAL_DISCOVERY_QUERY_SETS: Record<ServiceCategory, string[]> = {
+  rebalancing: [
+    FINANCIAL_DISCOVERY_QUERIES.rebalancing,
+    "concentrated liquidity LP position manager range rebalance PancakeSwap BSC",
+  ],
+  grid: [
+    FINANCIAL_DISCOVERY_QUERIES.grid,
+    "automated grid trader market making range orders BNB BSC",
+  ],
+  yield: [
+    FINANCIAL_DISCOVERY_QUERIES.yield,
+    "yield optimizer lending allocator Venus supply markets BNB Chain",
+  ],
+  health: [
+    FINANCIAL_DISCOVERY_QUERIES.health,
+    "borrow position health monitor liquidation risk collateral Venus BSC",
+  ],
 };
 
 const FINANCIAL_CATEGORIES: ServiceCategory[] = ["rebalancing", "grid", "yield", "health"];
@@ -694,6 +714,11 @@ function applyTestCoverageToRecord(record: MarketplaceServiceRecord, coverage: M
     readiness,
     evidence: [...normalizationEvidence(record.identity, record.service.serviceId, record.service.category, readiness), ...coverage.evidence],
     normalizedAt: readiness.checkedAt,
+    qualification: (() => {
+      const qualification = baseQualification(record.identity, coverage.coverage === "PASS" ? "PASS" : coverage.coverage === "PARTIAL" ? "PARTIAL" : coverage.coverage === "FAIL" ? "FAIL" : "NOT_RUN");
+      if (coverage.coverage === "PASS" && record.readiness.activationEligible) qualification.stage = "SPOTRIQ_QUALIFIED";
+      return qualification;
+    })(),
     limitations: [
       ...record.limitations.filter((item) => !/Activation is blocked by design in this milestone|not yet marketplace-tested/i.test(item)),
       coverage.coverage === "NOT_RUN"
@@ -723,6 +748,54 @@ function discoveryRelevanceSource(limitations: string[]): FinancialSupplyDiscove
     : "8004scan-semantic-search";
 }
 
+function declaredMachineCallable(agent: DiscoveredAgent): boolean {
+  return agent.registrationServices.some((service) => /^(a2a|mcp|erc[-_ ]?8183|oasf)$/i.test(service.name.trim()));
+}
+
+function baseQualification(agent: DiscoveredAgent, marketplaceTests: AgentSupplyQualification["marketplaceTests"] = "NOT_RUN"): AgentSupplyQualification {
+  const financialCandidate = agent.categoryHints.length > 0;
+  const canonical = agent.canonicalVerification?.state;
+  const machineCallable = declaredMachineCallable(agent);
+  const externalRep = (agent.externalReputation.totalFeedbacks ?? 0) > 0 || (agent.externalReputation.totalScore ?? 0) > 0 || (agent.externalReputation.starCount ?? 0) > 0;
+  let stage: AgentSupplyQualification["stage"] = financialCandidate ? "FINANCIAL_CANDIDATE" : "DISCOVERED";
+  if (canonical === "VERIFIED") stage = "IDENTITY_VERIFIED";
+  if (canonical === "VERIFIED" && machineCallable) stage = "MACHINE_CALLABLE";
+  if (canonical === "VERIFIED" && machineCallable && marketplaceTests === "PASS") stage = "RUNTIME_TESTED";
+  const priorityReasons: string[] = [];
+  if (financialCandidate) priorityReasons.push("Financial category metadata present");
+  if (machineCallable) priorityReasons.push("Machine-callable service endpoint declared");
+  if (canonical === "VERIFIED") priorityReasons.push("Canonical ERC-8004 identity verified");
+  if (externalRep) priorityReasons.push("External reputation/activity signal present");
+  if (agent.x402Support) priorityReasons.push("x402 support declared");
+  return {
+    stage, financialCandidate,
+    canonicalIdentity: canonical === "VERIFIED" ? "VERIFIED" : canonical === "MISMATCH" ? "MISMATCH" : canonical === "UNAVAILABLE" ? "UNAVAILABLE" : "NOT_VERIFIED",
+    machineCallable: machineCallable ? "DECLARED" : "NOT_DECLARED",
+    externalReputation: externalRep ? "PRESENT" : "NONE",
+    marketplaceTests, priorityReasons,
+    limitations: [
+      "Qualification is a deterministic evidence funnel, not a universal trust or profitability score.",
+      ...(externalRep ? ["8004scan reputation/activity is External evidence and may be affected by Sybil or spam behavior."] : []),
+    ],
+  };
+}
+
+function discoveryPriority(agent: DiscoveredAgent): number {
+  let value = 0;
+  if (agent.categoryHints.length) value += 100;
+  if (declaredMachineCallable(agent)) value += 60;
+  if (agent.active === true) value += 15;
+  if (agent.x402Support) value += 5;
+  value += Math.min(25, agent.externalReputation.totalFeedbacks ?? 0);
+  value += Math.min(20, Math.max(0, agent.externalReputation.totalScore ?? 0) / 5);
+  value += Math.min(10, agent.externalReputation.starCount ?? 0);
+  return value;
+}
+
+function prioritizeAgents(agents: DiscoveredAgent[]): DiscoveredAgent[] {
+  return [...agents].sort((a, b) => discoveryPriority(b) - discoveryPriority(a) || (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+}
+
 function roundRobinServices(groups: Map<ServiceCategory, MarketplaceServiceRecord[]>, limit: number): MarketplaceServiceRecord[] {
   const output: MarketplaceServiceRecord[] = [];
   const seen = new Set<string>();
@@ -750,6 +823,7 @@ function createDiscoveryLead(
 ): FinancialSupplyLead {
   return {
     identity: agent,
+    qualification: baseQualification(agent),
     matches: [match],
     promotedServiceIds,
     note: promotedServiceIds.length
@@ -1028,7 +1102,7 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
   async function listServices(input: { chainId?: AgentRegistryChainId; page?: number; limit?: number; search?: string; category?: ServiceCategory } = {}): Promise<MarketplaceSupplyPage> {
     const chainId = input.chainId ?? defaultChainId;
     const limit = Math.max(1, Math.min(input.limit ?? 20, 100));
-    const searchLimit = Math.max(4, Math.min(limit, 10));
+    const searchLimit = Math.max(12, Math.min(Math.max(limit * 3, 20), 30));
     const userQuery = input.search?.trim();
     const generatedAt = new Date().toISOString();
     const leadMap = new Map<string, FinancialSupplyLead>();
@@ -1045,7 +1119,7 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
         let matchingCapabilityHints = 0;
         let normalizedServices = 0;
         const relevanceSource = discoveryRelevanceSource(page.limitations);
-        for (const agent of page.agents) {
+        for (const agent of prioritizeAgents(page.agents)) {
           discoveredAgents.set(agent.discoveryId, agent);
           const promotable = agent.categoryHints.filter((hint) => targetCategories.includes(hint.category));
           if (promotable.length) matchingCapabilityHints += 1;
@@ -1092,15 +1166,15 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
       }
     } else {
       const categories = input.category ? [input.category] : FINANCIAL_CATEGORIES;
-      const outcomes = await Promise.allSettled(categories.map(async (category) => ({
-        category,
-        query: FINANCIAL_DISCOVERY_QUERIES[category],
-        page: await registry.searchAgents(FINANCIAL_DISCOVERY_QUERIES[category], { chainId, limit: searchLimit }),
+      const queryJobs = categories.flatMap((category) => FINANCIAL_DISCOVERY_QUERY_SETS[category].map((query) => ({ category, query })));
+      const outcomes = await Promise.allSettled(queryJobs.map(async ({ category, query }) => ({
+        category, query,
+        page: await registry.searchAgents(query, { chainId, limit: searchLimit, semanticWeight: 0.72 }),
       })));
 
       outcomes.forEach((outcome, index) => {
-        const category = categories[index]!;
-        const query = FINANCIAL_DISCOVERY_QUERIES[category];
+        const category = queryJobs[index]!.category;
+        const query = queryJobs[index]!.query;
         if (outcome.status === "rejected") {
           searchRuns.push({
             category,
@@ -1119,7 +1193,7 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
         const relevanceSource = discoveryRelevanceSource(page.limitations);
         let matchingCapabilityHints = 0;
         let normalizedServices = 0;
-        for (const agent of page.agents) {
+        for (const agent of prioritizeAgents(page.agents)) {
           discoveredAgents.set(agent.discoveryId, agent);
           const hasCapabilityHint = agent.categoryHints.some((hint) => hint.category === category);
           const promotedIds: string[] = [];
@@ -1171,7 +1245,7 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
     const hydratedNormalized = await Promise.all(uniqueNormalized.map(hydrateTestCoverage));
     const balancedGroups = new Map<ServiceCategory, MarketplaceServiceRecord[]>(FINANCIAL_CATEGORIES.map((category) => [
       category,
-      hydratedNormalized.filter((record) => record.service.category === category),
+      hydratedNormalized.filter((record) => record.service.category === category).sort((a, b) => discoveryPriority(b.identity) - discoveryPriority(a.identity)),
     ]));
     const services = roundRobinServices(balancedGroups, limit);
     const listings = [
@@ -1187,7 +1261,11 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
 
     const categoriesRequested = input.category ? [input.category] : FINANCIAL_CATEGORIES;
     const categoriesWithNormalizedSupply = FINANCIAL_CATEGORIES.filter((category) => hydratedNormalized.some((record) => record.service.category === category));
+    const uniqueDiscovered = [...discoveredAgents.values()];
     const discovery: MarketplaceFinancialDiscovery = {
+      discoveredUnique: uniqueDiscovered.length,
+      financialCandidates: uniqueDiscovered.filter((agent) => agent.categoryHints.length > 0).length,
+      machineCallableCandidates: uniqueDiscovered.filter(declaredMachineCallable).length,
       methodVersion: FINANCIAL_SUPPLY_DISCOVERY_METHOD,
       mode: userQuery ? "USER_QUERY" : "TARGETED",
       chainId,
@@ -1201,7 +1279,8 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
       limitations: [
         "Search relevance is External discovery evidence and does not establish a financial capability.",
         "External identities require operator metadata carrying a supported category hint before promotion; first-party Spotriq reference services are versioned catalog entries and remain independently test/readiness gated.",
-        "Targeted discovery is bounded to protect the anonymous 8004scan request quota; results are not an exhaustive inventory of all BSC agents.",
+        "Semantic discovery queries the current 8004scan agent index across the requested BSC chain and returns ranked subsets; Spotriq does not download every identity into a browser request.",
+        "Multiple query formulations per financial category improve recall while deterministic qualification keeps search relevance separate from capability proof.",
       ],
     };
 
@@ -1216,7 +1295,8 @@ export function createMarketplaceSupply(options: CreateMarketplaceSupplyOptions)
       normalizationMethodVersion: MARKETPLACE_SERVICE_NORMALIZATION_METHOD,
       discovery,
       limitations: [
-        "Spotriq actively searches the registry for each supported financial category instead of relying on a generic newest-agents page.",
+        "Spotriq uses multiple semantic searches per supported financial category against the current 8004scan index instead of relying on a generic newest-agents page.",
+        "External reputation and machine-callable declarations are discovery-priority signals only; they never become a Spotriq trust score.",
         "External identities need a supported operator metadata hint to become AgentService candidates; targeted search relevance alone remains a discovery lead. First-party reference services are explicit catalog supply, not inferred registry claims.",
         "First-party reference services expose identity-chain evidence separately from their read-only observation network. A Testnet ERC-8004 identity does not imply Mainnet financial execution; Mainnet support is read-only only.",
         "Service candidates remain non-activatable until canonical verification, runtime reachability, explicit authority, and marketplace tests satisfy readiness gates.",

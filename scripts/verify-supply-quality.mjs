@@ -1,0 +1,16 @@
+import fs from "node:fs";
+import path from "node:path";
+const root=process.cwd();
+const read=(p)=>fs.readFileSync(path.join(root,p),"utf8");
+const config=read("packages/config/src/index.ts");
+const registry=read("packages/agent-registry/src/index.ts");
+const supply=read("packages/marketplace-supply/src/index.ts");
+const domain=read("packages/domain/src/index.ts");
+const app=read("apps/web/src/app/App.tsx");
+for (const marker of ["https://api.8004scan.io/api/v1","/agents/search/semantic","owner_address","x-ratelimit-limit-minute"]) if(!config.includes(marker)&&!registry.includes(marker)) throw new Error(`current 8004scan integration missing ${marker}`);
+for (const marker of ["FINANCIAL_DISCOVERY_QUERY_SETS","financial-supply-discovery@2.0.0","declaredMachineCallable","External reputation and machine-callable declarations are discovery-priority signals only"]) if(!supply.includes(marker)) throw new Error(`supply discovery missing ${marker}`);
+for (const marker of ["AgentSupplyQualificationStage","SPOTRIQ_QUALIFIED","machineCallableCandidates","upstreamUniverseTotal"]) if(!domain.includes(marker)) throw new Error(`qualification model missing ${marker}`);
+for (const marker of ["BSC agent universe","Financial candidates","Machine-callable","Search the BSC agent universe"]) if(!app.includes(marker)) throw new Error(`Explore supply-quality UX missing ${marker}`);
+if(registry.includes("/agents/search?")) throw new Error("legacy 8004scan semantic endpoint remains");
+if(config.includes("https://8004scan.io/api/v1/public")) throw new Error("legacy 8004scan base URL remains");
+console.log("PASS: Spotriq v0.40 marketplace supply discovery uses current 8004scan semantic search, broader financial recall, and deterministic qualification without collapsing external reputation into trust.");

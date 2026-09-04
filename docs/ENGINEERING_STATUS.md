@@ -233,3 +233,7 @@ The current production-testing release remains **v0.39.0** and composes the acce
 - core-runtime continuity: activation-bound read-only tasks refresh stale Test Lab evidence before real invocation and explicit reruns create a fresh retry task rather than replaying stale state.
 
 These hotfixes do not approve BSC Mainnet financial execution and do not collapse wallet connection, Activation, PermissionGrant, execution, transaction, outcome or Agent Advantage boundaries. `pnpm verify` must exercise both wallet-session and core-runtime behavioral verifiers in the same repository before a replacement ZIP is handed off.
+
+## v0.40.0 Marketplace Supply Discovery + Qualification
+
+Implemented from production evidence. Spotriq now targets the current official 8004scan API (`https://api.8004scan.io/api/v1`) and semantic search (`/agents/search/semantic`), uses multiple semantic formulations across the four financial categories, preserves indexed MCP/A2A declarations when available, and exposes a deterministic qualification funnel. No database migration is required; existing identity/discovery/service caches remain compatible. Mainnet financial execution remains disabled.

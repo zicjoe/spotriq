@@ -1,7 +1,7 @@
 # Spotriq Corrected Roadmap
 
 **Reconciled:** 2026-09-02  
-**Current implementation:** v0.39.0  
+**Current implementation:** v0.40.0  
 **Current phase:** Production testing + adoption validation + production measurement
 
 This roadmap preserves deterministic evidence, domain separation, four-category parity and testnet-first financial authority. Missing prerequisites block; they are never fabricated.
@@ -203,3 +203,22 @@ Scope: privacy-bounded product telemetry, contextual buyer/operator feedback, de
 Acceptance: `API build → pnpm check → deploy migration 0031 → accepted regressions through v0.38 → verify:adoption-analytics → capture private adoption baseline`.
 
 After acceptance, use real cohort data and production measurements to choose the next engineering milestone. Do not infer BSC Mainnet financial execution approval.
+
+
+## v0.40.0 — Marketplace Supply Discovery + Qualification
+
+**Status: IMPLEMENTED FROM PRODUCTION EVIDENCE; deployment acceptance pending.**
+
+Production testing established that the buyer lifecycle and Mainnet read-only core worked, while useful third-party financial-agent supply remained shallow. This milestone therefore expands discovery/qualification instead of inventing another buyer feature.
+
+- use the current official 8004scan API base and semantic-search endpoint;
+- query multiple semantic formulations per supported financial category against the BSC index;
+- preserve the full ERC-8004 identity universe as discovery while promoting only metadata-backed financial candidates;
+- capture indexed machine-callable endpoint declarations where available;
+- prioritize candidate investigation using deterministic evidence signals without creating a Spotriq trust/profitability score;
+- preserve canonical verification, Marketplace Test Lab, readiness and authority as independent qualification gates;
+- expose BSC universe / discovered / financial-candidate / machine-callable counts in Explore.
+
+`External reputation ≠ Spotriq trust score` and `Search relevance ≠ Capability proof` remain locked.
+
+Acceptance: `API build → web typecheck/build → pnpm check → deploy → verify:supply-quality → inspect real BSC semantic discovery and qualify at least one external machine-callable financial candidate when available.`

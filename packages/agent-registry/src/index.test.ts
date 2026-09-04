@@ -58,8 +58,8 @@ test("category hints remain operator-claimed hints, not verified capabilities", 
 test("listAgents filters BSC chain and preserves external reputation provenance", async () => {
   const fetchImpl = (async (input: string | URL | Request) => {
     const url = String(input);
-    assert.match(url, /chainId=56/);
-    return jsonResponse({ success: true, data: [{ token_id: 7, chain_id: 56, name: "Range Sentinel", description: "rebalancing concentrated liquidity", owner_address: OWNER, total_feedbacks: 12, total_score: 4.2, star_count: 3 }], meta: { timestamp: "2026-08-19T12:00:00Z", pagination: { page: 1, limit: 20, total: 1, hasMore: false } } });
+    assert.match(url, /chain_id=56/);
+    return jsonResponse({ items: [{ token_id: "7", chain_id: 56, name: "Range Sentinel", description: "rebalancing concentrated liquidity", owner_address: OWNER, total_feedbacks: 12, total_score: 42, star_count: 3, mcp_server: "https://agent.example/mcp" }], total: 1, limit: 20, offset: 0 });
   }) as typeof fetch;
   const reader = createAgentRegistry({ fetchImpl, chainReaders: { 56: fakeChain() }, store: new MemoryAgentRegistryStore() });
   const page = await reader.listAgents({ chainId: 56 });
@@ -67,11 +67,12 @@ test("listAgents filters BSC chain and preserves external reputation provenance"
   assert.equal(page.agents[0]?.listingState, "DISCOVERED");
   assert.equal(page.agents[0]?.marketplaceServiceState, "NOT_CREATED");
   assert.equal(page.agents[0]?.externalReputation.totalFeedbacks, 12);
+  assert.equal(page.agents[0]?.registrationServices[0]?.name, "MCP");
   assert.match(page.agents[0]?.externalReputation.note ?? "", /not.*trust score/i);
 });
 
 test("getAgent performs canonical onchain verification and registration backlink check", async () => {
-  const fetchImpl = (async () => jsonResponse({ success: true, data: { token_id: 7, chain_id: 56, name: "Range Sentinel", description: "PancakeSwap concentrated liquidity rebalancing", owner_address: OWNER, total_feedbacks: 2 }, meta: {} })) as typeof fetch;
+  const fetchImpl = (async () => jsonResponse({ token_id: "7", chain_id: 56, name: "Range Sentinel", description: "PancakeSwap concentrated liquidity rebalancing", owner_address: OWNER, total_feedbacks: 2 })) as typeof fetch;
   const reader = createAgentRegistry({ fetchImpl, chainReaders: { 56: fakeChain("7") } });
   const agent = await reader.getAgent(56, "7");
   assert.equal(agent.canonicalVerification?.state, "VERIFIED");
@@ -83,7 +84,7 @@ test("getAgent performs canonical onchain verification and registration backlink
 
 test("canonical owner mismatch is surfaced instead of silently trusted", async () => {
   const OTHER = "0x2222222222222222222222222222222222222222";
-  const fetchImpl = (async () => jsonResponse({ success: true, data: { token_id: 7, chain_id: 56, name: "Agent", description: "yield optimizer", owner_address: OTHER }, meta: {} })) as typeof fetch;
+  const fetchImpl = (async () => jsonResponse({ token_id: "7", chain_id: 56, name: "Agent", description: "yield optimizer", owner_address: OTHER })) as typeof fetch;
   const reader = createAgentRegistry({ fetchImpl, chainReaders: { 56: fakeChain("7") } });
   const agent = await reader.getAgent(56, "7");
   assert.equal(agent.canonicalVerification?.state, "MISMATCH");
@@ -92,7 +93,7 @@ test("canonical owner mismatch is surfaced instead of silently trusted", async (
 });
 
 test("feedback remains external and is not converted to Spotriq reviews", async () => {
-  const fetchImpl = (async () => jsonResponse({ success: true, data: [{ id: "fb-1", chain_id: 56, token_id: 7, score: 4.5, comment: "responsive", created_at: "2026-08-18T00:00:00Z" }], meta: { pagination: { page: 1, limit: 20, total: 1, hasMore: false } } })) as typeof fetch;
+  const fetchImpl = (async () => jsonResponse({ items: [{ id: "fb-1", chain_id: 56, token_id: 7, score: 4.5, comment: "responsive", created_at: "2026-08-18T00:00:00Z" }], total: 1, limit: 20, offset: 0 })) as typeof fetch;
   const reader = createAgentRegistry({ fetchImpl, chainReaders: {} });
   const page = await reader.getFeedback(56, "7");
   assert.equal(page.feedback[0]?.provenance, "external");
@@ -105,12 +106,14 @@ test("semantic search falls back to standard indexed keyword search when upstrea
   const fetchImpl = (async (input: string | URL | Request) => {
     const url = String(input);
     requested.push(url);
-    if (url.includes("/agents/search?")) {
-      return jsonResponse({ success: false, error: { code: "INTERNAL_ERROR", message: "semantic backend unavailable" }, meta: {} }, 500);
+    if (url.includes("/agents/search/semantic?")) {
+      assert.match(url, /chain_id=56/);
+      assert.match(url, /semantic_weight=/);
+      return jsonResponse({ detail: "semantic backend unavailable" }, 500);
     }
     if (url.includes("/agents?")) {
       assert.match(url, /search=yield/);
-      return jsonResponse({ success: true, data: [{ token_id: 9, chain_id: 56, name: "Yield Finder", description: "yield agent", owner_address: OWNER }], meta: { pagination: { page: 1, limit: 8, total: 1, hasMore: false } } });
+      return jsonResponse({ items: [{ token_id: "9", chain_id: 56, name: "Yield Finder", description: "yield agent", owner_address: OWNER }], total: 1, limit: 8, offset: 0 });
     }
     throw new Error(`unexpected URL: ${url}`);
   }) as typeof fetch;
@@ -120,6 +123,6 @@ test("semantic search falls back to standard indexed keyword search when upstrea
   assert.equal(page.agents.length, 1);
   assert.equal(page.agents[0]?.name, "Yield Finder");
   assert.ok(page.limitations.some((value) => /fell back.*keyword search/i.test(value)));
-  assert.equal(requested.some((url) => url.includes("/agents/search?")), true);
+  assert.equal(requested.some((url) => url.includes("/agents/search/semantic?")), true);
   assert.equal(requested.some((url) => url.includes("/agents?")), true);
 });

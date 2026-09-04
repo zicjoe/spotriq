@@ -783,3 +783,8 @@ Manual production testing exposed that the original v0.39 browser wallet boundar
 Spotriq now measures real adoption through a privacy-bounded analytics vocabulary plus authoritative domain-table funnel counts. Raw wallet addresses are rejected from telemetry; session IDs are hashed server-side; verifier traffic is separated from production adoption totals; and browser events cannot create Quote/Hire/Activation/Permission/transaction/outcome/Agent Advantage truth.
 
 Private reporting is available through `/v1/admin/adoption-analytics` behind `SPOTRIQ_ADMIN_DIAGNOSTICS_TOKEN`. Use `pnpm verify:adoption-analytics` after deployment and `pnpm capture:adoption-baseline` to record a private production baseline. See `docs/PRODUCTION_ADOPTION_ANALYTICS.md`.
+
+
+## v0.40 supply quality
+
+Spotriq now searches the current 8004scan semantic index with multiple financial-category queries and applies a deterministic qualification funnel. The complete ERC-8004 universe remains discovery; only evidence-backed candidates become marketplace services. External reputation remains External evidence, never a Spotriq trust score.

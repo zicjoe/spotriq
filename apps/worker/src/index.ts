@@ -22,7 +22,7 @@ async function heartbeat(): Promise<void> {
   const databaseHealth = await getDatabaseHealth(config.databaseUrl,dbPoolOptions);
   const value = createWorkerHeartbeat({
     workerId,
-    version: "0.39.0",
+    version: "0.40.0",
     environment: config.appEnv,
     network: config.bscNetwork,
     databaseState: databaseHealth.state,
