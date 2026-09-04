@@ -267,6 +267,7 @@ test("POST /v1/checks creates an async Smart Money Check session", async () => {
     startCheck: async () => session,
     runCheck: async () => ({ session: { ...session, state: "PARTIAL" as const }, findings: [] }),
     getCheck: async () => ({ session, findings: [] }),
+    getSession: async () => session,
     listEvents: async () => [],
     subscribe: () => () => undefined,
   };
@@ -286,6 +287,7 @@ test("GET /v1/checks/:id returns a structured 404 for unknown checks", async () 
     startCheck: async () => { throw new Error("not used"); },
     runCheck: async () => { throw new Error("not used"); },
     getCheck: async () => undefined,
+    getSession: async () => undefined,
     listEvents: async () => [],
     subscribe: () => () => undefined,
   };

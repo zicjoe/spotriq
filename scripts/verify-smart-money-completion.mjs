@@ -4,11 +4,12 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => readFile(path.join(root, file), "utf8");
-const [appUi, repository, checkRoutes, smartMoney] = await Promise.all([
+const [appUi, repository, checkRoutes, smartMoney, apiTests] = await Promise.all([
   read("apps/web/src/app/App.tsx"),
   read("apps/web/src/repositories/smartMoneyRepository.ts"),
   read("apps/api/src/routes/checks.ts"),
   read("packages/smart-money/src/index.ts"),
+  read("apps/api/src/app.test.ts"),
 ]);
 
 const requireText = (source, marker, message) => {
@@ -27,5 +28,7 @@ requireText(checkRoutes, "smartMoney.listEvents(checkSessionId, lastSequence)", 
 requireText(smartMoney, 'label: "Preparing findings & agent matches"', "The final scan stage must not misleadingly claim it is already matching agents.");
 requireText(smartMoney, "Finalize the scan in one persisted session update", "Smart Money finalization must avoid redundant terminal session writes.");
 requireText(smartMoney, "await Promise.all([...yieldWrites, ...gridWrites, ...lendingWrites])", "Normalized portfolio child writes must not serialize independent remote DB round-trips.");
+requireText(apiTests, "getSession: async () => session", "API SmartMoneyEngine success mock must implement getSession so Railway API typecheck cannot regress.");
+requireText(apiTests, "getSession: async () => undefined", "API SmartMoneyEngine missing-check mock must implement getSession so Railway API typecheck cannot regress.");
 
 console.log("PASS: Spotriq Smart Money completion watchdog prevents missed/buffered SSE from causing indefinite scans and reduces finalization round-trips.");

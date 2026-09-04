@@ -28,3 +28,8 @@ SSE was treated too strongly as the completion signal. A terminal event could be
 - Agent compatibility does not grant Activation or PermissionGrant;
 - BSC Mainnet financial execution remains unapproved;
 - wallet persistence and core-runtime auto-preflight remain required regression gates.
+
+
+## Railway API build-contract correction
+
+The Smart Money completion hotfix added `SmartMoneyEngine.getSession()` for lightweight terminal-state reconciliation. The API route tests use injected SmartMoneyEngine mocks, so those mocks must implement the same interface. Production testing exposed a Railway `tsc --noEmit` failure where two mocks had not been updated. They now implement `getSession`, and `verify:smart-money-completion` explicitly guards this compile contract so the packaged release cannot silently reintroduce that mismatch.
