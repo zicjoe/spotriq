@@ -237,3 +237,7 @@ These hotfixes do not approve BSC Mainnet financial execution and do not collaps
 ## v0.40.0 Marketplace Supply Discovery + Qualification
 
 Implemented from production evidence. Spotriq now targets the current official 8004scan API (`https://api.8004scan.io/api/v1`) and semantic search (`/agents/search/semantic`), uses multiple semantic formulations across the four financial categories, preserves indexed MCP/A2A declarations when available, and exposes a deterministic qualification funnel. No database migration is required; existing identity/discovery/service caches remain compatible. Mainnet financial execution remains disabled.
+
+### v0.40.0 Railway build correction
+
+Production deployment exposed a strict TypeScript contract mismatch in the new 8004scan normalization path: indexed service metadata was represented as a partial `AgentRegistrationFile` even though the canonical registration type also requires `registrations` and `supportedTrust`. The indexed discovery path now uses a service-only structural view (`Pick<AgentRegistrationFile, "services">`) so Spotriq can derive discovery hints from indexed MCP/A2A/service declarations without fabricating canonical registration fields. The v0.40 supply verifier now rejects reintroduction of the partial-registration construction.

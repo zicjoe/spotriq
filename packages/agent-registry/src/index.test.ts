@@ -55,6 +55,16 @@ test("category hints remain operator-claimed hints, not verified capabilities", 
   assert.match(hints[0]?.note ?? "", /not a marketplace-tested capability/i);
 });
 
+test("indexed service-only metadata can contribute category hints without fabricating a full registration file", () => {
+  const hints = deriveAgentCategoryHints({
+    name: "Indexed Yield Agent",
+    description: "Automated capital management",
+    registration: { services: [{ name: "MCP", endpoint: "https://agent.example/mcp", skills: ["Venus supply market yield optimisation"] }] },
+  });
+  assert.equal(hints[0]?.category, "yield");
+  assert.equal(hints[0]?.provenance, "operator-claimed");
+});
+
 test("listAgents filters BSC chain and preserves external reputation provenance", async () => {
   const fetchImpl = (async (input: string | URL | Request) => {
     const url = String(input);

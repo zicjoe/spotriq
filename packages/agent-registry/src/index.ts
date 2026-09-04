@@ -349,7 +349,7 @@ const CATEGORY_RULES: Record<ServiceCategory, string[]> = {
   health: ["health factor", "liquidation", "collateral", "borrow health", "borrowing risk", "venus", "lending risk"],
 };
 
-export function deriveAgentCategoryHints(input: { name?: string; description?: string; supportedProtocols?: string[]; registration?: AgentRegistrationFile }): AgentCategoryHint[] {
+export function deriveAgentCategoryHints(input: { name?: string; description?: string; supportedProtocols?: string[]; registration?: Pick<AgentRegistrationFile, "services"> }): AgentCategoryHint[] {
   const registrationText = input.registration?.services.flatMap((service) => [service.name, service.endpoint, ...(service.skills ?? []), ...(service.domains ?? [])]).join(" ") ?? "";
   const text = [input.name, input.description, ...(input.supportedProtocols ?? []), registrationText].filter(Boolean).join(" ").toLowerCase();
   const hints: AgentCategoryHint[] = [];
@@ -405,7 +405,7 @@ function normalizeScanAgent(agent: ScanAgent, expectedChainId: AgentRegistryChai
   if (agent.mcp_server) indexedServices.push({ name: "MCP", endpoint: agent.mcp_server, version: agent.mcp_version });
   if (agent.a2a_endpoint) indexedServices.push({ name: "A2A", endpoint: agent.a2a_endpoint, version: agent.a2a_version });
   if (agent.agent_url) indexedServices.push({ name: "web", endpoint: agent.agent_url });
-  const indexedRegistration: AgentRegistrationFile | undefined = indexedServices.length ? { services: indexedServices } : undefined;
+  const indexedRegistration: Pick<AgentRegistrationFile, "services"> | undefined = indexedServices.length ? { services: indexedServices } : undefined;
   const categoryHints = deriveAgentCategoryHints({ name: agent.name, description, supportedProtocols, registration: indexedRegistration });
   return {
     discoveryId: `erc8004:${chainId}:${tokenId}`,
