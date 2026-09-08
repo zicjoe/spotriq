@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose an evidence-driven improvement to Spotriq.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What real user/operator problem or production evidence motivates this request?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the user-visible result rather than prescribing implementation details.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Supporting evidence
+      description: Usage data, screenshots, feedback, logs, or observed marketplace behavior.
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Product boundaries
+      options:
+        - label: This request does not assume identity, readiness, payment, permission, activation, execution, transaction, outcome, or Agent Advantage are interchangeable.
+          required: true

@@ -1,8 +1,8 @@
 # Spotriq Source of Truth
 
-**Current repository release:** **v0.39.0**  
-**Release status:** v0.39.0 Production Analytics + Adoption Feedback Loop externally accepted; production testing/adoption validation is active.  
-**State date:** 2026-09-03
+**Current repository release:** **v0.41.0**  
+**Release status:** v0.39.0 remains the externally accepted production/adoption baseline; evidence-driven v0.40 supply discovery and v0.41 buyer-interpretation UX are implemented on top and production validation is active.  
+**State date:** 2026-09-08
 
 ## Authority hierarchy
 

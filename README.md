@@ -6,7 +6,9 @@
 
 > Know what your money needs. Spot the right agent for it.
 
-**Current accepted release: v0.39.0 — Production Analytics + Adoption Feedback Loop**
+**Current implementation: v0.41.0 — External Agent Buyer Interpretation + Production Explore UX**
+
+**Accepted production/adoption baseline: v0.39.0 — Production Analytics + Adoption Feedback Loop**
 
 Spotriq connects deterministic wallet need → specialist AgentService discovery/evaluation → commercial activation → scoped authority → guarded execution where independently authorized → Activity/Outcome → Agent Advantage → grounded explanation → Continue / Switch / Combine / Revoke.
 
@@ -24,7 +26,18 @@ GET /v1/reference-agents
 
 The judge/ecosystem package lives under `docs/public/` and includes the architecture/trust-boundary brief, BNB integration map, demo playbook, adoption-evidence guide, security/operations brief, screenshot checklist and final submission checklist. `pnpm capture:public-launch-evidence` records timestamped machine-readable production proof without fabricating screenshots or video.
 
-Network policy remains explicit: BSC Mainnet (`56`) is used for ERC-8004 discovery **and supported real read-only Smart Money/reference-agent observation**; financial authority/execution development remains BSC Testnet (`97`). **v0.39 does not approve BSC Mainnet financial execution.**
+### Repository security & quality
+
+The public repository includes GitHub Actions CI, CodeQL scanning, dependency review, Dependabot version updates, a security policy, contribution/issue/PR templates and a local readiness gate.
+
+```text
+pnpm verify:repo-readiness
+pnpm check
+```
+
+GitHub-side controls that cannot be committed in source (Dependabot alerts/security updates, private vulnerability reporting, secret/push protection and default-branch rules) are documented in `docs/GITHUB_REPOSITORY_READINESS.md`.
+
+Network policy remains explicit: BSC Mainnet (`56`) is used for ERC-8004 discovery **and supported real read-only Smart Money/reference-agent observation**; financial authority/execution development remains BSC Testnet (`97`). **The current v0.41 implementation does not approve BSC Mainnet financial execution.**
 
 Spotriq is a pnpm monorepo containing the Figma-derived consumer frontend plus the backend, worker, BSC chain, PancakeSwap protocol adapter, Smart Money Check engine, evidence, agent-registry, domain, API-contract, and PostgreSQL foundations for the real financial-agent marketplace.
 

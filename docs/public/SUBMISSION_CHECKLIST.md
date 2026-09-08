@@ -1,18 +1,27 @@
 # Submission / Ecosystem Adoption Checklist
 
 ## Repository
-- [ ] v0.38 `pnpm check` passes.
-- [ ] all historical live verifiers pass.
+- [ ] `pnpm verify:repo-readiness` passes.
+- [ ] `pnpm check` passes on the committed `pnpm-lock.yaml`.
+- [ ] all relevant live/production verifiers pass.
 - [ ] `pnpm verify:adoption-readiness` passes after deployment.
-- [ ] public README points to architecture/demo/security evidence.
-- [ ] no secrets, `.env`, private keys or passwords are committed.
-- [ ] SECURITY.md and production operations runbook are present.
+- [ ] public README identifies the current v0.41 implementation and points to architecture/demo/security evidence.
+- [ ] no secrets, `.env`, private keys, seed phrases, admin tokens or passwords are committed.
+- [ ] `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` and production operations runbooks are present.
+- [ ] GitHub Actions CI is green on the default branch.
+- [ ] CodeQL is green with no unresolved submission-blocking alerts.
+- [ ] Dependabot alerts/security updates and weekly version updates are enabled/reviewed.
+- [ ] Dependency Review is enabled for pull requests.
+- [ ] Secret scanning/private vulnerability reporting are enabled where available.
+- [ ] default branch blocks force-push/deletion and requires the selected CI/security checks.
 
 ## Production
-- [ ] Railway `/health` reports >=0.38.0.
+- [ ] Railway `/health` reports the current compatible service version.
 - [ ] public adoption manifest is available.
 - [ ] system health is redacted/non-authoritative.
 - [ ] four reference Agent Cards/runtimes are reachable where expected.
+- [ ] BSC Mainnet read-only Smart Money/reference-agent observation works without granting financial authority.
+- [ ] BSC Mainnet financial execution remains disabled.
 - [ ] final screenshot set is captured from production.
 - [ ] `pnpm capture:public-launch-evidence` artifact is archived for the submission package.
 
@@ -20,10 +29,11 @@
 - [ ] explain Spotriq as a BSC financial-agent marketplace, not a generic agent marketplace.
 - [ ] show all four categories.
 - [ ] show ERC-8004 identity separately from readiness.
+- [ ] show broader BSC agent discovery separately from Spotriq-qualified services.
 - [ ] show Agent Studio as provider/deployment integration, not marketplace authority.
 - [ ] show commercial/payment/permission/execution/outcome separation.
 - [ ] show `Could Not Assess` instead of unsupported performance.
-- [ ] state BSC Mainnet discovery vs BSC Testnet transactional development policy.
+- [ ] state BSC Mainnet read-only observation vs BSC Testnet financial-authority/execution policy.
 
 ## External artifacts
 - [ ] final demo video URL.

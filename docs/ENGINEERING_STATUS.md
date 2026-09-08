@@ -227,7 +227,7 @@ Current status: externally accepted. Use `pnpm verify:adoption-analytics` after 
 
 ## Production-testing hotfix composition after v0.39 acceptance
 
-The current production-testing release remains **v0.39.0** and composes the accepted analytics/adoption state with two evidence-driven defect corrections discovered during real buyer testing:
+The accepted production/adoption baseline remains **v0.39.0**. The current implementation is **v0.41.0**, with the following production-testing defect corrections preserved beneath the evidence-driven v0.40 supply and v0.41 buyer-UX layers:
 
 - wallet-session continuity: EIP-6963/EIP-1193 connection remains zero-service and authority-neutral; refresh reconciliation uses non-interactive `eth_accounts`, tolerates extensions that do not re-announce after reload, and protects injected fallback with a one-way account fingerprint;
 - core-runtime continuity: activation-bound read-only tasks refresh stale Test Lab evidence before real invocation and explicit reruns create a fresh retry task rather than replaying stale state.

@@ -1,0 +1,53 @@
+name: Bug report
+description: Report a reproducible Spotriq defect. Do not include secrets or sensitive wallet information.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug. **Do not include private keys, seed phrases, API keys, admin tokens, or other secrets.** Security vulnerabilities should be reported privately using GitHub's security-advisory/private-vulnerability-reporting flow.
+  - type: textarea
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Spotriq is affected?
+      placeholder: Smart Money Check, Explore, Quote/Hire, Activation, Permission Checkout, runtime, operator workspace, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Spotriq version / commit
+      placeholder: v0.41.0 or commit SHA
+  - type: input
+    id: browser
+    attributes:
+      label: Browser / environment
+      placeholder: Chrome, Edge, mobile, Railway, Vercel, etc.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I have removed secrets, private keys, seed phrases, admin tokens, and unnecessary personal data from this report.
+          required: true
