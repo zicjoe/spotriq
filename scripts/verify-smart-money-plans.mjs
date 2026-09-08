@@ -67,7 +67,7 @@ if(!findings.length){
   const reread=(await json(`/v1/plans/${encodeURIComponent(prior.planId)}`))?.plan;
   assertPlanContract(reread,"Re-read historical plan");
   if(reread?.compositionHash!==prior.compositionHash)throw new Error("Persisted historical plan composition changed after creation.");
-  console.log(`INFO: current Smart Money Check ${checkId} has no supported findings; using previously persisted live plan ${prior.planId} for accepted-v0.29 regression verification instead of fabricating plan inputs.`);
+  console.log("INFO: current Smart Money Check has no supported findings; using a previously persisted live plan for regression verification instead of fabricating plan inputs.");
   console.log(`PASS: historical plan retains ${prior.members?.length??0} specialist member(s); conflict state ${prior.conflictReport.state}; independent commercial/permission/execution boundaries remain intact.`);
   console.log("PASS: Spotriq v0.29 Smart Money Plans + compatibility/conflict regression contract passed using persisted live evidence without creating a shared signer, PermissionGrant, Activation or execution session.");
   process.exit(0);

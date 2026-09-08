@@ -15,7 +15,7 @@
     "check": "pnpm verify && pnpm typecheck && pnpm test && pnpm build",
     "db:migrate": "pnpm --filter @spotriq/db migrate",
     "db:health": "pnpm --filter @spotriq/db health",
-    "verify": "node scripts/verify-repository-readiness.mjs && node scripts/verify-foundation.mjs && node scripts/verify-wallet-connectivity.mjs && node scripts/verify-wallet-session-lifecycle.mjs && node scripts/verify-core-runtime-flow.mjs && node scripts/verify-smart-money-completion.mjs && node scripts/verify-smart-money-persistence.mjs && node scripts/verify-mainnet-read-only.mjs && node scripts/verify-supply-quality.mjs && node scripts/verify-buyer-agent-ux.mjs",
+    "verify": "node scripts/verify-repository-readiness.mjs && node scripts/verify-security-remediation.mjs && node scripts/verify-foundation.mjs && node scripts/verify-wallet-connectivity.mjs && node scripts/verify-wallet-session-lifecycle.mjs && node scripts/verify-core-runtime-flow.mjs && node scripts/verify-smart-money-completion.mjs && node scripts/verify-smart-money-persistence.mjs && node scripts/verify-mainnet-read-only.mjs && node scripts/verify-supply-quality.mjs && node scripts/verify-buyer-agent-ux.mjs",
     "verify:reference-acceptance": "node scripts/verify-reference-acceptance.mjs",
     "verify:commercial-acceptance": "node scripts/verify-commercial-acceptance.mjs",
     "verify:activation-parity": "node scripts/verify-activation-parity.mjs",
@@ -45,11 +45,23 @@
     "verify:mainnet-read-only": "node scripts/verify-mainnet-read-only.mjs",
     "verify:supply-quality": "node scripts/verify-supply-quality.mjs",
     "verify:buyer-agent-ux": "node scripts/verify-buyer-agent-ux.mjs",
-    "verify:repo-readiness": "node scripts/verify-repository-readiness.mjs"
+    "verify:repo-readiness": "node scripts/verify-repository-readiness.mjs",
+    "verify:security-remediation": "node scripts/verify-security-remediation.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "tsx": "4.23.1",
     "typescript": "5.7.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "ws@>=5.0.0 <5.2.5": "5.2.5",
+      "ws@>=6.0.0 <6.2.4": "6.2.4",
+      "ws@>=7.0.0 <7.5.11": "7.5.11",
+      "ws@>=8.0.0 <8.21.0": "8.21.0",
+      "fast-uri@>=2.0.0 <2.4.6": "2.4.6",
+      "fast-uri@>=3.0.0 <3.1.7": "3.1.7",
+      "fast-uri@>=4.0.0 <4.1.4": "4.1.4"
+    }
   }
 }

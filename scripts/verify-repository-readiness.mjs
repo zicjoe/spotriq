@@ -7,6 +7,7 @@ const required = [
   ".github/workflows/ci.yml",
   ".github/workflows/codeql.yml",
   ".github/workflows/dependency-review.yml",
+  ".github/codeql/codeql-config.yml",
   ".github/PULL_REQUEST_TEMPLATE.md",
   ".github/ISSUE_TEMPLATE/bug_report.yml",
   ".github/ISSUE_TEMPLATE/feature_request.yml",
@@ -37,8 +38,12 @@ for (const token of ["permissions:", "contents: read", "pnpm install --frozen-lo
 }
 
 const codeql = fs.readFileSync(path.join(root, ".github/workflows/codeql.yml"), "utf8");
-for (const token of ["security-events: write", "github/codeql-action/init@v4", "github/codeql-action/analyze@v4", "javascript-typescript", "security-extended"]) {
+for (const token of ["security-events: write", "github/codeql-action/init@v4", "github/codeql-action/analyze@v4", "javascript-typescript", "config-file: ./.github/codeql/codeql-config.yml"]) {
   if (!codeql.includes(token)) throw new Error(`CodeQL workflow missing: ${token}`);
+}
+const codeqlConfig = fs.readFileSync(path.join(root, ".github/codeql/codeql-config.yml"), "utf8");
+for (const token of ["security-extended", "paths-ignore:", "js/missing-rate-limiting"]) {
+  if (!codeqlConfig.includes(token)) throw new Error(`CodeQL configuration missing: ${token}`);
 }
 
 const depReview = fs.readFileSync(path.join(root, ".github/workflows/dependency-review.yml"), "utf8");
@@ -102,4 +107,4 @@ function scanText(dir) {
 }
 scanText(root);
 
-console.log("PASS: Spotriq repository readiness includes CI, Dependabot, CodeQL, dependency review, security/community policy, secret-file guards, and current v0.41 submission truth.");
+console.log("PASS: Spotriq repository readiness includes CI, Dependabot, focused CodeQL scanning, dependency review, security/community policy, secret-file guards, and current v0.41 security truth.");

@@ -40,5 +40,8 @@ jobs:
       - name: Repository readiness
         run: pnpm verify:repo-readiness
 
+      - name: High-severity dependency audit
+        run: pnpm audit --audit-level high
+
       - name: Full validation
         run: pnpm check

@@ -326,7 +326,24 @@ export interface CreateMarketplaceSupplyOptions {
 }
 
 function slugPart(value: string): string {
-  const slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 72);
+  // Linear, bounded slug normalization. Avoid a regex over operator-controlled metadata
+  // so a pathological agent name cannot create avoidable backtracking work.
+  const lowered = value.toLowerCase();
+  let slug = "";
+  let separatorPending = false;
+  for (const char of lowered) {
+    const code = char.charCodeAt(0);
+    const asciiLetter = code >= 97 && code <= 122;
+    const asciiDigit = code >= 48 && code <= 57;
+    if (asciiLetter || asciiDigit) {
+      if (separatorPending && slug.length > 0 && slug.length <= 70) slug += "-";
+      if (slug.length < 72) slug += char;
+      separatorPending = false;
+      if (slug.length >= 72) break;
+    } else if (slug.length > 0) {
+      separatorPending = true;
+    }
+  }
   return slug || "agent";
 }
 
