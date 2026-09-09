@@ -50,8 +50,9 @@ The public project uses GitHub Dependabot, Dependency Review and CodeQL in addit
 
 - CI runs `pnpm audit --audit-level high` after a frozen-lockfile install. High/Critical dependency advisories are release blockers until upgraded, removed or explicitly investigated.
 - Unused dependencies are removed rather than retained merely to silence alerts.
-- Transitive `ws` and `fast-uri` versions are constrained to patched releases through pnpm overrides until their upstream dependency chains no longer require overrides.
+- Transitive `ws`, `fast-uri`, and any residual React Router v7 dependency are constrained to current patched maintenance releases through pnpm overrides until their upstream dependency chains no longer require overrides.
 - CodeQL analyzes deployed application/package source with `security-extended`. Test files, local verification scripts and generated artifacts are excluded because they intentionally contain synthetic URLs/IDs and do not ship in Railway/Vercel.
-- CodeQL's `js/missing-rate-limiting` heuristic is excluded because all API routes except `OPTIONS` and `/health` are protected by the global Fastify `onRequest` limiter in `apps/api/src/app.ts`. That invariant is independently asserted by source regression checks and API tests; route-local duplicate limiters must not replace it.
+- Spotriq registers patched `@fastify/rate-limit` as a CodeQL-recognized coarse perimeter and retains the existing PostgreSQL-backed distributed limiter plus process-local degraded fallback for production enforcement. `OPTIONS` and `/health` remain explicitly exempt.
+- Proxy trust is limited to private/loopback/link-local proxy address ranges when enabled; numeric hop-count trust is not used.
 
-A CodeQL query suppression is not evidence that a route is exempt from security controls. If the global perimeter changes, the suppression and its regression checks must be reviewed together.
+CodeQL rate-limit findings are not suppressed. If the recognized perimeter or distributed limiter changes, both source regression checks and GitHub scanning must remain green.

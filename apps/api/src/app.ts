@@ -1,4 +1,5 @@
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import type {
   ApiErrorBody,
@@ -72,6 +73,17 @@ import { registerGroundedExplanationRoutes } from "./routes/grounded-explanation
 import { registerAgentAdvantageRoutes } from "./routes/agent-advantage.js";
 import { registerObservabilityRoutes } from "./routes/observability.js";
 import { createReferenceAgentCatalog, type ReferenceAgentIdentityBinding, type ReferenceAgentSlug } from "@spotriq/reference-agents";
+
+const TRUSTED_PROXY_CIDRS = [
+  "127.0.0.0/8",
+  "10.0.0.0/8",
+  "172.16.0.0/12",
+  "192.168.0.0/16",
+  "100.64.0.0/10",
+  "::1/128",
+  "fc00::/7",
+  "fe80::/10",
+] as const;
 
 export interface BuildServerOptions {
   config?: ServerConfig;
@@ -331,8 +343,25 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     bodyLimit: config.apiBodyLimitBytes,
     requestTimeout: config.apiRequestTimeoutMs,
     connectionTimeout: config.apiConnectionTimeoutMs,
-    trustProxy: config.trustProxyHops > 0 ? config.trustProxyHops : false,
+    trustProxy: config.trustProxyHops > 0 ? [...TRUSTED_PROXY_CIDRS] : false,
   });
+  await app.register(rateLimit, {
+    global: config.rateLimitEnabled,
+    max: config.rateLimitReadMax,
+    timeWindow: config.rateLimitWindowMs,
+    allowList: (request) => request.method === "OPTIONS" || request.url.split("?")[0] === "/health",
+    errorResponseBuilder: (request, context) => ({
+      error: {
+        code: "RATE_LIMITED",
+        message: "Too many requests. Retry after the current rate-limit window.",
+        recoverable: true,
+        retryable: true,
+        correlationId: request.id,
+      },
+      rateLimit: { max: context.max, after: context.after },
+    }),
+  });
+
   const primaryRateLimitStore = sqlDatabase ? new PostgresRateLimitStore(sqlDatabase) : new MemoryRateLimitStore();
   const degradedRateLimitStore = new MemoryRateLimitStore();
   const readRateLimitPolicy = { windowMs: config.rateLimitWindowMs, maxRequests: config.rateLimitReadMax, keyPrefix: "read" };

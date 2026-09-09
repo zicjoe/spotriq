@@ -42,9 +42,10 @@ for (const token of ["security-events: write", "github/codeql-action/init@v4", "
   if (!codeql.includes(token)) throw new Error(`CodeQL workflow missing: ${token}`);
 }
 const codeqlConfig = fs.readFileSync(path.join(root, ".github/codeql/codeql-config.yml"), "utf8");
-for (const token of ["security-extended", "paths-ignore:", "js/missing-rate-limiting"]) {
+for (const token of ["security-extended", "paths-ignore:"]) {
   if (!codeqlConfig.includes(token)) throw new Error(`CodeQL configuration missing: ${token}`);
 }
+if (codeqlConfig.includes("js/missing-rate-limiting")) throw new Error("CodeQL must not suppress missing-rate-limiting; Spotriq exposes a recognized limiter instead.");
 
 const depReview = fs.readFileSync(path.join(root, ".github/workflows/dependency-review.yml"), "utf8");
 for (const token of ["actions/dependency-review-action@v4", "fail-on-severity: high"]) {

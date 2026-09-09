@@ -9,7 +9,7 @@
     "@spotriq/config": "workspace:*",
     "@spotriq/db": "workspace:*",
     "@spotriq/domain": "workspace:*",
-    "fastify": "5.10.0",
+    "fastify": "5.12.3",
     "@spotriq/chain": "workspace:*",
     "@spotriq/evidence": "workspace:*",
     "@spotriq/protocol-pancakeswap": "workspace:*",
@@ -40,7 +40,8 @@
     "@spotriq/observability": "workspace:*",
     "@spotriq/production-hardening": "workspace:*",
     "@spotriq/adoption-readiness": "workspace:*",
-    "@spotriq/adoption-analytics": "workspace:*"
+    "@spotriq/adoption-analytics": "workspace:*",
+    "@fastify/rate-limit": "11.2.0"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",

@@ -1194,7 +1194,7 @@ for (const marker of ["productionHardeningEnabled: true", "distributedRateLimitE
 for (const marker of ["distributed rate limiting", "durable maintenance queue", "workerFinancialJobDispatchEnabled=false", "API_INLINE", "migration resilience"]) if (!productionVerifier.includes(marker)) throw new Error(`v0.37 live verifier is missing ${marker}.`);
 for (const marker of ["pg_dump", "pg_restore", "Rollback", "Queue recovery", "Mainnet policy"]) if (!productionRunbook.includes(marker)) throw new Error(`v0.37 production runbook is missing ${marker}.`);
 if (rootManifest.scripts?.["verify:production-hardening"] !== "node scripts/verify-production-hardening.mjs") throw new Error("Root package.json must expose pnpm verify:production-hardening.");
-if (!apiApp.includes("bodyLimit: config.apiBodyLimitBytes") || !apiApp.includes("requestTimeout: config.apiRequestTimeoutMs") || !apiApp.includes("trustProxy: config.trustProxyHops")) throw new Error("v0.37 Fastify request/trust budgets must be wired at server construction.");
+if (!apiApp.includes("bodyLimit: config.apiBodyLimitBytes") || !apiApp.includes("requestTimeout: config.apiRequestTimeoutMs") || !apiApp.includes("TRUSTED_PROXY_CIDRS") || !apiApp.includes("trustProxy: config.trustProxyHops > 0")) throw new Error("v0.37 Fastify request/trust budgets must be wired with address-validated proxy trust.");
 if (!apiApp.includes("distributed rate limiter unavailable; using process-local degraded limiter")) throw new Error("v0.37 must preserve abuse protection when distributed rate-limit persistence degrades.");
 
 // v0.38 — Ecosystem Adoption + Judge/Public Launch Readiness.

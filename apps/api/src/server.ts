@@ -38,7 +38,7 @@ try {
       network: config.bscNetwork,
       databaseConfigured: Boolean(config.databaseUrl),
       rateLimitEnabled: config.rateLimitEnabled,
-      trustProxyHops: config.trustProxyHops,
+      trustedProxyAddressRangesEnabled: config.trustProxyHops > 0,
     },
     "Spotriq API ready",
   );

@@ -3,19 +3,11 @@ name: Spotriq deployed-source security profile
 queries:
   - uses: security-extended
 
-# Local verification scripts and tests deliberately contain synthetic URLs, IDs and
-# failure strings. They do not ship in the Railway/Vercel runtime and created noisy
-# URL/logging alerts that obscured deployed-code findings.
+# Verification scripts and tests intentionally contain synthetic hostile URLs, IDs,
+# fixtures and failure strings. They are not deployed by Railway or Vercel, so keep
+# CodeQL focused on production application/package source rather than test fixtures.
 paths-ignore:
   - 'scripts/**'
   - '**/*.test.ts'
   - '**/*.test.tsx'
   - 'artifacts/**'
-
-# Every non-OPTIONS/non-/health API route is covered by the Fastify global onRequest
-# limiter in apps/api/src/app.ts. CodeQL's per-route heuristic does not model that
-# application-wide hook, so keep the invariant in source/tests and suppress only this
-# redundant query rather than adding conflicting route-local limiters.
-query-filters:
-  - exclude:
-      id: js/missing-rate-limiting
