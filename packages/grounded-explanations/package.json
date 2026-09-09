@@ -21,7 +21,7 @@
     "@spotriq/smart-money-plans": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.4.1",
     "tsx": "4.23.1",
     "typescript": "5.7.3"
   }
